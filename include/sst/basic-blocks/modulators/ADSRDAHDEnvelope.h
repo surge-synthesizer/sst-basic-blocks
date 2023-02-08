@@ -19,6 +19,9 @@
 #ifndef SST_BASIC_BLOCKS_MODULATORS_ADSRDAHDENVELOPE_H
 #define SST_BASIC_BLOCKS_MODULATORS_ADSRDAHDENVELOPE_H
 
+#include <cmath>
+#include <cassert>
+
 namespace sst::basic_blocks::modulators
 {
 

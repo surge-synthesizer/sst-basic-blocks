@@ -19,9 +19,13 @@
 #ifndef SST_BASIC_BLOCKS_MODULATORS_SIMPLELFO_H
 #define SST_BASIC_BLOCKS_MODULATORS_SIMPLELFO_H
 
-#include <random>
 #include "sst/basic-blocks/dsp/CorrelatedNoise.h"
 #include "sst/basic-blocks/dsp/Interpolators.h"
+
+#include <random>
+#include <cmath>
+#include <cassert>
+
 
 namespace sst::basic_blocks::modulators
 {

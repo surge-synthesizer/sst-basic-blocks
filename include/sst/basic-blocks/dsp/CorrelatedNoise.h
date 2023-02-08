@@ -19,6 +19,7 @@
 #define SST_BASIC_BLOCKS_DSP_CORRELATEDNOISE_H
 
 #include <functional>
+#include <cmath>
 
 namespace sst::basic_blocks::dsp
 {

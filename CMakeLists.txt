@@ -18,4 +18,5 @@ if (${SST_BASIC_BLOCKS_BUILD_TESTS})
 
     add_executable(smoke-test tests/smoketest.cpp)
     target_link_libraries(smoke-test PUBLIC simde ${PROJECT_NAME})
+    target_compile_definitions(smoke-test PUBLIC _USE_MATH_DEFINES=1)
 endif()

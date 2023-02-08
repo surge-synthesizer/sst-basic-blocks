@@ -20,6 +20,8 @@
 #define SST_BASIC_BLOCKS_MODULATORS_ADARENVELOPE_H
 
 #include <algorithm>
+#include <cmath>
+#include <cassert>
 
 namespace sst::basic_blocks::modulators
 {
