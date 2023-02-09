@@ -21,6 +21,9 @@
 #include "sst/basic-blocks/modulators/SimpleLFO.h"
 
 #include <memory>
+#include "sst/basic-blocks/mechanics/block-ops.h"
+#include "sst/basic-blocks/mechanics/endian-ops.h"
+#include "sst/basic-blocks/mechanics/simd-ops.h"
 
 int main(int argc, char **argv)
 {
@@ -41,5 +44,9 @@ int main(int argc, char **argv)
     ad.processScaledAD(0,0,0,0,false);
     auto lf = sst::basic_blocks::modulators::SimpleLFO<SampleSRProvider, 16>(srp.get());
     lf.process_block(0,0,0);
+
+    float f[8], g[8];
+    sst::basic_blocks::mechanics::accumulate_from_to<8>(f, g);
+    sst::basic_blocks::mechanics::endian_read_int16LE((uint16_t)138);
 
 }
