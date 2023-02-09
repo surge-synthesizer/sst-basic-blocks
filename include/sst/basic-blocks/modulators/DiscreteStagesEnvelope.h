@@ -1,0 +1,201 @@
+/*
+ * sst-basic-blocks - a Surge Synth Team product
+ *
+ * Provides basic tools and blocks for use on the audio thread in
+ * synthesis, including basic DSP and modulation functions
+ *
+ * Copyright 2019 - 2023, Various authors, as described in the github
+ * transaction log.
+ *
+ * sst-basic-blocks is released under the Gnu General Public Licence
+ * V3 or later (GPL-3.0-or-later). The license is found in the file
+ * "LICENSE" in the root of this repository or at
+ * https://www.gnu.org/licenses/gpl-3.0.en.html
+ *
+ * All source for sst-basic-blocks is available at
+ * https://github.com/surge-synthesizer/sst-basic-blocks
+ */
+
+
+#ifndef SST_BASIC_BLOCKS_MODULATORS_DISCRETESTAGESENVELOPE_H
+#define SST_BASIC_BLOCKS_MODULATORS_DISCRETESTAGESENVELOPE_H
+
+namespace sst::basic_blocks::modulators
+{
+
+struct TenSecondRange
+{
+    // 0.0039s -> 10s
+    static constexpr float etMin{-8}, etMax{3.32192809489};
+};
+
+struct HundredSecondRange
+{
+    // 0.05s -> 100s
+    static constexpr float etMin{-4.32192809489}, etMax{6.64385618977};
+};
+
+template<int BLOCK_SIZE, typename RangeProvider>
+struct DiscreteStagesEnvelope
+{
+    static constexpr float etMin{RangeProvider::etMin}, etMax{RangeProvider::etMax}, etScale{etMax - etMin};
+
+    static_assert((BLOCK_SIZE >= 8) & !(BLOCK_SIZE & (BLOCK_SIZE - 1)), "Block size must be power of 2 8 or above.");
+    static constexpr float BLOCK_SIZE_INV{1.f/BLOCK_SIZE};
+
+    DiscreteStagesEnvelope()
+    {
+        for (int i = 0; i < BLOCK_SIZE; ++i)
+        {
+            outputCache[i] = 0;
+            outputCacheCubed[0] = 0;
+        }
+    }
+
+    float output{0}, outputCubed{0}, eoc_output{0};
+    float outputCache alignas(16)[BLOCK_SIZE], outBlock0{0.f};
+    float outputCacheCubed alignas(16)[BLOCK_SIZE];
+    int current{BLOCK_SIZE};
+    int eoc_countdown{0};
+
+    enum Stage
+    {
+        s_delay, // skipped in ADSR
+        s_attack,
+        s_decay,   // Skipped in DAHD
+        s_sustain, // Ignored in DAHD
+        s_hold,
+        s_release,
+        s_analog_residual_decay,
+        s_analog_residual_release,
+        s_eoc,
+        s_complete
+    } stage{s_complete};
+
+    void resetCurrent()
+    {
+        current = BLOCK_SIZE;
+        eoc_output = 0;
+        eoc_countdown = 0;
+    }
+
+    bool preBlockCheck()
+    {
+        if (stage == s_complete)
+        {
+            output = 0;
+            return true;
+        }
+
+        if (stage == s_eoc)
+        {
+            output = 0;
+            eoc_output = 1;
+
+            eoc_countdown--;
+            if (eoc_countdown == 0)
+            {
+                eoc_output = 0;
+                stage = s_complete;
+            }
+            return true;
+        }
+        eoc_output = 0;
+
+        if ((stage == s_analog_residual_release || stage == s_analog_residual_decay) && eoc_countdown)
+        {
+            eoc_output = 1;
+            eoc_countdown--;
+        }
+        return false;
+    }
+
+    float shapeTarget(float target, int ashape, int dshape, int rshape = 0)
+    {
+        if (stage == s_attack)
+        {
+            switch (ashape)
+            {
+            case 0:
+                target = sqrt(target);
+                break;
+            case 2:
+                target = target * target * target;
+                break;
+            }
+        }
+        else if (stage == s_decay)
+        {
+            switch (dshape)
+            {
+            case 0:
+                target = sqrt(target);
+                break;
+            case 2:
+                target = target * target * target;
+                break;
+            }
+        }
+        else if (stage == s_release || stage == s_analog_residual_release)
+        {
+            switch (rshape)
+            {
+            case 0:
+                target = sqrt(target);
+                break;
+            case 2:
+                target = target * target * target;
+                break;
+            }
+        }
+        return target;
+    }
+
+    void updateBlockTo(float target)
+    {
+        float dO = (target - outBlock0) * BLOCK_SIZE_INV;
+        for (int i = 0; i < BLOCK_SIZE; ++i)
+        {
+            outputCache[i] = outBlock0 + dO * i;
+            outputCacheCubed[i] = outputCache[i] * outputCache[i] * outputCache[i];
+        }
+        outBlock0 = target;
+        current = 0;
+    }
+
+    void step()
+    {
+        output = outputCache[current];
+        outputCubed = outputCacheCubed[current];
+        current++;
+    }
+
+    void immediatelySilence()
+    {
+        output = 0;
+        outputCubed = 0;
+        stage = s_complete;
+        eoc_output = 0;
+        eoc_countdown = 0;
+        current = BLOCK_SIZE;
+        outBlock0 = 0;
+        memset(outputCache, 0, sizeof(outputCache));
+        memset(outputCacheCubed, 0, sizeof(outputCacheCubed));
+    }
+
+    float rateFrom01(float r01)
+    {
+        return r01 * etScale + etMin;
+    }
+    float rateTo01(float r)
+    {
+        return (r - etMin) / etScale;
+    }
+    float deltaTo01(float d)
+    {
+        return d / etScale;
+    }
+};
+}
+
+#endif // SURGEXTRACK_FOURSTAGEENVELOPE_H
