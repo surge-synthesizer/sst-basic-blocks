@@ -15,6 +15,8 @@
  * All source for sst-basic-blocks is available at
  * https://github.com/surge-synthesizer/sst-basic-blocks
  */
+
+
 #ifndef SST_BASIC_BLOCKS_DSP_CORRELATEDNOISE_H
 #define SST_BASIC_BLOCKS_DSP_CORRELATEDNOISE_H
 

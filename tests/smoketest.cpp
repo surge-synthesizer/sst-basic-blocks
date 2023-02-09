@@ -16,7 +16,8 @@
 #include "sst/basic-blocks/dsp/Interpolators.h"
 
 #include "sst/basic-blocks/modulators/ADAREnvelope.h"
-#include "sst/basic-blocks/modulators/ADSRDAHDEnvelope.h"
+#include "sst/basic-blocks/modulators/ADSREnvelope.h"
+#include "sst/basic-blocks/modulators/DAHDEnvelope.h"
 #include "sst/basic-blocks/modulators/SimpleLFO.h"
 
 #include <memory>
@@ -32,10 +33,12 @@ int main(int argc, char **argv)
     };
 
     auto srp = std::make_unique<SampleSRProvider>();
-    auto adsr = sst::basic_blocks::modulators::ADSRDAHDEnvelope<SampleSRProvider, 16>(srp.get());
+    auto adsr = sst::basic_blocks::modulators::ADSREnvelope<SampleSRProvider, 16>(srp.get());
+    adsr.process(0,0,0,0,0,0,0,0);
+    auto dahd = sst::basic_blocks::modulators::DAHDEnvelope<SampleSRProvider, 16>(srp.get());
     adsr.process(0,0,0,0,0,0,0,0);
     auto ad = sst::basic_blocks::modulators::ADAREnvelope<SampleSRProvider, 16>(srp.get());
-    ad.process(0,0,0,0,false);
+    ad.processScaledAD(0,0,0,0,false);
     auto lf = sst::basic_blocks::modulators::SimpleLFO<SampleSRProvider, 16>(srp.get());
     lf.process_block(0,0,0);
 
