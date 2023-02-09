@@ -24,16 +24,17 @@ namespace sst::basic_blocks::mechanics
 // TODO - one day we will have different endiand will need an ifdef here
 #define DO_SWAP 0
 
-inline uint32_t swap_endian(uint32_t t)
+inline uint16_t swap_endian_16(uint16_t x) { return ((x & 0xFF) << 8) | ((x & 0xFF00) >> 8); }
+inline uint32_t swap_endian_32(uint32_t x)
 {
-    return ((t << 24) & 0xff000000) | ((t << 8) & 0x00ff0000) | ((t >> 8) & 0x0000ff00) |
-           ((t >> 24) & 0x000000ff);
+    return ((x & 0xFF) << 24) | ((x & 0xFF00) << 8) | ((x & 0xFF0000) >> 8) |
+           ((x & 0xFF000000) >> 24);
 }
 
 inline int endian_write_int32LE(uint32_t t)
 {
 #if DO_SWAP
-    return swap_endian(t);
+    return swap_endian_32(t);
 #else
     return t;
 #endif
@@ -44,7 +45,7 @@ inline float endian_write_float32LE(float f)
 {
 #if DO_SWAP
     int t = *((int *)&f);
-    t = swap_endian(t);
+    t = swap_endian_32(t);
     return *((float *)&t);
 #else
     return f;
@@ -54,7 +55,7 @@ inline float endian_write_float32LE(float f)
 inline int endian_write_int32BE(uint32_t t)
 {
 #if !DO_SWAP
-    return swap_endian(t);
+    return swap_endian_32(t);
 #else
     return t;
 #endif

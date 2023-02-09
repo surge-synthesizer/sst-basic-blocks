@@ -23,9 +23,14 @@ namespace sst::basic_blocks::mechanics
 template <size_t blocksize> inline void accumulate_from_to(const float *src, float *dst)
 {
     for (auto i = 0U; i < blocksize; ++i)
-        dst[i] = src[i];
+        dst[i] += src[i];
 }
 
+template <size_t blocksize> inline void copy_from_to(const float *src, float *dst)
+{
+    for (auto i = 0U; i < blocksize; ++i)
+        dst[i] = src[i];
+}
 } // namespace sst::basic_blocks::block_ops
 
 #endif // SHORTCIRCUIT_BLOCK_OPS_H

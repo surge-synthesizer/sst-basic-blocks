@@ -4,7 +4,6 @@
 
 // For now just a simple smoke test
 
-
 #if defined(__arm64__)
 #define SIMDE_ENABLE_NATIVE_ALIASES
 #include "simde/x86/sse2.h"
@@ -37,16 +36,16 @@ int main(int argc, char **argv)
 
     auto srp = std::make_unique<SampleSRProvider>();
     auto adsr = sst::basic_blocks::modulators::ADSREnvelope<SampleSRProvider, 16>(srp.get());
-    adsr.process(0,0,0,0,0,0,0,0);
+    adsr.process(0, 0, 0, 0, 0, 0, 0, 0);
     auto dahd = sst::basic_blocks::modulators::DAHDEnvelope<SampleSRProvider, 16>(srp.get());
-    adsr.process(0,0,0,0,0,0,0,0);
+    adsr.process(0, 0, 0, 0, 0, 0, 0, 0);
     auto ad = sst::basic_blocks::modulators::ADAREnvelope<SampleSRProvider, 16>(srp.get());
-    ad.processScaledAD(0,0,0,0,false);
+    ad.processScaledAD(0, 0, 0, 0, false);
     auto lf = sst::basic_blocks::modulators::SimpleLFO<SampleSRProvider, 16>(srp.get());
-    lf.process_block(0,0,0);
+    lf.process_block(0, 0, 0);
 
     float f[8], g[8];
     sst::basic_blocks::mechanics::accumulate_from_to<8>(f, g);
+    sst::basic_blocks::mechanics::copy_from_to<8>(f, g);
     sst::basic_blocks::mechanics::endian_read_int16LE((uint16_t)138);
-
 }
