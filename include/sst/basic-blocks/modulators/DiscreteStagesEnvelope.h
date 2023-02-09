@@ -29,10 +29,10 @@ struct TenSecondRange
     static constexpr float etMin{-8}, etMax{3.32192809489};
 };
 
-struct HundredSecondRange
+struct TwoMinuteRange
 {
-    // 0.05s -> 100s
-    static constexpr float etMin{-4.32192809489}, etMax{6.64385618977};
+    // 0.0039s -> 120s
+    static constexpr float etMin{-8}, etMax{6.90689059561};
 };
 
 template<int BLOCK_SIZE, typename RangeProvider>
