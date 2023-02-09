@@ -594,6 +594,14 @@ struct ADSRDAHDEnvelope
         current++;
     }
 
+    void immediatelySilence()
+    {
+        output = 0;
+        outputCubed = 0;
+        memset(outputCache, 0, sizeof(outputCache));
+        memset(outputCacheCubed, 0, sizeof(outputCacheCubed));
+        stage = s_complete;
+    }
 
     float rateFrom01(float r01)
     {
