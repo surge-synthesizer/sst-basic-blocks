@@ -16,7 +16,6 @@
  * https://github.com/surge-synthesizer/sst-basic-blocks
  */
 
-
 #ifndef SST_BASIC_BLOCKS_MODULATORS_DISCRETESTAGESENVELOPE_H
 #define SST_BASIC_BLOCKS_MODULATORS_DISCRETESTAGESENVELOPE_H
 
@@ -29,19 +28,26 @@ struct TenSecondRange
     static constexpr float etMin{-8}, etMax{3.32192809489};
 };
 
+struct ThirtyTwoSecondRange
+{
+    // 0.0039s -> 32s
+    static constexpr float etMin{-8}, etMax{5};
+};
+
 struct TwoMinuteRange
 {
     // 0.0039s -> 120s
     static constexpr float etMin{-8}, etMax{6.90689059561};
 };
 
-template<int BLOCK_SIZE, typename RangeProvider>
-struct DiscreteStagesEnvelope
+template <int BLOCK_SIZE, typename RangeProvider> struct DiscreteStagesEnvelope
 {
-    static constexpr float etMin{RangeProvider::etMin}, etMax{RangeProvider::etMax}, etScale{etMax - etMin};
+    static constexpr float etMin{RangeProvider::etMin}, etMax{RangeProvider::etMax},
+        etScale{etMax - etMin};
 
-    static_assert((BLOCK_SIZE >= 8) & !(BLOCK_SIZE & (BLOCK_SIZE - 1)), "Block size must be power of 2 8 or above.");
-    static constexpr float BLOCK_SIZE_INV{1.f/BLOCK_SIZE};
+    static_assert((BLOCK_SIZE >= 8) & !(BLOCK_SIZE & (BLOCK_SIZE - 1)),
+                  "Block size must be power of 2 8 or above.");
+    static constexpr float BLOCK_SIZE_INV{1.f / BLOCK_SIZE};
 
     DiscreteStagesEnvelope()
     {
@@ -102,7 +108,8 @@ struct DiscreteStagesEnvelope
         }
         eoc_output = 0;
 
-        if ((stage == s_analog_residual_release || stage == s_analog_residual_decay) && eoc_countdown)
+        if ((stage == s_analog_residual_release || stage == s_analog_residual_decay) &&
+            eoc_countdown)
         {
             eoc_output = 1;
             eoc_countdown--;
@@ -183,19 +190,10 @@ struct DiscreteStagesEnvelope
         memset(outputCacheCubed, 0, sizeof(outputCacheCubed));
     }
 
-    float rateFrom01(float r01)
-    {
-        return r01 * etScale + etMin;
-    }
-    float rateTo01(float r)
-    {
-        return (r - etMin) / etScale;
-    }
-    float deltaTo01(float d)
-    {
-        return d / etScale;
-    }
+    float rateFrom01(float r01) { return r01 * etScale + etMin; }
+    float rateTo01(float r) { return (r - etMin) / etScale; }
+    float deltaTo01(float d) { return d / etScale; }
 };
-}
+} // namespace sst::basic_blocks::modulators
 
 #endif // SURGEXTRACK_FOURSTAGEENVELOPE_H

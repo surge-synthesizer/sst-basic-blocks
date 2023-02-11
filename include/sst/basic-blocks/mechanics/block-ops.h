@@ -20,6 +20,8 @@
 
 namespace sst::basic_blocks::mechanics
 {
+// TODO: Look at these in godbolt to see how well they optimize for 8
+// 16 and 32 and if we should simdize by hand or not. (probably not)
 template <size_t blocksize> inline void accumulate_from_to(const float *src, float *dst)
 {
     for (auto i = 0U; i < blocksize; ++i)
@@ -30,6 +32,21 @@ template <size_t blocksize> inline void copy_from_to(const float *src, float *ds
 {
     for (auto i = 0U; i < blocksize; ++i)
         dst[i] = src[i];
+}
+
+template <size_t blockSize> inline void scale_by(const float *scale, float *target)
+{
+    for (auto i=0U; i<blockSize; ++i)
+        target[i] *= scale[i];
+}
+
+template <size_t blockSize> inline void scale_by(const float *scale, float *targetL, float *targetR)
+{
+    for (auto i=0U; i<blockSize; ++i)
+    {
+        targetL[i] *= scale[i];
+        targetR[i] *= scale[i];
+    }
 }
 } // namespace sst::basic_blocks::block_ops
 

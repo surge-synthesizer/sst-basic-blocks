@@ -16,8 +16,6 @@
  * https://github.com/surge-synthesizer/sst-basic-blocks
  */
 
-
-
 #ifndef SST_BASIC_BLOCKS_MODULATORS_ADSRENVELOPE_H
 #define SST_BASIC_BLOCKS_MODULATORS_ADSRENVELOPE_H
 
@@ -27,7 +25,6 @@
 
 namespace sst::basic_blocks::modulators
 {
-
 
 /**
  * The ADSR or DAHD envelope provider
@@ -40,7 +37,7 @@ namespace sst::basic_blocks::modulators
  * @tparam BLOCK_SIZE  the block size
  * @tparam RangeProvider - sets mins and maxes
  */
-template<typename SRProvider, int BLOCK_SIZE, typename RangeProvider = TenSecondRange>
+template <typename SRProvider, int BLOCK_SIZE, typename RangeProvider = TenSecondRange>
 struct ADSREnvelope : DiscreteStagesEnvelope<BLOCK_SIZE, RangeProvider>
 {
     using base_t = DiscreteStagesEnvelope<BLOCK_SIZE, RangeProvider>;
@@ -191,10 +188,14 @@ struct ADSREnvelope : DiscreteStagesEnvelope<BLOCK_SIZE, RangeProvider>
     {
         auto &stage = this->stage;
 
-        float coef_A = powf(2.f, std::min(0.f, coeff_offset - (a * base_t::etScale + base_t::etMin)));
-        float coef_D = powf(2.f, std::min(0.f, coeff_offset - (d * base_t::etScale + base_t::etMin)));
+        float coef_A =
+            powf(2.f, std::min(0.f, coeff_offset - (a * base_t::etScale + base_t::etMin)));
+        float coef_D =
+            powf(2.f, std::min(0.f, coeff_offset - (d * base_t::etScale + base_t::etMin)));
         float coef_R =
-            (stage >= base_t::s_eoc) ? 6.f : pow(2.f, std::min(0.f, coeff_offset - (r * base_t::etScale + base_t::etMin)));
+            (stage >= base_t::s_eoc)
+                ? 6.f
+                : pow(2.f, std::min(0.f, coeff_offset - (r * base_t::etScale + base_t::etMin)));
 
         const float v_cc = 1.01f;
         float v_gate = gateActive ? v_cc : 0.f;
@@ -322,6 +323,13 @@ struct ADSREnvelope : DiscreteStagesEnvelope<BLOCK_SIZE, RangeProvider>
         base_t::step();
     }
 
+    inline void processBlock(const float a, const float d, const float s, const float r,
+                             const int ashape, const int dshape, const int rshape,
+                             const bool gateActive)
+    {
+        this->current = BLOCK_SIZE;
+        process(a, d, s, r, ashape, dshape, rshape, gateActive);
+    }
 };
-} // namespace sst::surgext_rack::dsp::envelopes
+} // namespace sst::basic_blocks::modulators
 #endif // RACK_HACK_ADARENVELOPE_H
