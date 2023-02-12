@@ -329,6 +329,10 @@ struct ADSREnvelope : DiscreteStagesEnvelope<BLOCK_SIZE, RangeProvider>
     {
         this->current = BLOCK_SIZE;
         process(a, d, s, r, ashape, dshape, rshape, gateActive);
+        if (this->stage == base_t::s_complete || this->stage == base_t::s_eoc)
+        {
+            memset(this->outputCache, 0, sizeof(this->outputCache));
+        }
     }
 };
 } // namespace sst::basic_blocks::modulators
