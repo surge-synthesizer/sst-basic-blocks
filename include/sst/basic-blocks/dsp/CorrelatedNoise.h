@@ -22,6 +22,7 @@
 
 #include <functional>
 #include <cmath>
+#include <pmmintrin.h>
 
 namespace sst::basic_blocks::dsp
 {

@@ -48,7 +48,7 @@ struct SimpleLFO
     float rngHistory[4]{0, 0, 0, 0};
 
     float rngCurrent{0};
-
+    
     SimpleLFO(SRProvider *s, uint32_t seed = rand()) : srProvider(s)
     {
         gen = std::default_random_engine();
@@ -183,10 +183,11 @@ struct SimpleLFO
             }
         }
         auto shp = (Shape)(lshape);
+        const double cpi = 3.14159265358979323846;
         switch (shp)
         {
         case SINE:
-            target = bend1(std::sin(2.0 * M_PI * phase), d);
+            target = bend1(std::sin(2.0 * cpi * phase), d);
             break;
         case RAMP:
             target = bend1(2 * phase - 1, d);
@@ -255,6 +256,11 @@ struct SimpleLFO
         }
         lastTarget = target;
     }
+private:
+    SimpleLFO(const SimpleLFO&) = delete;
+    SimpleLFO& operator=(const SimpleLFO&) = delete;
+    SimpleLFO(SimpleLFO&&) = delete;
+    SimpleLFO& operator=(SimpleLFO&&) = delete;
 };
 } // namespace sst::surgext_rack::dsp::modulators
 #endif // RACK_HACK_SIMPLELFO_H
