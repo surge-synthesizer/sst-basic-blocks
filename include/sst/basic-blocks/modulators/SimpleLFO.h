@@ -48,7 +48,7 @@ struct SimpleLFO
     float rngHistory[4]{0, 0, 0, 0};
 
     float rngCurrent{0};
-
+    
     SimpleLFO(SRProvider *s, uint32_t seed = rand()) : srProvider(s)
     {
         gen = std::default_random_engine();
@@ -255,6 +255,11 @@ struct SimpleLFO
         }
         lastTarget = target;
     }
+private:
+    SimpleLFO(const SimpleLFO&) = delete;
+    SimpleLFO& operator=(const SimpleLFO&) = delete;
+    SimpleLFO(SimpleLFO&&) = delete;
+    SimpleLFO& operator=(SimpleLFO&&) = delete;
 };
 } // namespace sst::surgext_rack::dsp::modulators
 #endif // RACK_HACK_SIMPLELFO_H
