@@ -183,11 +183,10 @@ struct SimpleLFO
             }
         }
         auto shp = (Shape)(lshape);
-        const double cpi = 3.14159265358979323846;
         switch (shp)
         {
         case SINE:
-            target = bend1(std::sin(2.0 * cpi * phase), d);
+            target = bend1(std::sin(2.0 * M_PI * phase), d);
             break;
         case RAMP:
             target = bend1(2 * phase - 1, d);
