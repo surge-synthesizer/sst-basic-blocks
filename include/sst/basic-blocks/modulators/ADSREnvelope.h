@@ -21,6 +21,7 @@
 
 #include <cmath>
 #include <cassert>
+#include <algorithm>
 #include "DiscreteStagesEnvelope.h"
 
 namespace sst::basic_blocks::modulators
