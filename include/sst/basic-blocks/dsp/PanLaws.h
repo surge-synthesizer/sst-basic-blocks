@@ -16,7 +16,6 @@
  * https://github.com/surge-synthesizer/sst-basic-blocks
  */
 
-
 #ifndef SST_BASIC_BLOCKS_DSP_PANLAWS_H
 #define SST_BASIC_BLOCKS_DSP_PANLAWS_H
 
@@ -55,6 +54,21 @@ inline void monoEqualPower(float pan, panmatrix_t &res)
 
 inline void stereoEqualPower(float pan, panmatrix_t &res)
 {
+    res[2] = 0;
+    res[3] = 0;
+    if (pan == 0.5f)
+    {
+        res[0] = 1;
+        res[1] = 1;
+    }
+    else
+    {
+        sinCosSqrt2(res[1], res[0], pan * float(M_PI_2));
+    }
+}
+
+inline void stereoTruePanning(float pan, panmatrix_t &res)
+{
     if (pan == 0.5f)
     {
         res[0] = 1;
@@ -75,5 +89,5 @@ inline void stereoEqualPower(float pan, panmatrix_t &res)
         res[3] = 0.0f;
     }
 }
-} // namespace sst::surgext_rack::dsp::pan_laws
+} // namespace sst::basic_blocks::dsp::pan_laws
 #endif // SURGEXTRACK_PANLAWS_H
