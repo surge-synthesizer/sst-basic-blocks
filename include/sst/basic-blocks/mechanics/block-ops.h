@@ -20,34 +20,39 @@
 
 namespace sst::basic_blocks::mechanics
 {
-// TODO: Look at these in godbolt to see how well they optimize for 8
-// 16 and 32 and if we should simdize by hand or not. (probably not)
-template <size_t blocksize> inline void accumulate_from_to(const float *src, float *dst)
+// I checked these with clang / godbolt and they output the same SIMD I would code by hand
+// once you add the __restrict keyword
+template <size_t blocksize>
+inline void accumulate_from_to(const float *__restrict src, float *__restrict dst)
 {
     for (auto i = 0U; i < blocksize; ++i)
         dst[i] += src[i];
 }
 
-template <size_t blocksize> inline void copy_from_to(const float *src, float *dst)
+template <size_t blocksize>
+inline void copy_from_to(const float *__restrict src, float *__restrict dst)
 {
     for (auto i = 0U; i < blocksize; ++i)
         dst[i] = src[i];
 }
 
-template <size_t blockSize> inline void scale_by(const float *scale, float *target)
+template <size_t blockSize>
+inline void scale_by(const float *__restrict scale, float *__restrict target)
 {
-    for (auto i=0U; i<blockSize; ++i)
+    for (auto i = 0U; i < blockSize; ++i)
         target[i] *= scale[i];
 }
 
-template <size_t blockSize> inline void scale_by(const float *scale, float *targetL, float *targetR)
+template <size_t blockSize>
+inline void scale_by(const float *__restrict scale, float *__restrict targetL,
+                     float *__restrict targetR)
 {
-    for (auto i=0U; i<blockSize; ++i)
+    for (auto i = 0U; i < blockSize; ++i)
     {
         targetL[i] *= scale[i];
         targetR[i] *= scale[i];
     }
 }
-} // namespace sst::basic_blocks::block_ops
+} // namespace sst::basic_blocks::mechanics
 
 #endif // SHORTCIRCUIT_BLOCK_OPS_H
