@@ -4,15 +4,16 @@
 
 // For now just a simple smoke test
 
-#if defined(__arm64__)
-#define SIMDE_ENABLE_NATIVE_ALIASES
-#include "simde/x86/sse2.h"
-#else
-#include <emmintrin.h>
-#endif
+#define CATCH_CONFIG_RUNNER
+#include "catch2.hpp"
+
+#include <iostream>
+#include "smoke_test_sse.h"
 
 #include "sst/basic-blocks/dsp/CorrelatedNoise.h"
 #include "sst/basic-blocks/dsp/Interpolators.h"
+#include "sst/basic-blocks/dsp/BlockInterpolators.h"
+#include "sst/basic-blocks/dsp/PanLaws.h"
 
 #include "sst/basic-blocks/modulators/ADAREnvelope.h"
 #include "sst/basic-blocks/modulators/ADSREnvelope.h"
@@ -51,4 +52,8 @@ int main(int argc, char **argv)
     sst::basic_blocks::mechanics::accumulate_from_to<8>(f, g);
     sst::basic_blocks::mechanics::copy_from_to<8>(f, g);
     sst::basic_blocks::mechanics::endian_read_int16LE((uint16_t)138);
+
+    int result = Catch::Session().run(argc, argv);
+
+    return result;
 }

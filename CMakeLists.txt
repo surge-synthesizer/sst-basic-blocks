@@ -14,9 +14,14 @@ if (${SST_BASIC_BLOCKS_BUILD_TESTS})
             VERSION 0.7.2
             )
     add_library(test-simde INTERFACE)
-    target_include_directories(test-simde INTERFACE ${simde_SOURCE_DIR})
+    target_include_directories(test-simde INTERFACE
+            ${simde_SOURCE_DIR}
+            tests)
 
-    add_executable(smoke-test tests/smoketest.cpp)
+    add_executable(smoke-test
+            tests/smoketest.cpp
+            tests/dsp_interpolators.cpp
+            )
     target_link_libraries(smoke-test PUBLIC test-simde ${PROJECT_NAME})
     target_compile_definitions(smoke-test PUBLIC _USE_MATH_DEFINES=1)
-endif()
+endif ()
