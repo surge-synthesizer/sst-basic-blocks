@@ -162,7 +162,7 @@ TEST_CASE("Quadrature Oscillator")
 {
     for (const auto omega : {0.04, 0.12, 0.43, 0.97})
     {
-        DYNAMIC_SECTION("Vivek Quadrature omega=" << omega)
+        DYNAMIC_SECTION("Vicanek Quadrature omega=" << omega)
         {
             auto q = sst::basic_blocks::dsp::QuadratureOscillator();
 
