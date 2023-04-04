@@ -16,7 +16,6 @@
  * https://github.com/surge-synthesizer/sst-basic-blocks
  */
 
-
 #ifndef SST_BASIC_BLOCKS_DSP_CORRELATEDNOISE_H
 #define SST_BASIC_BLOCKS_DSP_CORRELATEDNOISE_H
 
@@ -27,7 +26,7 @@ namespace sst::basic_blocks::dsp
 {
 
 inline float correlated_noise_o2mk2_suppliedrng(float &lastval, float &lastval2, float correlation,
-                                         std::function<float()> &urng)
+                                                std::function<float()> &urng)
 {
     float wf = correlation;
     float wfabs = fabs(wf) * 0.8f;
@@ -49,5 +48,5 @@ inline float correlated_noise_o2mk2_suppliedrng(float &lastval, float &lastval2,
     lastval = lastval2 * (1 - wfabs) - wf * lastval;
     return lastval * m;
 }
-}
+} // namespace sst::basic_blocks::dsp
 #endif // SURGEXTRACK_CORRELATEDNOISE_H

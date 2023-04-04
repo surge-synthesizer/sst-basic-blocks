@@ -16,7 +16,6 @@
  * https://github.com/surge-synthesizer/sst-basic-blocks
  */
 
-
 #ifndef SST_BASIC_BLOCKS_DSP_INTERPOLATORS_H
 #define SST_BASIC_BLOCKS_DSP_INTERPOLATORS_H
 
@@ -34,6 +33,6 @@ inline float cubic_ipol(float y0, float y1, float y2, float y3, float mu)
 
     return (a0 * mu * mu2 + a1 * mu2 + a2 * mu + a3);
 }
-}
+} // namespace sst::basic_blocks::dsp
 
 #endif // SURGEXTRACK_INTERPOLATORS_H

@@ -15,10 +15,13 @@ jobs:
         include:
           - os: ubuntu-latest
             name: linux
+            testExe: build/smoke-test
           - os: macos-latest
             name: mac
+            testExe: build/smoke-test
           - os: windows-latest
             name: win
+            testExe: build/Release/smoke-test.exe
 
     steps:
 
@@ -27,7 +30,12 @@ jobs:
         with:
           submodules: recursive
 
-      - name: Build binary
+      - name: Build Smoke test
         run: |
-          cmake -S . -B ./build -DCMAKE_BUILD_TYPE=Debug -DSST_BASIC_BLOCKS_BUILD_TESTS=TRUE -DCMAKE_OSX_ARCHITECTURES="arm64;x86_64"
-          cmake --build ./build --config Debug
+          cmake -S . -B ./build -DCMAKE_BUILD_TYPE=Release -DSST_BASIC_BLOCKS_BUILD_TESTS=TRUE -DCMAKE_OSX_ARCHITECTURES="arm64;x86_64"
+          cmake --build ./build --config Release
+
+      - name: Run Smoke Test
+        run: |
+          ls ${{ matrix.testExe }}
+          ${{ matrix.testExe }}
