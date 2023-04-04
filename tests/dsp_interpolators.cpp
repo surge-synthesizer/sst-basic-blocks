@@ -115,7 +115,6 @@ TEST_CASE("lipol_sse multiply_block", "[dsp]")
         constexpr int bs{16};
         auto lip = sst::basic_blocks::dsp::lipol_sse<bs, false>();
 
-        float where alignas(16)[bs];
         lip.set_target_instant(0.2);
         lip.set_target(0.6);
         float f alignas(16)[bs], r alignas(16)[bs];
@@ -139,7 +138,6 @@ TEST_CASE("lipol_sse fade_block", "[dsp]")
         constexpr int bs{16};
         auto lip = sst::basic_blocks::dsp::lipol_sse<bs, false>();
 
-        float where alignas(16)[bs];
         lip.set_target_instant(0.2);
         lip.set_target(0.6);
         float f alignas(16)[bs], g alignas(16)[bs], r alignas(16)[bs];
