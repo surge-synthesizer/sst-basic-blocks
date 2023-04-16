@@ -7,8 +7,11 @@
 #include <cmath>
 #include "sst/basic-blocks/dsp/BlockInterpolators.h"
 #include "sst/basic-blocks/dsp/QuadratureOscillators.h"
+#include "sst/basic-blocks/dsp/LanczosResampler.h"
 
 #include <iostream>
+
+
 TEST_CASE("lipol_sse basic", "[dsp]")
 {
     SECTION("Block Size 16")
@@ -175,6 +178,43 @@ TEST_CASE("Quadrature Oscillator")
 
                 q.step();
                 p0 += omega;
+            }
+        }
+    }
+}
+
+TEST_CASE("LanczosResampler", "[dsp]")
+{
+    SECTION("Can Interpolate Sine")
+    {
+        sst::basic_blocks::dsp::LanczosResampler<32> lr(48000, 88100);
+
+        // plot 'lancos_raw.csv' using 1:2 with lines, 'lancos_samp.csv' using 1:2 with lines
+        int points = 1000;
+        double dp = 1.0 / 370;
+        float phase = 0;
+        for (auto i = 0; i < points; ++i)
+        {
+            auto obsS = std::sin(phase * 2.0 * M_PI);
+            auto obsR = phase * 2 - 1;
+            phase += dp;
+            if (phase > 1)
+                phase -= 1;
+            lr.push(obsS, obsR);
+        }
+
+        float outBlock alignas(16) [64], outBlockR alignas(16)[64];
+        int q, gen;
+        dp /= 88100.0 / 48000.0;
+
+        phase = 0;
+        while ((gen = lr.populateNext(outBlock, outBlockR, 64)) > 0)
+        {
+            for (int i = 0; i < gen; ++i)
+            {
+                auto d = outBlock[i] - std::sin(phase * 2.0 * M_PI);
+                REQUIRE(fabs(d) < 0.025);
+                phase += dp;
             }
         }
     }
