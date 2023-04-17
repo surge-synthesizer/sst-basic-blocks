@@ -9,6 +9,7 @@
 #include "sst/basic-blocks/dsp/QuadratureOscillators.h"
 #include "sst/basic-blocks/dsp/LanczosResampler.h"
 #include "sst/basic-blocks/dsp/FastMath.h"
+#include "sst/basic-blocks/dsp/Clippers.h"
 
 #include <iostream>
 
@@ -451,4 +452,21 @@ TEST_CASE("Check FastMath Functions", "[dsp]")
             }
         }
     }
+}
+
+TEST_CASE("SoftClip", "[dsp]")
+{
+    float r alignas(16)[4];
+    r[0] = -1.6;
+    r[1] = -0.8;
+    r[2] = 0.6;
+    r[3] = 1.7;
+
+    auto v = _mm_load_ps(r);
+    auto c = sst::basic_blocks::dsp::softclip_ps(v);
+    _mm_store_ps(r, c);
+    REQUIRE(r[0] == Approx(-1.0).margin(0.0001));
+    REQUIRE(r[1] == Approx(-0.8 - 4.f / 27.f * pow(-0.8, 3)).margin(0.0001));
+    REQUIRE(r[2] == Approx(0.6 - 4.f / 27.f * pow(0.6, 3)).margin(0.0001));
+    REQUIRE(r[3] == Approx(1.0).margin(0.0001));
 }
