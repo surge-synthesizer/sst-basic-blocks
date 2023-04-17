@@ -30,7 +30,8 @@ inline __m128 sum_ps_to_ss(__m128 x)
 
 inline float sum_ps_to_float(__m128 x)
 {
-    __m128 r = sum_ps_to_ss(x);
+    // MSVC can ambiguously resolve this while it still lives in surge vt_dsp alas
+    __m128 r = sst::basic_blocks::mechanics::sum_ps_to_ss(x);
     float f;
     _mm_store_ss(&f, r);
     return f;
