@@ -21,7 +21,10 @@ if (${SST_BASIC_BLOCKS_BUILD_TESTS})
     add_executable(smoke-test
             tests/smoketest.cpp
             tests/dsp_tests.cpp
+            tests/simd_tests.cpp
             )
     target_link_libraries(smoke-test PUBLIC test-simde ${PROJECT_NAME})
     target_compile_definitions(smoke-test PUBLIC _USE_MATH_DEFINES=1)
+    target_compile_definitions(smoke-test PRIVATE CATCH_CONFIG_DISABLE_EXCEPTIONS=1)
+
 endif ()

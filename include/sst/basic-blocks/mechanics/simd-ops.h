@@ -37,6 +37,22 @@ inline float sum_ps_to_float(__m128 x)
     return f;
 }
 
+namespace detail
+{
+inline float i2f_binary_cast(int i)
+{
+    float *f = (float *)&i;
+    return *f;
+}
+}
+
+const __m128 m128_mask_signbit = _mm_set1_ps(detail::i2f_binary_cast(0x80000000));
+const __m128 m128_mask_absval = _mm_set1_ps(detail::i2f_binary_cast(0x7fffffff));
+
+inline __m128 abs_ps(__m128 x) {
+    return _mm_and_ps(x, m128_mask_absval);
+}
+
 } // namespace sst::basic_blocks::block_ops
 
 #endif // SHORTCIRCUIT_SIMD_OPS_H
