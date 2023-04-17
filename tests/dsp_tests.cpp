@@ -8,6 +8,7 @@
 #include "sst/basic-blocks/dsp/BlockInterpolators.h"
 #include "sst/basic-blocks/dsp/QuadratureOscillators.h"
 #include "sst/basic-blocks/dsp/LanczosResampler.h"
+#include "sst/basic-blocks/dsp/FastMath.h"
 
 #include <iostream>
 
@@ -215,6 +216,238 @@ TEST_CASE("LanczosResampler", "[dsp]")
                 auto d = outBlock[i] - std::sin(phase * 2.0 * M_PI);
                 REQUIRE(fabs(d) < 0.025);
                 phase += dp;
+            }
+        }
+    }
+}
+
+
+TEST_CASE("Check FastMath Functions", "[dsp]")
+{
+    SECTION("Clamp to -PI,PI")
+    {
+        for (float f = -2132.7; f < 37424.3; f += 0.741)
+        {
+            float q = sst::basic_blocks::dsp::clampToPiRange(f);
+            INFO("Clamping " << f << " to " << q);
+            REQUIRE(q > -M_PI);
+            REQUIRE(q < M_PI);
+        }
+    }
+
+    SECTION("fastSin and fastCos in range -PI, PI")
+    {
+        float sds = 0, md = 0;
+        int nsamp = 100000;
+        for (int i = 0; i < nsamp; ++i)
+        {
+            float p = 2.f * M_PI * rand() / RAND_MAX - M_PI;
+            float cp = std::cos(p);
+            float sp = std::sin(p);
+            float fcp = sst::basic_blocks::dsp::fastcos(p);
+            float fsp = sst::basic_blocks::dsp::fastsin(p);
+
+            float cd = fabs(cp - fcp);
+            float sd = fabs(sp - fsp);
+            if (cd > md)
+                md = cd;
+            if (sd > md)
+                md = sd;
+            sds += cd * cd + sd * sd;
+        }
+        sds = sqrt(sds) / nsamp;
+        REQUIRE(md < 1e-4);
+        REQUIRE(sds < 1e-6);
+    }
+
+    SECTION("fastSin and fastCos in range -10*PI, 10*PI with clampRange")
+    {
+        float sds = 0, md = 0;
+        int nsamp = 100000;
+        for (int i = 0; i < nsamp; ++i)
+        {
+            float p = 2.f * M_PI * rand() / RAND_MAX - M_PI;
+            p *= 10;
+            p = sst::basic_blocks::dsp::clampToPiRange(p);
+            float cp = std::cos(p);
+            float sp = std::sin(p);
+            float fcp = sst::basic_blocks::dsp::fastcos(p);
+            float fsp = sst::basic_blocks::dsp::fastsin(p);
+
+            float cd = fabs(cp - fcp);
+            float sd = fabs(sp - fsp);
+            if (cd > md)
+                md = cd;
+            if (sd > md)
+                md = sd;
+            sds += cd * cd + sd * sd;
+        }
+        sds = sqrt(sds) / nsamp;
+        REQUIRE(md < 1e-4);
+        REQUIRE(sds < 1e-6);
+    }
+
+    SECTION("fastSin and fastCos in range -100*PI, 100*PI with clampRange")
+    {
+        float sds = 0, md = 0;
+        int nsamp = 100000;
+        for (int i = 0; i < nsamp; ++i)
+        {
+            float p = 2.f * M_PI * rand() / RAND_MAX - M_PI;
+            p *= 100;
+            p = sst::basic_blocks::dsp::clampToPiRange(p);
+            float cp = std::cos(p);
+            float sp = std::sin(p);
+            float fcp = sst::basic_blocks::dsp::fastcos(p);
+            float fsp = sst::basic_blocks::dsp::fastsin(p);
+
+            float cd = fabs(cp - fcp);
+            float sd = fabs(sp - fsp);
+            if (cd > md)
+                md = cd;
+            if (sd > md)
+                md = sd;
+            sds += cd * cd + sd * sd;
+        }
+        sds = sqrt(sds) / nsamp;
+        REQUIRE(md < 1e-4);
+        REQUIRE(sds < 1e-6);
+    }
+
+    SECTION("fastTanh and fastTanhSSE")
+    {
+        for (float x = -4.9; x < 4.9; x += 0.02)
+        {
+            INFO("Testing unclamped at " << x);
+            auto q = _mm_set_ps1(x);
+            auto r = sst::basic_blocks::dsp::fasttanhSSE(q);
+            auto rn = tanh(x);
+            auto rd = sst::basic_blocks::dsp::fasttanh(x);
+            union
+            {
+                __m128 v;
+                float a[4];
+            } U;
+            U.v = r;
+            REQUIRE(U.a[0] == Approx(rn).epsilon(1e-4));
+            REQUIRE(rd == Approx(rn).epsilon(1e-4));
+        }
+
+        for (float x = -10; x < 10; x += 0.02)
+        {
+            INFO("Testing clamped at " << x);
+            auto q = _mm_set_ps1(x);
+            auto r = sst::basic_blocks::dsp::fasttanhSSEclamped(q);
+            auto cn = tanh(x);
+            union
+            {
+                __m128 v;
+                float a[4];
+            } U;
+            U.v = r;
+            REQUIRE(U.a[0] == Approx(cn).epsilon(5e-4));
+        }
+    }
+
+    SECTION("fastTan")
+    {
+        // need to bump start point slightly, fasttan is only valid just after -PI/2
+        for (float x = -M_PI / 2.0 + 0.001; x < M_PI / 2.0; x += 0.02)
+        {
+            INFO("Testing fasttan at " << x);
+            auto rn = tanf(x);
+            auto rd = sst::basic_blocks::dsp::fasttan(x);
+            REQUIRE(rd == Approx(rn).epsilon(1e-4));
+        }
+    }
+
+    SECTION("fastexp and fastexpSSE")
+    {
+        for (float x = -3.9; x < 2.9; x += 0.02)
+        {
+            INFO("Testing fastexp at " << x);
+            auto q = _mm_set_ps1(x);
+            auto r = sst::basic_blocks::dsp::fastexpSSE(q);
+            auto rn = exp(x);
+            auto rd = sst::basic_blocks::dsp::fastexp(x);
+            union
+            {
+                __m128 v;
+                float a[4];
+            } U;
+            U.v = r;
+
+            if (x < 0)
+            {
+                REQUIRE(U.a[0] == Approx(rn).margin(1e-3));
+                REQUIRE(rd == Approx(rn).margin(1e-3));
+            }
+            else
+            {
+                REQUIRE(U.a[0] == Approx(rn).epsilon(1e-3));
+                REQUIRE(rd == Approx(rn).epsilon(1e-3));
+            }
+        }
+    }
+
+    SECTION("fastSine and fastSinSSE")
+    {
+        for (float x = -3.14; x < 3.14; x += 0.02)
+        {
+            INFO("Testing unclamped at " << x);
+            auto q = _mm_set_ps1(x);
+            auto r = sst::basic_blocks::dsp::fastsinSSE(q);
+            auto rn = sin(x);
+            auto rd = sst::basic_blocks::dsp::fastsin(x);
+            union
+            {
+                __m128 v;
+                float a[4];
+            } U;
+            U.v = r;
+            REQUIRE(U.a[0] == Approx(rn).margin(1e-4));
+            REQUIRE(rd == Approx(rn).margin(1e-4));
+            REQUIRE(U.a[0] == Approx(rd).margin(1e-6));
+        }
+    }
+
+    SECTION("fastCos and fastCosSSE")
+    {
+        for (float x = -3.14; x < 3.14; x += 0.02)
+        {
+            INFO("Testing unclamped at " << x);
+            auto q = _mm_set_ps1(x);
+            auto r = sst::basic_blocks::dsp::fastcosSSE(q);
+            auto rn = cos(x);
+            auto rd = sst::basic_blocks::dsp::fastcos(x);
+            union
+            {
+                __m128 v;
+                float a[4];
+            } U;
+            U.v = r;
+            REQUIRE(U.a[0] == Approx(rn).margin(1e-4));
+            REQUIRE(rd == Approx(rn).margin(1e-4));
+            REQUIRE(U.a[0] == Approx(rd).margin(1e-6));
+        }
+    }
+
+    SECTION("Clamp to -PI,PI SSE")
+    {
+        for (float f = -800.7; f < 816.4; f += 0.245)
+        {
+            auto fs = _mm_set_ps1(f);
+
+            auto q = sst::basic_blocks::dsp::clampToPiRangeSSE(fs);
+            union
+            {
+                __m128 v;
+                float a[4];
+            } U;
+            U.v = q;
+            for (int s = 0; s < 4; ++s)
+            {
+                REQUIRE(U.a[s] == Approx(sst::basic_blocks::dsp::clampToPiRange(f)).margin(1e-4));
             }
         }
     }
