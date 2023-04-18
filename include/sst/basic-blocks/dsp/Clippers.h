@@ -66,6 +66,69 @@ inline __m128 softclip8_ps(__m128 in)
     t = _mm_add_ps(t, x);
     return t;
 }
+
+inline __m128 tanh7_ps(__m128 v)
+{
+    const __m128 upper_bound = _mm_set1_ps(1.139f);
+    const __m128 lower_bound = _mm_set1_ps(-1.139f);
+    auto x = _mm_max_ps(v, lower_bound);
+    x = _mm_min_ps(x, upper_bound);
+
+    const __m128 a = _mm_set1_ps(-1.f / 3.f);
+    const __m128 b = _mm_set1_ps(2.f / 15.f);
+    const __m128 c = _mm_set1_ps(-17.f / 315.f);
+    const __m128 one = _mm_set1_ps(1.f);
+    __m128 xx = _mm_mul_ps(x, x);
+    __m128 y = _mm_add_ps(one, _mm_mul_ps(a, xx));
+    __m128 x4 = _mm_mul_ps(xx, xx);
+    y = _mm_add_ps(y, _mm_mul_ps(b, x4));
+    x4 = _mm_mul_ps(x4, xx);
+    y = _mm_add_ps(y, _mm_mul_ps(c, x4));
+    return _mm_mul_ps(y, x);
+}
+
+template <size_t blockSize>
+void softclip_block(float *__restrict x)
+{
+    for (unsigned int i = 0; i < blockSize; i += 4)
+    {
+        _mm_store_ps(x + i, softclip_ps(_mm_load_ps(x + i)));
+    }
+}
+
+template <size_t blockSize>
+void tanh7_block(float *__restrict x)
+{
+    for (unsigned int i = 0; i < blockSize; i += 4)
+    {
+        _mm_store_ps(x + i, tanh7_ps(_mm_load_ps(x + i)));
+    }
+}
+
+template<size_t blockSize>
+void hardclip_block(float *x)
+{
+    static_assert(!(blockSize & (blockSize - 1)) && blockSize >= 4);
+    const __m128 x_min = _mm_set1_ps(-1.0f);
+    const __m128 x_max = _mm_set1_ps(1.0f);
+    for (unsigned int i = 0; i < blockSize; i += 4)
+    {
+        _mm_store_ps(x + i, _mm_max_ps(_mm_min_ps(_mm_load_ps(x + i), x_max), x_min));
+    }
+}
+
+
+template<size_t blockSize>
+void hardclip_block8(float *x)
+{
+    static_assert(!(blockSize & (blockSize - 1)) && blockSize >= 4);
+    const __m128 x_min = _mm_set1_ps(-8.0f);
+    const __m128 x_max = _mm_set1_ps(8.0f);
+    for (unsigned int i = 0; i < blockSize; i += 4)
+    {
+        _mm_store_ps(x + i, _mm_max_ps(_mm_min_ps(_mm_load_ps(x + i), x_max), x_min));
+    }
+}
 }
 
 #endif // SURGE_SHAPERS_H

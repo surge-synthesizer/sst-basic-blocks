@@ -53,6 +53,12 @@ inline __m128 abs_ps(__m128 x) {
     return _mm_and_ps(x, m128_mask_absval);
 }
 
+inline float rcp(float x)
+{
+    _mm_store_ss(&x, _mm_rcp_ss(_mm_load_ss(&x)));
+    return x;
+}
+
 } // namespace sst::basic_blocks::block_ops
 
 #endif // SHORTCIRCUIT_SIMD_OPS_H
