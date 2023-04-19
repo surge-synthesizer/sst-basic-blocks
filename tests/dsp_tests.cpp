@@ -10,9 +10,9 @@
 #include "sst/basic-blocks/dsp/LanczosResampler.h"
 #include "sst/basic-blocks/dsp/FastMath.h"
 #include "sst/basic-blocks/dsp/Clippers.h"
+#include "sst/basic-blocks/mechanics/block-ops.h"
 
 #include <iostream>
-
 
 TEST_CASE("lipol_sse basic", "[dsp]")
 {
@@ -205,7 +205,7 @@ TEST_CASE("LanczosResampler", "[dsp]")
             lr.push(obsS, obsR);
         }
 
-        float outBlock alignas(16) [64], outBlockR alignas(16)[64];
+        float outBlock alignas(16)[64], outBlockR alignas(16)[64];
         int q, gen;
         dp /= 88100.0 / 48000.0;
 
@@ -221,7 +221,6 @@ TEST_CASE("LanczosResampler", "[dsp]")
         }
     }
 }
-
 
 TEST_CASE("Check FastMath Functions", "[dsp]")
 {
@@ -469,4 +468,39 @@ TEST_CASE("SoftClip", "[dsp]")
     REQUIRE(r[1] == Approx(-0.8 - 4.f / 27.f * pow(-0.8, 3)).margin(0.0001));
     REQUIRE(r[2] == Approx(0.6 - 4.f / 27.f * pow(0.6, 3)).margin(0.0001));
     REQUIRE(r[3] == Approx(1.0).margin(0.0001));
+}
+
+TEST_CASE("SoftClip Block", "[dsp]")
+{
+    float r alignas(16)[32],
+        q alignas(16)[32],
+        h alignas(16)[32],
+        h8 alignas(16)[32],
+        t7 alignas(16)[32];
+    for (int i = 0; i < 32; ++i)
+    {
+        r[i] = rand() * 20.4 / RAND_MAX - 10.0;
+    }
+    sst::basic_blocks::mechanics::copy_from_to<32>(r,q);
+    sst::basic_blocks::mechanics::copy_from_to<32>(r,h);
+    sst::basic_blocks::mechanics::copy_from_to<32>(r,h8);
+    sst::basic_blocks::mechanics::copy_from_to<32>(r,t7);
+
+    sst::basic_blocks::dsp::softclip_block<32>(q);
+    sst::basic_blocks::dsp::hardclip_block<32>(h);
+    sst::basic_blocks::dsp::hardclip_block8<32>(h8);
+    sst::basic_blocks::dsp::tanh7_block<32>(t7);
+    for (int i=0; i<32; ++i)
+    {
+        auto sci = std::clamp(r[i], -1.5f, 1.5f);
+        auto sc = sci - 4.0 / 27.0 * sci * sci * sci;
+        auto hc = std::clamp(r[i], -1.f, 1.f);
+        auto hc8 = std::clamp(r[i], -8.f, 8.f);
+        REQUIRE(q[i] == Approx(sc).margin(0.00001));
+        REQUIRE(h[i] == Approx(hc).margin(0.00001));
+        REQUIRE(h8[i] == Approx(hc8).margin(0.00001));
+        REQUIRE(t7[i] >= -1);
+        REQUIRE(t7[i] <= 1);
+    }
+
 }
