@@ -1,19 +1,19 @@
 /*
-* sst-basic-blocks - a Surge Synth Team product
-*
-* Provides basic tools and blocks for use on the audio thread in
-* synthesis, including basic DSP and modulation functions
-*
-* Copyright 2019 - 2023, Various authors, as described in the github
-* transaction log.
-*
-* sst-basic-blocks is released under the Gnu General Public Licence
-* V3 or later (GPL-3.0-or-later). The license is found in the file
-* "LICENSE" in the root of this repository or at
-* https://www.gnu.org/licenses/gpl-3.0.en.html
-*
-* All source for sst-basic-blocks is available at
-* https://github.com/surge-synthesizer/sst-basic-blocks
+ * sst-basic-blocks - a Surge Synth Team product
+ *
+ * Provides basic tools and blocks for use on the audio thread in
+ * synthesis, including basic DSP and modulation functions
+ *
+ * Copyright 2019 - 2023, Various authors, as described in the github
+ * transaction log.
+ *
+ * sst-basic-blocks is released under the Gnu General Public Licence
+ * V3 or later (GPL-3.0-or-later). The license is found in the file
+ * "LICENSE" in the root of this repository or at
+ * https://www.gnu.org/licenses/gpl-3.0.en.html
+ *
+ * All source for sst-basic-blocks is available at
+ * https://github.com/surge-synthesizer/sst-basic-blocks
  */
 
 #ifndef SST_BASIC_BLOCKS_DSP_SPECIALFUNCTIONS_H
@@ -21,6 +21,7 @@
 
 #include <cstdint>
 #include <cmath>
+#include <algorithm>
 
 namespace sst::basic_blocks::dsp
 {
@@ -102,7 +103,6 @@ inline double hamming(int i, int n)
     return 0.54 - 0.46 * cos(2 * M_PI * i / (n - 1));
 }
 
-
 inline double BESSI0(double X)
 {
     double Y, P1, P2, P3, P4, P5, P6, P7, Q1, Q2, Q3, Q4, Q5, Q6, Q7, Q8, Q9, AX, BX;
@@ -143,16 +143,11 @@ inline double symmetric_kaiser(double x, uint16_t nint, double Alpha)
     double N = (double)nint;
     x += N * 0.5;
 
-    if (x > N)
-        x = N;
-    if (x < 0.0)
-        x = 0.0;
-    // x = std::min((double)x, (double)N);
-    // x = std::max(x, 0.0);
+    x = std::clamp(x, 0.0, N);
     double a = (2.0 * x / N - 1.0);
     return BESSI0(M_PI * Alpha * sqrt(1.0 - a * a)) / BESSI0(M_PI * Alpha);
 }
 
-}
+} // namespace sst::basic_blocks::dsp
 
 #endif // SURGE_SPECIALFUNCTIONS_H

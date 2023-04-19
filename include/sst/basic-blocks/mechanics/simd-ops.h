@@ -18,7 +18,6 @@
 #ifndef SST_BASIC_BLOCKS_MECHANICS_SIMD_OPS_H
 #define SST_BASIC_BLOCKS_MECHANICS_SIMD_OPS_H
 
-
 namespace sst::basic_blocks::mechanics
 {
 inline __m128 sum_ps_to_ss(__m128 x)
@@ -44,14 +43,12 @@ inline float i2f_binary_cast(int i)
     float *f = (float *)&i;
     return *f;
 }
-}
+} // namespace detail
 
 const __m128 m128_mask_signbit = _mm_set1_ps(detail::i2f_binary_cast(0x80000000));
 const __m128 m128_mask_absval = _mm_set1_ps(detail::i2f_binary_cast(0x7fffffff));
 
-inline __m128 abs_ps(__m128 x) {
-    return _mm_and_ps(x, m128_mask_absval);
-}
+inline __m128 abs_ps(__m128 x) { return _mm_and_ps(x, m128_mask_absval); }
 
 inline float rcp(float x)
 {
@@ -59,6 +56,6 @@ inline float rcp(float x)
     return x;
 }
 
-} // namespace sst::basic_blocks::block_ops
+} // namespace sst::basic_blocks::mechanics
 
 #endif // SHORTCIRCUIT_SIMD_OPS_H
