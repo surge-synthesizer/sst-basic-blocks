@@ -45,6 +45,53 @@ template <typename T = float> struct QuadratureOscillator
     }
 };
 
+/**
+ * The Surge Magic Circle style Oscillator
+ */
+ template <typename T = float> struct SurgeQuadrOsc
+{
+  public:
+    SurgeQuadrOsc()
+    {
+        r = 0;
+        i = -1;
+    }
+
+    inline void set_rate(T w)
+    {
+        dr = cos(w);
+        di = sin(w);
+
+        // normalize vector
+        double n = 1 / sqrt(r * r + i * i);
+        r *= n;
+        i *= n;
+    }
+
+    // API compatability
+    inline void setRate(T w) { set_rate(w); }
+
+    inline void set_phase(T w)
+    {
+        r = sin(w);
+        i = -cos(w);
+    }
+
+    inline void process()
+    {
+        float lr = r, li = i;
+        r = dr * lr - di * li;
+        i = dr * li + di * lr;
+    }
+
+    inline void step() { process(); }
+
+  public:
+    T r, i;
+
+  private:
+    T dr, di;
+};
 } // namespace sst::basic_blocks::dsp
 
 #endif // SHORTCIRCUITXT_QUADRATUREOSCILLATORS_H

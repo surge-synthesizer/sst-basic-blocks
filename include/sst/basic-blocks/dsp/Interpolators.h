@@ -33,6 +33,11 @@ inline float cubic_ipol(float y0, float y1, float y2, float y3, float mu)
 
     return (a0 * mu * mu2 + a1 * mu2 + a2 * mu + a3);
 }
+
+inline float quad_bspline(float y0, float y1, float y2, float mu)
+{
+    return 0.5f * (y2 * (mu * mu) + y1 * (-2 * mu * mu + 2 * mu + 1) + y0 * (mu * mu - 2 * mu + 1));
+}
 } // namespace sst::basic_blocks::dsp
 
 #endif // SURGEXTRACK_INTERPOLATORS_H

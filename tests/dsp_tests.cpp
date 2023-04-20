@@ -185,6 +185,29 @@ TEST_CASE("Quadrature Oscillator")
     }
 }
 
+
+TEST_CASE("Surge Quadrature Oscillator")
+{
+    for (const auto omega : {0.04, 0.12, 0.43, 0.97})
+    {
+        DYNAMIC_SECTION("Surge Quadrature omega=" << omega)
+        {
+            auto q = sst::basic_blocks::dsp::SurgeQuadrOsc();
+
+            float p0 = 0;
+            q.setRate(omega);
+            for (int i = 0; i < 200; ++i)
+            {
+                REQUIRE(q.r == Approx(sin(p0)).margin(1e-3));
+                REQUIRE(q.i == Approx(-cos(p0)).margin(1e-3));
+
+                q.step();
+                p0 += omega;
+            }
+        }
+    }
+}
+
 TEST_CASE("LanczosResampler", "[dsp]")
 {
     SECTION("Can Interpolate Sine")
