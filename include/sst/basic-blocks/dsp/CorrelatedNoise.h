@@ -25,8 +25,8 @@
 namespace sst::basic_blocks::dsp
 {
 
-inline float correlated_noise_o2mk2_suppliedrng(float &lastval, float &lastval2, float correlation,
-                                                std::function<float()> &urng)
+inline float correlated_noise_o2mk2_supplied_value(float &lastval, float &lastval2, float correlation,
+                                                const float bipolarUniformRandValue)
 {
     float wf = correlation;
     float wfabs = fabs(wf) * 0.8f;
@@ -43,10 +43,16 @@ inline float correlated_noise_o2mk2_suppliedrng(float &lastval, float &lastval2,
     _mm_store_ss(&m, m1);
     // if (wf>0.f) m *= 1 + wf*8;
 
-    float rand11 = urng();
+    float rand11 = bipolarUniformRandValue;
     lastval2 = rand11 * (1 - wfabs) - wf * lastval2;
     lastval = lastval2 * (1 - wfabs) - wf * lastval;
     return lastval * m;
+}
+
+inline float correlated_noise_o2mk2_suppliedrng(float &lastval, float &lastval2, float correlation,
+                                                std::function<float()> &urng)
+{
+    return correlated_noise_o2mk2_supplied_value(lastval, lastval2, correlation, urng());
 }
 } // namespace sst::basic_blocks::dsp
 #endif // SURGEXTRACK_CORRELATEDNOISE_H
