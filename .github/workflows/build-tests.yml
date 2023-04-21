@@ -15,13 +15,13 @@ jobs:
         include:
           - os: ubuntu-latest
             name: linux
-            testExe: build/smoke-test
+            testExe: build/sst-basic-blocks-test
           - os: macos-latest
             name: mac
-            testExe: build/smoke-test
+            testExe: build/sst-basic-blocks-test
           - os: windows-latest
             name: win
-            testExe: build/Release/smoke-test.exe
+            testExe: build/Release/sst-basic-blocks-test.exe
 
     steps:
 
