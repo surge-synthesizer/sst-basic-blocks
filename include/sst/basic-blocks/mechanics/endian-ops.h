@@ -85,6 +85,24 @@ inline uint16_t endian_write_int16BE(uint16_t t)
 
 inline auto endian_read_int16BE(uint16_t a) { return endian_write_int16BE(a); }
 
+inline auto endian_copyblock16LE(int16_t *dst, int16_t *src, size_t count)
+{
+#if !DO_SWAP
+    memcpy(dst, src, count * sizeof(int16_t));
+#else
+    throw std::logic_error("Implement copyblock 16LE");
+#endif
+}
+
+inline auto endian_copyblock32LE(int32_t *dst, int32_t *src, size_t count)
+{
+#if !DO_SWAP
+    memcpy(dst, src, count * sizeof(uint32_t));
+#else
+    throw std::logic_error("Implement copyblock 32LE");
+#endif
+}
+
 } // namespace sst::basic_blocks::mechanics
 
 #endif // SHORTCIRCUIT_ENDIAN_OPS_H
