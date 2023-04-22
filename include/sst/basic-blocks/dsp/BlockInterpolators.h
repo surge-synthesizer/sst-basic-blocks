@@ -21,11 +21,12 @@
 
 namespace sst::basic_blocks::dsp
 {
-template <class T, int blockSize, bool first_run_checks = true> struct lipol
+template <class T, int defaultBlockSize, bool first_run_checks = true> struct lipol
 {
   public:
-    static constexpr T bs_inv{(T)1 / (T)blockSize};
-    lipol() { reset(); }
+    lipol() {
+        reset();
+    }
     void reset()
     {
         if (first_run_checks)
@@ -45,13 +46,23 @@ template <class T, int blockSize, bool first_run_checks = true> struct lipol
         }
         dv = (new_v - v) * bs_inv;
     }
+    inline void instantize() {
+        v = new_v;
+        dv = (T)0;
+    }
     inline T getTargetValue() { return new_v; }
     inline void process() { v += dv; }
+    /*
+     * Some clients specify strictly in the template; others do not. Make it so the
+     * template is the default but not the requirement.
+     */
+    inline void setBlockSize(int bsOverride) { bs_inv = 1 / (T)bsOverride; }
     T v;
 
-  private:
+    static constexpr T bs_inv_def{(T)1 / (T)defaultBlockSize};
     T new_v{0};
     T dv{0};
+    T bs_inv{bs_inv_def};
     bool first_run{true};
 };
 
