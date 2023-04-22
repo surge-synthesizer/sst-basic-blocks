@@ -32,7 +32,7 @@ TEST_CASE("lipol_sse basic", "[dsp]")
             lip.store_block(where);
             for (int i = 0; i < bs; i++)
             {
-                REQUIRE(where[i] == Approx(prev + (t - prev) / bs * i).margin(1e-5));
+                REQUIRE(where[i] == Approx(prev + (t - prev) / bs * (i+1)).margin(1e-5));
             }
             prev = t;
         }
@@ -51,7 +51,7 @@ TEST_CASE("lipol_sse basic", "[dsp]")
             lip.store_block(where);
             for (int i = 0; i < bs; i++)
             {
-                REQUIRE(where[i] == Approx(prev + (t - prev) / bs * i).margin(1e-5));
+                REQUIRE(where[i] == Approx(prev + (t - prev) / bs * (i+1)).margin(1e-5));
             }
             prev = t;
         }
@@ -70,7 +70,7 @@ TEST_CASE("lipol_sse basic", "[dsp]")
             lip.store_block(where);
             for (int i = 0; i < bs; i++)
             {
-                REQUIRE(where[i] == Approx(prev + (t - prev) / bs * i).margin(1e-5));
+                REQUIRE(where[i] == Approx(prev + (t - prev) / bs * (i+1)).margin(1e-5));
             }
             prev = t;
         }
@@ -90,7 +90,7 @@ TEST_CASE("lipol_sse basic", "[dsp]")
             lip.store_block(where);
             for (int i = 0; i < bs; i++)
             {
-                REQUIRE(where[i] == Approx(prev + (t - prev) / bs * i).margin(1e-5));
+                REQUIRE(where[i] == Approx(prev + (t - prev) / bs * (i+1)).margin(1e-5));
             }
             prev = t;
         }
@@ -110,7 +110,7 @@ TEST_CASE("lipol_sse basic", "[dsp]")
             lip.store_block(where);
             for (int i = 0; i < bs; i++)
             {
-                REQUIRE(where[i] == Approx(prev + (t - prev) / bs * i).margin(1e-5));
+                REQUIRE(where[i] == Approx(prev + (t - prev) / bs * (i+1)).margin(1e-5));
             }
             prev = t;
         }
@@ -134,7 +134,7 @@ TEST_CASE("lipol_sse multiply_block", "[dsp]")
         lip.multiply_block_to(f, r);
         for (int i = 0; i < bs; i++)
         {
-            auto x = (0.2 + (0.6 - 0.2) / bs * i) * f[i];
+            auto x = (0.2 + (0.6 - 0.2) / bs * (i+1)) * f[i];
             REQUIRE(x == Approx(r[i]).margin(1e-5));
         }
     }
@@ -158,7 +158,7 @@ TEST_CASE("lipol_sse fade_block", "[dsp]")
         lip.fade_blocks(f, g, r);
         for (int i = 0; i < bs; i++)
         {
-            auto cx = (0.2 + (0.6 - 0.2) / bs * i);
+            auto cx = (0.2 + (0.6 - 0.2) / bs * (i+1));
             auto rx = f[i] * (1 - cx) + g[i] * cx;
             REQUIRE(rx == Approx(r[i]).margin(1e-5));
         }
@@ -642,4 +642,44 @@ TEST_CASE("Sinc Delay Line", "[dsp]")
         }
     }
 #endif
+}
+
+
+
+TEST_CASE("lipol_ps class", "[dsp]")
+{
+    using lipol_ps = sst::basic_blocks::dsp::lipol_sse<64, false>;
+    lipol_ps mypol;
+    float prevtarget = -1.0;
+    mypol.set_target(prevtarget);
+    mypol.instantize();
+
+    constexpr size_t nfloat = 64;
+    constexpr size_t nfloat_quad = 16;
+    float storeTarget alignas(16)[nfloat];
+    assert(mypol.blockSize == nfloat);
+    mypol.store_block(storeTarget);
+
+    for (auto i = 0; i < nfloat; ++i)
+        REQUIRE(storeTarget[i] == prevtarget); // should be constant in the first instance
+
+    for (int i = 0; i < 10; ++i)
+    {
+        float target = (i) * (i) / 100.0;
+        mypol.set_target(target);
+
+        mypol.store_block(storeTarget, nfloat_quad);
+
+        REQUIRE(storeTarget[nfloat - 1] == Approx(target));
+
+        float dy = storeTarget[1] - storeTarget[0];
+        for (auto j = 1; j < nfloat; ++j)
+        {
+            REQUIRE(storeTarget[j] - storeTarget[j - 1] == Approx(dy).epsilon(1e-3));
+        }
+
+        REQUIRE(prevtarget + dy == Approx(storeTarget[0]));
+
+        prevtarget = target;
+    }
 }

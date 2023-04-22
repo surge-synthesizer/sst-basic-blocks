@@ -19,6 +19,8 @@
 #ifndef SST_BASIC_BLOCKS_DSP_BLOCK_INTERPOLATORS_H
 #define SST_BASIC_BLOCKS_DSP_BLOCK_INTERPOLATORS_H
 
+#include <cassert>
+
 namespace sst::basic_blocks::dsp
 {
 template <class T, int defaultBlockSize, bool first_run_checks = true> struct lipol
@@ -66,16 +68,20 @@ template <class T, int defaultBlockSize, bool first_run_checks = true> struct li
     bool first_run{true};
 };
 
-template <int blockSize, bool first_run_checks = true> struct lipol_sse
+template <int maxBlockSize, bool first_run_checks = true> struct lipol_sse
 {
+    static_assert(! (maxBlockSize & (maxBlockSize - 1)));
+
     lipol_sse()
     {
-        float zbq alignas(16)[4]{0.f, 0.25f, 0.5f, 0.75f};
+        float zbq alignas(16)[4]{0.25f, 0.5f, 0.75f, 1.00f};
         zeroUpByQuarters = _mm_load_ps(zbq);
         one = _mm_set1_ps(1.f);
+        zero = _mm_setzero_ps();
     }
     void set_target(float f)
     {
+        current = target;
         target = f;
         if constexpr (first_run_checks)
         {
@@ -88,18 +94,40 @@ template <int blockSize, bool first_run_checks = true> struct lipol_sse
         updateLine();
     }
 
+    void set_target_smoothed(float f)
+    {
+        constexpr float coef = 0.25;
+        constexpr float coef_m1 = 1 - coef;
+        current = target;
+        auto p1 = coef * f;
+        auto p2 = coef_m1 * target;
+        target = p1 + p2;
+        updateLine();
+    }
+
+    inline void instantize() { set_target_instant(target);}
+    void set_target_instantize(float f)
+    {
+        set_target_instant(f);
+    }
     void set_target_instant(float f)
     {
         target = f;
         current = f;
         updateLine();
     }
+    float get_target() const { return target; }
 
     /*
-     * Out = in * linearly-interpolated-target
+     * Out = in * linearly-interpolated-target.
+     *
+     * When porting from Surge, surge made the block size explicit. That's a useful test
+     * that the port is correct so for now we add a block size quad argument to these
+     * and assert that they are correct.
      */
-    void multiply_block_to(float *__restrict in, float *__restrict out)
+    void multiply_block_to(float *__restrict in, float *__restrict out, int bsQuad=-1) const
     {
+        assert(bsQuad == -1 || bsQuad == numRegisters);
         for (int i = 0; i < numRegisters; ++i)
         {
             auto iv = _mm_load_ps(in + (i << 2));
@@ -107,17 +135,57 @@ template <int blockSize, bool first_run_checks = true> struct lipol_sse
             _mm_store_ps(out + (i << 2), ov);
         }
     }
-    void multiply_2_blocks_to(float *__restrict inL, float *__restrict inR, float *__restrict outL,
-                              float *__restrict outR)
+
+    void multiply_block(float *in, int bsQuad=-1) const
     {
-        multiply_block_to(inL, outL);
-        multiply_block_to(inR, outR);
+        assert(bsQuad == -1 || bsQuad == numRegisters);
+        for (int i = 0; i < numRegisters; ++i)
+        {
+            auto iv = _mm_load_ps(in + (i << 2));
+            auto ov = _mm_mul_ps(iv, line[i]);
+            _mm_store_ps(in + (i << 2), ov);
+        }
+    }
+
+    void multiply_2_blocks(float *__restrict in1, float *__restrict in2, int bsQuad = -1) const
+    {
+        multiply_block(in1, bsQuad);
+        multiply_block(in2, bsQuad);
+    }
+
+    void multiply_2_blocks_to(float *__restrict inL, float *__restrict inR, float *__restrict outL,
+                              float *__restrict outR, int bsQuad = -1) const
+    {
+        multiply_block_to(inL, outL, bsQuad);
+        multiply_block_to(inR, outR, bsQuad);
+    }
+
+    /*
+     * MAC means "multiply-accumulate"
+     */
+    void MAC_block_to(float *__restrict src, float *__restrict dst, int bsQuad = -1) const
+    {
+        assert(bsQuad == -1 || bsQuad == numRegisters);
+        for (int i = 0; i < numRegisters; ++i)
+        {
+            auto iv = _mm_load_ps(src + (i << 2));
+            auto dv = _mm_load_ps(dst + (i << 2));
+            auto ov = _mm_mul_ps(iv, line[i]);
+            auto mv = _mm_add_ps(ov, dv);
+            _mm_store_ps(dst + (i << 2), mv);
+        }
+    }
+    void MAC_2_blocks_to(float *__restrict src1, float *__restrict src2,
+                         float *__restrict dst1, float *__restrict dst2, int bsQuad = -1) const
+    {
+        MAC_block_to(src1, dst1, bsQuad);
+        MAC_block_to(src2, dst2, bsQuad);
     }
 
     /*
      * out = a * (1-t) + b * t
      */
-    void fade_blocks(float *__restrict inA, float *__restrict inB, float *__restrict out)
+    void fade_blocks(float *__restrict inA, float *__restrict inB, float *__restrict out) const
     {
         for (int i = 0; i < numRegisters; ++i)
         {
@@ -130,13 +198,67 @@ template <int blockSize, bool first_run_checks = true> struct lipol_sse
         }
     }
 
-    void store_block(float *__restrict out)
+    void fade_block_to(float *__restrict src1, float *__restrict src2, float *__restrict dst, int bsQuad = -1) const
     {
+        assert(bsQuad == -1 || bsQuad == numRegisters);
+        fade_blocks(src1, src2, dst);
+    }
+    void fade_2_blocks_to(float *__restrict src11, float *__restrict src12,
+                          float *__restrict src21, float *__restrict src22,
+                          float *__restrict dst1, float *__restrict dst2, int bsQuad = -1) const
+    {
+        fade_block_to(src11, src12, dst1, bsQuad);
+        fade_block_to(src21, src22, dst2, bsQuad);
+    }
+
+    void store_block(float *__restrict out, int bsQuad = -1) const
+    {
+        assert( bsQuad == -1 || bsQuad == numRegisters);
         for (int i = 0; i < numRegisters; ++i)
         {
             _mm_store_ps(out + (i << 2), line[i]);
         }
     }
+
+    /*
+     * trixpan blocks:
+     * a = max(line, 0)
+     * b = min(line, o)
+     * tl = (1-a) * L - b * R
+     * tR = a * L + (1+b) * R
+     */
+    void trixpan_blocks(float *__restrict L, float *__restrict R, float *__restrict dL,
+                        float *__restrict dR, int bsQuad = -1)const
+    {
+        assert(bsQuad == -1 || bsQuad == numRegisters);
+
+        for (int i = 0; i < numRegisters; ++i)
+        {
+            auto a = _mm_max_ps(zero, line[i]);
+            auto b = _mm_min_ps(zero, line[i]);
+            auto l = _mm_load_ps(L + (i << 2));
+            auto r = _mm_load_ps(R + (i << 2));
+            auto tl = _mm_sub_ps(_mm_mul_ps(_mm_sub_ps(one, a), l),
+                                 _mm_mul_ps(b, r));
+            auto tr = _mm_add_ps(_mm_mul_ps(a, l),
+                                  _mm_mul_ps(_mm_add_ps(one, b), r));
+            _mm_store_ps(dL + (i<<2), tl);
+            _mm_store_ps(dR + (i<<2), tr);
+        }
+    }
+
+    void set_blocksize(size_t bs)
+    {
+        assert( ! ( bs & (bs-1)));
+        assert(bs <= maxBlockSize);
+        assert(bs >= 4);
+        blockSize = bs;
+        numRegisters = bs >> 2;
+        blockSizeInv = 1.f / blockSize;
+        registerSizeInv = 1.f / (blockSize >> 2);
+    }
+
+    int blockSize{maxBlockSize};
 
   private:
     void updateLine()
@@ -152,12 +274,15 @@ template <int blockSize, bool first_run_checks = true> struct lipol_sse
         current = target;
     }
 
-    static constexpr int numRegisters{blockSize >> 2};
-    static constexpr float blockSizeInv{1.f / blockSize};
-    static constexpr float registerSizeInv{1.f / (blockSize >> 2)};
-    __m128 line[numRegisters];
+    static constexpr int maxRegisters{maxBlockSize >> 2};
+
+    int numRegisters{maxBlockSize >> 2};
+    float blockSizeInv{1.f / blockSize};
+    float registerSizeInv{1.f / (blockSize >> 2)};
+
+    __m128 line[maxRegisters];
     __m128 zeroUpByQuarters;
-    __m128 one;
+    __m128 one, zero;
     float target{0.f}, current{0.f};
     bool first_run{true};
 };
