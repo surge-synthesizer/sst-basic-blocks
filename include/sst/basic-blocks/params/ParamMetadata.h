@@ -87,9 +87,21 @@ struct ParamMetaData
     {
         return withRange(-24.f, 24.f).withDefault(0.f).withType(FLOAT);
     }
+    ParamMetaData &asDecibel()
+    {
+        return withRange(-48.f, 48.f).withDefault(0.f).withType(FLOAT);
+    }
     ParamMetaData &asMIDIPitch()
     {
         return withType(FLOAT).withRange(0.f, 127.f).withDefault(60.f);
+    }
+    ParamMetaData &asEnvelopeTime()
+    {
+        return withType(FLOAT).withRange(-8.f, 5.f).withDefault(-1.f);
+    }
+    ParamMetaData &asAudibleFrequency()
+    {
+        return withType(FLOAT).withRange(-60, 70).withDefault(0);
     }
 
 
