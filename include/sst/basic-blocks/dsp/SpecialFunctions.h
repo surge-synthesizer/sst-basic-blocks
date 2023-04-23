@@ -1,23 +1,25 @@
 /*
- * sst-basic-blocks - a Surge Synth Team product
+ * sst-basic-blocks - an open source library of core audio utilities
+ * built by Surge Synth Team.
  *
- * Provides basic tools and blocks for use on the audio thread in
- * synthesis, including basic DSP and modulation functions
+ * Provides a collection of tools useful on the audio thread for blocks,
+ * modulation, etc... or useful for adapting code to multiple environments.
  *
- * Copyright 2019 - 2023, Various authors, as described in the github
- * transaction log.
+ * Copyright 2023, various authors, as described in the GitHub
+ * transaction log. Parts of this code are derived from similar
+ * functions original in Surge or ShortCircuit.
  *
- * sst-basic-blocks is released under the Gnu General Public Licence
- * V3 or later (GPL-3.0-or-later). The license is found in the file
- * "LICENSE" in the root of this repository or at
+ * sst-basic-blocks is released under the GNU General Public Licence v3
+ * or later (GPL-3.0-or-later). The license is found in the "LICENSE"
+ * file in the root of this repository, or at
  * https://www.gnu.org/licenses/gpl-3.0.en.html
  *
- * All source for sst-basic-blocks is available at
+ * All source in sst-basic-blocks available at
  * https://github.com/surge-synthesizer/sst-basic-blocks
  */
 
-#ifndef SST_BASIC_BLOCKS_DSP_SPECIALFUNCTIONS_H
-#define SST_BASIC_BLOCKS_DSP_SPECIALFUNCTIONS_H
+#ifndef INCLUDE_SST_BASIC_BLOCKS_DSP_SPECIALFUNCTIONS_H
+#define INCLUDE_SST_BASIC_BLOCKS_DSP_SPECIALFUNCTIONS_H
 
 #include <cstdint>
 #include <cmath>
