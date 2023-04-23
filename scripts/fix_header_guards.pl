@@ -11,6 +11,15 @@ find(
     'include'
 );
 
+
+find(
+    {
+        wanted => \&findfiles,
+    },
+    'tests'
+);
+
+
 sub findfiles
 {
     $f = $File::Find::name;
@@ -22,7 +31,8 @@ sub findfiles
         $hg =~ s:/:_:g;
         $hg =~ s:\.:_:g;
         $hg =~ s:-:_:g;
-        $hg =~ s:include_::;
+        $hg =~ s:src:surge_src:;
+        $hg =~ s:tests:sst_basic_block_tests:;
         $hg = uc($hg);
         print "$f -> $hg\n";
 
@@ -35,11 +45,13 @@ sub findfiles
 
         $tg = "notyet";
         $pragmaOnce = 0;
+        $gotit = 0;
         while(<IN>)
         {
-            if (m/\#ifndef\s+(\S*)/)
+            if (m/\#ifndef\s+(\S*)/ and !$gotit)
             {
-                $tg = $1;
+                $tg  = $1;
+                $gotit = 1;
                 print OUT "#ifndef $hg\n";
             }
             elsif (m/\#define\s+${tg}/)
@@ -49,7 +61,8 @@ sub findfiles
             elsif (m/#pragma\s*once/)
             {
                 print OUT "#ifndef $hg\n#define $hg\n";
-                $pragmaOnce = ff;
+                $gotit = 1;
+                $pragmaOnce = 1;
             }
             else
             {
