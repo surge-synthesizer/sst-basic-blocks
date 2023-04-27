@@ -361,7 +361,6 @@ inline std::optional<std::string> ParamMetaData::valueToString(float val, bool h
     default:
         break;
     }
-    std::cout << "FAILED STRING CONVERSION" << std::endl;
     return {};
 }
 
