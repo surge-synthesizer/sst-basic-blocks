@@ -169,6 +169,8 @@ struct ParamMetaData
             assert(maxVal == 1 && minVal == 0);
             return normalizedValue > 0.5 ? maxVal : minVal;
         }
+        // quiet gcc
+        return 0.f;
     }
 
     ParamMetaData &withType(Type t)
