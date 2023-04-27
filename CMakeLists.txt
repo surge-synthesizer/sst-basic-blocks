@@ -18,7 +18,7 @@ if (${SST_BASIC_BLOCKS_BUILD_TESTS})
     if (NOT TARGET fmt)
         CPMAddPackage(NAME fmt
                 GITHUB_REPOSITORY fmtlib/fmt
-                GIT_TAG main
+                GIT_TAG master
                 )
     endif()
 
