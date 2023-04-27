@@ -9,14 +9,18 @@ target_include_directories(${PROJECT_NAME} INTERFACE include)
 if (${SST_BASIC_BLOCKS_BUILD_TESTS})
     include(cmake/CPM.cmake)
     message(STATUS "Importing SIMDE with CPM")
-    CPMAddPackage(NAME simde
-            GITHUB_REPOSITORY simd-everywhere/simde
-            VERSION 0.7.2
-            )
-    add_library(test-simde INTERFACE)
-    target_include_directories(test-simde INTERFACE
-            ${simde_SOURCE_DIR}
-            tests)
+    if (NOT TARGET simde)
+        CPMAddPackage(NAME simde
+                GITHUB_REPOSITORY simd-everywhere/simde
+                VERSION 0.7.2
+                )
+    endif()
+    if (NOT TARGET fmt)
+        CPMAddPackage(NAME fmt
+                GITHUB_REPOSITORY fmtlib/fmt
+                GIT_TAG main
+                )
+    endif()
 
     add_executable(sst-basic-blocks-test
             tests/smoketest.cpp
@@ -24,8 +28,9 @@ if (${SST_BASIC_BLOCKS_BUILD_TESTS})
             tests/simd_tests.cpp
             tests/block_tests.cpp
             tests/table_tests.cpp
+            tests/param_tests.cpp
             )
-    target_link_libraries(sst-basic-blocks-test PUBLIC test-simde ${PROJECT_NAME})
+    target_link_libraries(sst-basic-blocks-test PUBLIC simde fmt ${PROJECT_NAME})
     target_compile_definitions(sst-basic-blocks-test PUBLIC _USE_MATH_DEFINES=1)
     target_compile_definitions(sst-basic-blocks-test PRIVATE CATCH_CONFIG_DISABLE_EXCEPTIONS=1)
 
