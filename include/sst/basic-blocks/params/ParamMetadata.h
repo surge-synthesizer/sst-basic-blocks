@@ -22,7 +22,21 @@
 #define INCLUDE_SST_BASIC_BLOCKS_PARAMS_PARAMMETADATA_H
 
 /*
- * Please note this class is still a work in active development. There's an enormous amount
+ * ParamMetaData is exactly that; a way to encode the metadata (range, scale, string
+ * formtting, string parsing, etc...) for a parameter without specifying how to store
+ * an actual runtime value. It is a configuration- and ui- time object mostly which
+ * lets you advertise things like natural mins and maxes.
+ *
+ * Critically it does *not* store the data for a parameter. All the APIs assume the
+ * actual value and configuration come from an external source, so multiple clients
+ * can adapt to objects which advertise lists of these, like the sst- effects currently
+ * do.
+ *
+ * The coding structure is basically a bunch of bool and value and enum members
+ * and then a bunch of modifiers to set them (.withRange(min,max)) or to set clusters
+ * of them (.asPercentBipolar()). We can add and expand these methods as we see fit.
+ *
+ * Please note this class is still a work in active development. There's an lot
  * to do including
  *
  * - string conversion for absolute, extend, etc...
@@ -33,11 +47,6 @@
  *
  * Right now it just has the features paul needed to port flanger and reverb1 to sst-effects
  * so still expect change to be coming.
- *
- * those are all required before this can be a complete sub-in for surge's Parameter.cpp
- * formatting and description. If you are using this right now please hang on our discord
- * or github to discuss! Or wait until there's a commit removing this message and this is
- * used as a dependency of a production release of Surge or ShortCircuit VSTs
  */
 
 #include <algorithm>
@@ -70,9 +79,44 @@ struct ParamMetaData
     bool supportsStringConversion{false};
 
     /*
+     * To String and From String conversion functions require information about the
+     * parameter to execute. The primary driver is the value so the API takes the form
+     * `valueToString(float)` but for optional features like extension, deform,
+     * absolute and temposync we need to knwo that. Since this metadata does not
+     * store any values but has the values handed externally, we could either have
+     * a long-argument-list api or a little helper class for those values. We chose
+     * the later in FeatureState
+     */
+    struct FeatureState
+    {
+        bool isHighPrecision{false}, isExtended{false}, isAbsolute{false}, isTemposynced{false};
+        FeatureState(){};
+        FeatureState &withHighPrecision(bool e)
+        {
+            isHighPrecision = e;
+            return *this;
+        }
+        FeatureState &withExtended(bool e)
+        {
+            isExtended = e;
+            return *this;
+        }
+        FeatureState &withAbsolute(bool e)
+        {
+            isAbsolute = e;
+            return *this;
+        }
+        FeatureState &withTemposync(bool e)
+        {
+            isTemposynced = e;
+            return *this;
+        }
+    };
+
+    /*
      * What is the primary string representation of this value
      */
-    std::optional<std::string> valueToString(float val, bool highPrecision = false) const;
+    std::optional<std::string> valueToString(float val, const FeatureState &fs = {}) const;
 
     /*
      * Some parameters have a secondary representation. For instance 441.2hz could also be ~A4.
@@ -108,7 +152,7 @@ struct ParamMetaData
     std::optional<ModulationDisplay> modulationNaturalToString(float naturalBaseVal,
                                                                float modulationNatural,
                                                                bool isBipolar,
-                                                               bool highPrecision = false) const;
+                                                               const FeatureState &fs = {}) const;
     std::optional<float> modulationNaturalFromString(const std::string_view &deltaNatural,
                                                      float naturalBaseVal,
                                                      std::string &errMsg) const;
@@ -310,7 +354,8 @@ struct ParamMetaData
 /*
  * Implementation below here
  */
-inline std::optional<std::string> ParamMetaData::valueToString(float val, bool highPrecision) const
+inline std::optional<std::string> ParamMetaData::valueToString(float val,
+                                                               const FeatureState &fs) const
 {
     if (type == BOOL)
     {
@@ -345,7 +390,7 @@ inline std::optional<std::string> ParamMetaData::valueToString(float val, bool h
         }
 
         return fmt::format("{:.{}f} {:s}", svA * val,
-                           (highPrecision ? (decimalPlaces + 4) : decimalPlaces), unit);
+                           (fs.isHighPrecision ? (decimalPlaces + 4) : decimalPlaces), unit);
         break;
     case A_TWO_TO_THE_B:
         if (val == minVal && !customMinDisplay.empty())
@@ -358,7 +403,7 @@ inline std::optional<std::string> ParamMetaData::valueToString(float val, bool h
         }
 
         return fmt::format("{:.{}f} {:s}", svA * pow(2.0, svB * val),
-                           (highPrecision ? (decimalPlaces + 4) : decimalPlaces), unit);
+                           (fs.isHighPrecision ? (decimalPlaces + 4) : decimalPlaces), unit);
         break;
     default:
         break;
@@ -455,7 +500,7 @@ inline std::optional<std::string> ParamMetaData::valueToAlternateString(float va
 
 inline std::optional<ParamMetaData::ModulationDisplay>
 ParamMetaData::modulationNaturalToString(float naturalBaseVal, float modulationNatural,
-                                         bool isBipolar, bool highPrecision) const
+                                         bool isBipolar, const FeatureState &fs) const
 {
     if (type != FLOAT)
         return {};
@@ -470,7 +515,7 @@ ParamMetaData::modulationNaturalToString(float naturalBaseVal, float modulationN
         auto du = modulationNatural;
         auto dd = -modulationNatural;
 
-        auto dp = (highPrecision ? (decimalPlaces + 4) : decimalPlaces);
+        auto dp = (fs.isHighPrecision ? (decimalPlaces + 4) : decimalPlaces);
         result.value = fmt::format("{:.{}f} {}", svA * du, dp, unit);
         if (isBipolar)
         {
@@ -494,7 +539,8 @@ ParamMetaData::modulationNaturalToString(float naturalBaseVal, float modulationN
 
         if (isBipolar)
             result.valDown = fmt::format("{:.{}f}", svA * (naturalBaseVal + du), dp);
-        auto v2s = valueToString(naturalBaseVal, highPrecision);
+        // TODO pass this on not create
+        auto v2s = valueToString(naturalBaseVal, fs);
         if (v2s.has_value())
             result.baseValue = *v2s;
         else
@@ -512,7 +558,7 @@ ParamMetaData::modulationNaturalToString(float naturalBaseVal, float modulationN
         auto du = svu - scv;
         auto dd = scv - svd;
 
-        auto dp = (highPrecision ? (decimalPlaces + 4) : decimalPlaces);
+        auto dp = (fs.isHighPrecision ? (decimalPlaces + 4) : decimalPlaces);
         result.value = fmt::format("{:.{}f} {}", du, dp, unit);
         if (isBipolar)
         {
@@ -536,7 +582,7 @@ ParamMetaData::modulationNaturalToString(float naturalBaseVal, float modulationN
 
         if (isBipolar)
             result.valDown = fmt::format("{:.{}f}", nvd, dp);
-        auto v2s = valueToString(naturalBaseVal, highPrecision);
+        auto v2s = valueToString(naturalBaseVal, fs);
         if (v2s.has_value())
             result.baseValue = *v2s;
         else
