@@ -37,7 +37,7 @@ TEST_CASE("Percent and BiPolar Percent")
         REQUIRE(p.naturalToNormalized01(0.37f) == 0.37f);
         REQUIRE(p.supportsStringConversion);
         REQUIRE(p.valueToString(0.731) == "73.10 %");
-        REQUIRE(p.valueToString(0.03123456, true) == "3.123456 %");
+        REQUIRE(p.valueToString(0.03123456, pmd::ParamMetaData::FeatureState().withHighPrecision(true)) == "3.123456 %");
         REQUIRE(*(p.valueFromString(*(p.valueToString(0.731)), ems)) == 0.731f);
         REQUIRE(p.modulationNaturalToString(0, 0.2, true)->summary == "+/- 20.00 %");
     }
