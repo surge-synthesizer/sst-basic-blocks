@@ -128,7 +128,7 @@ struct ParamMetaData
     /*
      * Convert a value to a string; if the optional is empty populate the error message.
      */
-    std::optional<float> valueFromString(const std::string_view &, std::string &errMsg) const;
+    std::optional<float> valueFromString(std::string_view, std::string &errMsg) const;
 
     /*
      * Distances to String conversions are more peculiar, especially with non-linear ranges.
@@ -153,7 +153,7 @@ struct ParamMetaData
                                                                float modulationNatural,
                                                                bool isBipolar,
                                                                const FeatureState &fs = {}) const;
-    std::optional<float> modulationNaturalFromString(const std::string_view &deltaNatural,
+    std::optional<float> modulationNaturalFromString(std::string_view deltaNatural,
                                                      float naturalBaseVal,
                                                      std::string &errMsg) const;
 
@@ -260,7 +260,7 @@ struct ParamMetaData
         return *this;
     }
 
-    ParamMetaData &withATwoToTheBFormatting(float A, float B, const std::string_view &units)
+    ParamMetaData &withATwoToTheBFormatting(float A, float B, std::string_view units)
     {
         svA = A;
         svB = B;
@@ -411,7 +411,7 @@ inline std::optional<std::string> ParamMetaData::valueToString(float val,
     return {};
 }
 
-inline std::optional<float> ParamMetaData::valueFromString(const std::string_view &v,
+inline std::optional<float> ParamMetaData::valueFromString(std::string_view v,
                                                            std::string &errMsg) const
 {
     if (type == BOOL)
@@ -597,8 +597,8 @@ ParamMetaData::modulationNaturalToString(float naturalBaseVal, float modulationN
 }
 
 inline std::optional<float>
-ParamMetaData::modulationNaturalFromString(const std::string_view &deltaNatural,
-                                           float naturalBaseVal, std::string &errMsg) const
+ParamMetaData::modulationNaturalFromString(std::string_view deltaNatural, float naturalBaseVal,
+                                           std::string &errMsg) const
 {
     switch (displayScale)
     {
