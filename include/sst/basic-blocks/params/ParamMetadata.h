@@ -90,7 +90,7 @@ struct ParamMetaData
     struct FeatureState
     {
         bool isHighPrecision{false}, isExtended{false}, isAbsolute{false}, isTemposynced{false};
-        FeatureState(){};
+
         FeatureState &withHighPrecision(bool e)
         {
             isHighPrecision = e;
