@@ -168,7 +168,8 @@ struct ParamMetaData
 
   protected:
     std::string unit;
-    std::string customMinDisplay, std::string customMaxDisplay;
+    std::string customMinDisplay;
+    std::string customMaxDisplay;
     std::unordered_map<int, std::string> discreteValues;
     int decimalPlaces{2};
     float svA{0.f}, svB{0.f}, svC{0.f}, svD{0.f}; // for various functional forms
