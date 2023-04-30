@@ -371,9 +371,9 @@ inline std::optional<std::string> ParamMetaData::valueToString(float val,
         {
             if (discreteValues.find(iv) != discreteValues.end())
                 return discreteValues.at(iv);
-            return {};
+            return std::nullopt;
         }
-        return {};
+        return std::nullopt;
     }
 
     // float cases
@@ -408,16 +408,16 @@ inline std::optional<std::string> ParamMetaData::valueToString(float val,
     default:
         break;
     }
-    return {};
+    return std::nullopt;
 }
 
 inline std::optional<float> ParamMetaData::valueFromString(std::string_view v,
                                                            std::string &errMsg) const
 {
     if (type == BOOL)
-        return {};
+        return std::nullopt;
     if (type == INT)
-        return {};
+        return std::nullopt;
 
     if (!customMinDisplay.empty() && v == customMinDisplay)
         return minVal;
@@ -447,7 +447,7 @@ inline std::optional<float> ParamMetaData::valueFromString(std::string_view v,
             if (r < minVal || r > maxVal)
             {
                 errMsg = rangeMsg();
-                return {};
+                return std::nullopt;
             }
 
             return r;
@@ -455,7 +455,7 @@ inline std::optional<float> ParamMetaData::valueFromString(std::string_view v,
         catch (const std::exception &)
         {
             errMsg = rangeMsg();
-            return {};
+            return std::nullopt;
         }
     }
     break;
@@ -469,13 +469,13 @@ inline std::optional<float> ParamMetaData::valueFromString(std::string_view v,
             if (r < 0)
             {
                 errMsg = rangeMsg();
-                return {};
+                return std::nullopt;
             }
             r = log2(r / svA) / svB;
             if (r < minVal || r > maxVal)
             {
                 errMsg = rangeMsg();
-                return {};
+                return std::nullopt;
             }
 
             return r;
@@ -483,19 +483,19 @@ inline std::optional<float> ParamMetaData::valueFromString(std::string_view v,
         catch (const std::exception &)
         {
             errMsg = rangeMsg();
-            return {};
+            return std::nullopt;
         }
     }
     break;
     default:
         break;
     }
-    return {};
+    return std::nullopt;
 }
 
 inline std::optional<std::string> ParamMetaData::valueToAlternateString(float val) const
 {
-    return {};
+    return std::nullopt;
 }
 
 inline std::optional<ParamMetaData::ModulationDisplay>
@@ -503,7 +503,7 @@ ParamMetaData::modulationNaturalToString(float naturalBaseVal, float modulationN
                                          bool isBipolar, const FeatureState &fs) const
 {
     if (type != FLOAT)
-        return {};
+        return std::nullopt;
     ModulationDisplay result;
 
     switch (displayScale)
@@ -593,7 +593,7 @@ ParamMetaData::modulationNaturalToString(float naturalBaseVal, float modulationN
         break;
     }
 
-    return {};
+    return std::nullopt;
 }
 
 inline std::optional<float>
@@ -610,13 +610,13 @@ ParamMetaData::modulationNaturalFromString(std::string_view deltaNatural, float 
             if (abs(mv) > (maxVal - minVal))
             {
                 errMsg = fmt::format("Maximum depth: {} {}", (maxVal - minVal) * svA, unit);
-                return {};
+                return std::nullopt;
             }
             return mv;
         }
         catch (const std::exception &e)
         {
-            return {};
+            return std::nullopt;
         }
     }
     break;
@@ -629,28 +629,28 @@ ParamMetaData::modulationNaturalFromString(std::string_view deltaNatural, float 
             auto rv = xbv + mv;
             if (rv < 0)
             {
-                return {};
+                return std::nullopt;
             }
 
             auto r = log2(rv / svA) / svB;
             auto rg = maxVal - minVal;
             if (r < -rg || r > rg)
             {
-                return {};
+                return std::nullopt;
             }
 
             return r - naturalBaseVal;
         }
         catch (const std::exception &e)
         {
-            return {};
+            return std::nullopt;
         }
     }
     break;
     default:
         break;
     }
-    return {};
+    return std::nullopt;
 }
 } // namespace sst::basic_blocks::params
 
