@@ -22,6 +22,7 @@
 #include "smoke_test_sse.h"
 #include <cmath>
 #include <iostream>
+#include <type_traits>
 
 #include "sst/basic-blocks/params/ParamMetadata.h"
 
@@ -37,7 +38,8 @@ TEST_CASE("Percent and BiPolar Percent")
         REQUIRE(p.naturalToNormalized01(0.37f) == 0.37f);
         REQUIRE(p.supportsStringConversion);
         REQUIRE(p.valueToString(0.731) == "73.10 %");
-        REQUIRE(p.valueToString(0.03123456, pmd::ParamMetaData::FeatureState().withHighPrecision(true)) == "3.123456 %");
+        REQUIRE(p.valueToString(0.03123456, pmd::ParamMetaData::FeatureState().withHighPrecision(
+                                                true)) == "3.123456 %");
         REQUIRE(*(p.valueFromString(*(p.valueToString(0.731)), ems)) == 0.731f);
         REQUIRE(p.modulationNaturalToString(0, 0.2, true)->summary == "+/- 20.00 %");
     }
@@ -65,5 +67,13 @@ TEST_CASE("Percent and BiPolar Percent")
         REQUIRE(*(p.valueToString(12)) == "880.00 Hz");
         REQUIRE(*(p.valueFromString("440", ems)) == 0);
         REQUIRE(*(p.valueFromString("220", ems)) == -12);
+    }
+
+    SECTION("Default Constructors")
+    {
+        static_assert(std::is_copy_constructible_v<pmd::ParamMetaData::FeatureState>);
+        static_assert(std::is_move_constructible_v<pmd::ParamMetaData::FeatureState>);
+        static_assert(std::is_copy_assignable_v<pmd::ParamMetaData::FeatureState>);
+        static_assert(std::is_move_assignable_v<pmd::ParamMetaData::FeatureState>);
     }
 }
