@@ -55,6 +55,8 @@
 #include <variant>
 #include <optional>
 #include <unordered_map>
+#include <cassert>
+#include <cmath>
 
 #include <fmt/core.h>
 
