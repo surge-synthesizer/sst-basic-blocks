@@ -68,9 +68,11 @@ struct ParamMetaData
 
     enum Type
     {
-        FLOAT,
-        INT,
-        BOOL
+        FLOAT, // min/max/default value are in natural units
+        INT,   // min/max/default value are in natural units, stored as a float. (int)round(val)
+        BOOL,  // min/max 0/1. `val > 0.5` is true false test
+        NONE   // special signifier that this param has no value. Used for structural things like
+               // unused slots
     } type{FLOAT};
 
     std::string name;
@@ -163,11 +165,11 @@ struct ParamMetaData
 
     enum DisplayScale
     {
-        LINEAR,
-        A_TWO_TO_THE_B,
-        DECIBEL,
-        UNORDERED_MAP,
-        USER_PROVIDED
+        LINEAR,         // out = A * r + B
+        A_TWO_TO_THE_B, // out = A 2^(B r + C)
+        DECIBEL,        // TODO - implement
+        UNORDERED_MAP,  // out = discreteValues[(int)std::round(val)]
+        USER_PROVIDED   // TODO - implement
     } displayScale{LINEAR};
 
     std::string unit;
@@ -195,6 +197,10 @@ struct ParamMetaData
             assert(maxVal == 1 && minVal == 0);
             v = (naturalValue > 0.5 ? 1.f : 0.f);
             break;
+        case NONE:
+            assert(false);
+            v = 0.f;
+            break;
         }
         return std::clamp(v, 0.f, 1.f);
     }
@@ -215,6 +221,9 @@ struct ParamMetaData
         case BOOL:
             assert(maxVal == 1 && minVal == 0);
             return normalizedValue > 0.5 ? maxVal : minVal;
+        case NONE:
+            assert(false);
+            return 0.f;
         }
         // quiet gcc
         return 0.f;
@@ -265,8 +274,14 @@ struct ParamMetaData
 
     ParamMetaData &withATwoToTheBFormatting(float A, float B, std::string_view units)
     {
+        return withATwoToTheBPlusCFormatting(A, B, 0.f, units);
+    }
+
+    ParamMetaData &withATwoToTheBPlusCFormatting(float A, float B, float C, std::string_view units)
+    {
         svA = A;
         svB = B;
+        svC = C;
         unit = units;
         displayScale = A_TWO_TO_THE_B;
         supportsStringConversion = true;
@@ -413,7 +428,7 @@ inline std::optional<std::string> ParamMetaData::valueToString(float val,
             return customMinDisplay;
         }
 
-        return fmt::format("{:.{}f} {:s}", svA * pow(2.0, svB * val),
+        return fmt::format("{:.{}f} {:s}", svA * pow(2.0, svB * val + svC),
                            (fs.isHighPrecision ? (decimalPlaces + 4) : decimalPlaces), unit);
         break;
     default:
@@ -482,7 +497,11 @@ inline std::optional<float> ParamMetaData::valueFromString(std::string_view v,
                 errMsg = rangeMsg();
                 return std::nullopt;
             }
-            r = log2(r / svA) / svB;
+            /* v = svA 2^(svB r + svC)
+             * log2(v / svA) = svB r + svC
+             * (log2(v/svA) - svC)/svB = r
+             */
+            r = (log2(r / svA) - svC) / svB;
             if (r < minVal || r > maxVal)
             {
                 errMsg = rangeMsg();
