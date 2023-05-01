@@ -168,7 +168,6 @@ struct ParamMetaData
         USER_PROVIDED
     } displayScale{LINEAR};
 
-  protected:
     std::string unit;
     std::string customMinDisplay;
     std::string customMaxDisplay;
@@ -176,7 +175,6 @@ struct ParamMetaData
     int decimalPlaces{2};
     float svA{0.f}, svB{0.f}, svC{0.f}, svD{0.f}; // for various functional forms
 
-  public:
     float naturalToNormalized01(float naturalValue) const
     {
         float v = 0;
@@ -339,6 +337,14 @@ struct ParamMetaData
             .withRange(0.f, 127.f)
             .withDefault(60.f)
             .withLinearScaleFormatting("semitones");
+    }
+    ParamMetaData &asMIDINote()
+    {
+        return withType(INT)
+            .withRange(0, 127)
+            .withDefault(60)
+            .withLinearScaleFormatting("semitones")
+            .withDecimalPlaces(0);
     }
     ParamMetaData &asEnvelopeTime()
     {
