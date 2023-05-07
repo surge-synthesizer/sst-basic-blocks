@@ -30,8 +30,7 @@
 namespace sst::basic_blocks::mechanics
 {
 
-template<size_t blocksize>
-inline void clear_block(float *__restrict f)
+template <size_t blocksize> inline void clear_block(float *__restrict f)
 {
     memset(f, 0, blocksize * sizeof(float));
 }
@@ -51,8 +50,9 @@ inline void copy_from_to(const float *__restrict src, float *__restrict dst)
         dst[i] = src[i];
 }
 
-template<size_t blocksize>
-inline void add_block(const float *__restrict src1, const float *__restrict src2, float *__restrict dst)
+template <size_t blocksize>
+inline void add_block(const float *__restrict src1, const float *__restrict src2,
+                      float *__restrict dst)
 {
     for (auto i = 0U; i < blocksize; ++i)
     {
@@ -60,7 +60,7 @@ inline void add_block(const float *__restrict src1, const float *__restrict src2
     }
 }
 
-template<size_t blockSize>
+template <size_t blockSize>
 inline void mul_block(float *__restrict src1, float *src2, float *__restrict dst)
 {
     for (auto i = 0U; i < blockSize; ++i)
@@ -69,7 +69,7 @@ inline void mul_block(float *__restrict src1, float *src2, float *__restrict dst
     }
 }
 
-template<size_t blockSize>
+template <size_t blockSize>
 inline void mul_block(float *__restrict src1, float scalar, float *__restrict dst)
 {
     for (auto i = 0U; i < blockSize; ++i)
@@ -96,7 +96,16 @@ inline void scale_by(const float *__restrict scale, float *__restrict targetL,
 }
 
 template <size_t blockSize>
-inline float blockAbsMax(const float *__restrict d)
+inline void scale_by(const float scale, float *__restrict targetL, float *__restrict targetR)
+{
+    for (auto i = 0U; i < blockSize; ++i)
+    {
+        targetL[i] *= scale;
+        targetR[i] *= scale;
+    }
+}
+
+template <size_t blockSize> inline float blockAbsMax(const float *__restrict d)
 {
 #if 0
     // Note there used to be a SIMD version of this
@@ -106,7 +115,7 @@ inline float blockAbsMax(const float *__restrict d)
 #else
     __m128 mx = _mm_setzero_ps();
 
-    for (unsigned int i = 0; i < blockSize >> 2; i ++)
+    for (unsigned int i = 0; i < blockSize >> 2; i++)
     {
         mx = _mm_max_ps(mx, _mm_and_ps(((__m128 *)d)[i], m128_mask_absval));
     }
@@ -116,7 +125,6 @@ inline float blockAbsMax(const float *__restrict d)
 
     return std::max({r[0], r[1], r[2], r[3]});
 #endif
-
 }
 } // namespace sst::basic_blocks::mechanics
 
