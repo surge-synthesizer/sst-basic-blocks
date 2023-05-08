@@ -78,7 +78,10 @@ struct ParamMetaData
     std::string name;
 
     float minVal{0.f}, maxVal{1.f}, defaultVal{0.f};
-    bool canExtend{false}, canDeform{false}, canAbsolute{false}, canTemposync{false};
+    bool canExtend{false}, canDeform{false}, canAbsolute{false}, canTemposync{false},
+        canDeactivate{false};
+
+    int deformationCount{0};
 
     bool supportsStringConversion{false};
 
@@ -175,9 +178,12 @@ struct ParamMetaData
     std::string unit;
     std::string customMinDisplay;
     std::string customMaxDisplay;
+    std::string customDefaultDisplay;
+
     std::unordered_map<int, std::string> discreteValues;
     int decimalPlaces{2};
     float svA{0.f}, svB{0.f}, svC{0.f}, svD{0.f}; // for various functional forms
+    float exA{1.f}, exB{0.f};
 
     float naturalToNormalized01(float naturalValue) const
     {
@@ -256,9 +262,21 @@ struct ParamMetaData
         canExtend = b;
         return *this;
     }
+    // extend is f -> A f + B
+    ParamMetaData &withExtendFactors(float A, float B)
+    {
+        exA = A;
+        exB = B;
+        return *this;
+    }
     ParamMetaData &deformable(bool b = true)
     {
         canDeform = b;
+        return *this;
+    }
+    ParamMetaData &withDeformationCount(int c)
+    {
+        deformationCount = c;
         return *this;
     }
     ParamMetaData &absolutable(bool b = true)
@@ -269,6 +287,11 @@ struct ParamMetaData
     ParamMetaData &temposyncable(bool b = true)
     {
         canTemposync = b;
+        return *this;
+    }
+    ParamMetaData &deactivatable(bool b = true)
+    {
+        canDeactivate = b;
         return *this;
     }
 
@@ -317,6 +340,23 @@ struct ParamMetaData
         return *this;
     }
 
+    ParamMetaData &withCustomMaxDisplay(const std::string &v)
+    {
+        customMaxDisplay = v;
+        return *this;
+    }
+
+    ParamMetaData &withCustomMinDisplay(const std::string &v)
+    {
+        customMinDisplay = v;
+        return *this;
+    }
+    ParamMetaData &withCustomDefaultDisplay(const std::string &v)
+    {
+        customDefaultDisplay = v;
+        return *this;
+    }
+
     ParamMetaData &asPercent()
     {
         return withRange(0.f, 1.f)
@@ -324,6 +364,11 @@ struct ParamMetaData
             .withType(FLOAT)
             .withLinearScaleFormatting("%", 100.f)
             .withDecimalPlaces(2);
+    }
+
+    ParamMetaData &asPercentExtendableToBipolar()
+    {
+        return asPercent().extendable().withExtendFactors(2.f, -1.f);
     }
 
     ParamMetaData &asPercentBipolar()
@@ -363,6 +408,11 @@ struct ParamMetaData
             .withLinearScaleFormatting("semitones")
             .withDecimalPlaces(0);
     }
+    ParamMetaData &asLfoRate()
+    {
+        return withType(FLOAT).withRange(-7, 9).temposyncable().withATwoToTheBFormatting(1, 1,
+                                                                                         "Hz");
+    }
     ParamMetaData &asEnvelopeTime()
     {
         return withType(FLOAT)
@@ -375,6 +425,8 @@ struct ParamMetaData
     {
         return withType(FLOAT).withRange(-60, 70).withDefault(0).withSemitoneZeroAt400Formatting();
     }
+
+    std::string temposyncNotation(float f) const;
 };
 
 /*
@@ -400,6 +452,21 @@ inline std::optional<std::string> ParamMetaData::valueToString(float val,
             return std::nullopt;
         }
         return std::nullopt;
+    }
+
+    if (!customMinDisplay.empty() && val == minVal)
+        return customMinDisplay;
+    if (!customMaxDisplay.empty() && val == maxVal)
+        return customMaxDisplay;
+    if (!customDefaultDisplay.empty() && val == defaultVal)
+        return customDefaultDisplay;
+
+    if (fs.isExtended)
+        val = exA * val + exB;
+
+    if (fs.isTemposynced)
+    {
+        return temposyncNotation(val);
     }
 
     // float cases
@@ -682,6 +749,103 @@ ParamMetaData::modulationNaturalFromString(std::string_view deltaNatural, float 
     }
     return std::nullopt;
 }
+
+inline std::string ParamMetaData::temposyncNotation(float f) const
+{
+    float a, b = modff(f, &a);
+
+    if (b >= 0)
+    {
+        b -= 1.0;
+        a += 1.0;
+    }
+
+    float d, q;
+    std::string nn, t;
+    char tmp[1024];
+
+    if (f >= 1)
+    {
+        q = pow(2.0, f - 1);
+        nn = "whole";
+        if (q >= 3)
+        {
+            if (abs(q - floor(q + 0.01)) < 0.01)
+            {
+                snprintf(tmp, 1024, "%d whole notes", (int)floor(q + 0.01));
+            }
+            else
+            {
+                // this is the triplet case
+                snprintf(tmp, 1024, "%d whole triplets", (int)floor(q * 3.0 / 2.0 + 0.02));
+            }
+            std::string res = tmp;
+            return res;
+        }
+        else if (q >= 2)
+        {
+            nn = "double whole";
+            q /= 2;
+        }
+
+        if (q < 1.3)
+        {
+            t = "note";
+        }
+        else if (q < 1.4)
+        {
+            t = "triplet";
+            if (nn == "whole")
+            {
+                nn = "double whole";
+            }
+            else
+            {
+                q = pow(2.0, f - 1);
+                snprintf(tmp, 1024, "%d whole triplets", (int)floor(q * 3.0 / 2.0 + 0.02));
+                std::string res = tmp;
+                return res;
+            }
+        }
+        else
+        {
+            t = "dotted";
+        }
+    }
+    else
+    {
+        d = pow(2.0, -(a - 2));
+        q = pow(2.0, (b + 1));
+
+        if (q < 1.3)
+        {
+            t = "note";
+        }
+        else if (q < 1.4)
+        {
+            t = "triplet";
+            d = d / 2;
+        }
+        else
+        {
+            t = "dotted";
+        }
+        if (d == 1)
+        {
+            nn = "whole";
+        }
+        else
+        {
+            char tmp[1024];
+            snprintf(tmp, 1024, "1/%d", (int)d);
+            nn = tmp;
+        }
+    }
+    std::string res = nn + " " + t;
+
+    return res;
+}
+
 } // namespace sst::basic_blocks::params
 
 #endif
