@@ -23,9 +23,8 @@
 
 namespace sst::basic_blocks::dsp
 {
-template<size_t blocksize>
-void encodeMS(float *__restrict L, float *__restrict R,
-              float *__restrict M, float *__restrict S)
+template <size_t blocksize>
+void encodeMS(float *__restrict L, float *__restrict R, float *__restrict M, float *__restrict S)
 {
     for (auto i = 0U; i < blocksize; ++i)
     {
@@ -34,9 +33,8 @@ void encodeMS(float *__restrict L, float *__restrict R,
     }
 }
 
-template<size_t blocksize>
-void decodeMS(float *__restrict M, float *__restrict S,
-              float *__restrict L, float *__restrict R)
+template <size_t blocksize>
+void decodeMS(float *__restrict M, float *__restrict S, float *__restrict L, float *__restrict R)
 {
     for (auto i = 0U; i < blocksize; ++i)
     {
@@ -44,5 +42,5 @@ void decodeMS(float *__restrict M, float *__restrict S,
         R[i] = M[i] - S[i];
     }
 }
-}
+} // namespace sst::basic_blocks::dsp
 #endif // SURGE_MIDSIDE_H

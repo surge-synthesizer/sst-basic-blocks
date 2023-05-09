@@ -28,9 +28,7 @@ namespace sst::basic_blocks::dsp
 template <class T, int defaultBlockSize, bool first_run_checks = true> struct lipol
 {
   public:
-    lipol() {
-        reset();
-    }
+    lipol() { reset(); }
     void reset()
     {
         if (first_run_checks)
@@ -50,7 +48,8 @@ template <class T, int defaultBlockSize, bool first_run_checks = true> struct li
         }
         dv = (new_v - v) * bs_inv;
     }
-    inline void instantize() {
+    inline void instantize()
+    {
         v = new_v;
         dv = (T)0;
     }
@@ -70,9 +69,25 @@ template <class T, int defaultBlockSize, bool first_run_checks = true> struct li
     bool first_run{true};
 };
 
-template <int maxBlockSize, bool first_run_checks = true> struct lipol_sse
+template <int maxBlockSize, bool first_run_checks = true> struct alignas(16) lipol_sse
 {
-    static_assert(! (maxBlockSize & (maxBlockSize - 1)));
+  private:
+    // put these at the top to preserve alignment
+    __m128 line[maxBlockSize >> 2];
+    __m128 zeroUpByQuarters;
+    __m128 one, zero;
+
+    static constexpr int maxRegisters{maxBlockSize >> 2};
+
+    int numRegisters{maxBlockSize >> 2};
+    float blockSizeInv{1.f / blockSize};
+    float registerSizeInv{1.f / (blockSize >> 2)};
+
+    float target{0.f}, current{0.f};
+    bool first_run{true};
+
+  public:
+    static_assert(!(maxBlockSize & (maxBlockSize - 1)));
 
     lipol_sse()
     {
@@ -107,11 +122,8 @@ template <int maxBlockSize, bool first_run_checks = true> struct lipol_sse
         updateLine();
     }
 
-    inline void instantize() { set_target_instant(target);}
-    void set_target_instantize(float f)
-    {
-        set_target_instant(f);
-    }
+    inline void instantize() { set_target_instant(target); }
+    void set_target_instantize(float f) { set_target_instant(f); }
     void set_target_instant(float f)
     {
         target = f;
@@ -127,7 +139,7 @@ template <int maxBlockSize, bool first_run_checks = true> struct lipol_sse
      * that the port is correct so for now we add a block size quad argument to these
      * and assert that they are correct.
      */
-    void multiply_block_to(float *__restrict in, float *__restrict out, int bsQuad=-1) const
+    void multiply_block_to(float *__restrict in, float *__restrict out, int bsQuad = -1) const
     {
         assert(bsQuad == -1 || bsQuad == numRegisters);
         for (int i = 0; i < numRegisters; ++i)
@@ -138,7 +150,7 @@ template <int maxBlockSize, bool first_run_checks = true> struct lipol_sse
         }
     }
 
-    void multiply_block(float *in, int bsQuad=-1) const
+    void multiply_block(float *in, int bsQuad = -1) const
     {
         assert(bsQuad == -1 || bsQuad == numRegisters);
         for (int i = 0; i < numRegisters; ++i)
@@ -177,8 +189,8 @@ template <int maxBlockSize, bool first_run_checks = true> struct lipol_sse
             _mm_store_ps(dst + (i << 2), mv);
         }
     }
-    void MAC_2_blocks_to(float *__restrict src1, float *__restrict src2,
-                         float *__restrict dst1, float *__restrict dst2, int bsQuad = -1) const
+    void MAC_2_blocks_to(float *__restrict src1, float *__restrict src2, float *__restrict dst1,
+                         float *__restrict dst2, int bsQuad = -1) const
     {
         MAC_block_to(src1, dst1, bsQuad);
         MAC_block_to(src2, dst2, bsQuad);
@@ -200,14 +212,15 @@ template <int maxBlockSize, bool first_run_checks = true> struct lipol_sse
         }
     }
 
-    void fade_block_to(float *__restrict src1, float *__restrict src2, float *__restrict dst, int bsQuad = -1) const
+    void fade_block_to(float *__restrict src1, float *__restrict src2, float *__restrict dst,
+                       int bsQuad = -1) const
     {
         assert(bsQuad == -1 || bsQuad == numRegisters);
         fade_blocks(src1, src2, dst);
     }
-    void fade_2_blocks_to(float *__restrict src11, float *__restrict src12,
-                          float *__restrict src21, float *__restrict src22,
-                          float *__restrict dst1, float *__restrict dst2, int bsQuad = -1) const
+    void fade_2_blocks_to(float *__restrict src11, float *__restrict src12, float *__restrict src21,
+                          float *__restrict src22, float *__restrict dst1, float *__restrict dst2,
+                          int bsQuad = -1) const
     {
         fade_block_to(src11, src12, dst1, bsQuad);
         fade_block_to(src21, src22, dst2, bsQuad);
@@ -215,7 +228,7 @@ template <int maxBlockSize, bool first_run_checks = true> struct lipol_sse
 
     void store_block(float *__restrict out, int bsQuad = -1) const
     {
-        assert( bsQuad == -1 || bsQuad == numRegisters);
+        assert(bsQuad == -1 || bsQuad == numRegisters);
         for (int i = 0; i < numRegisters; ++i)
         {
             _mm_store_ps(out + (i << 2), line[i]);
@@ -230,7 +243,7 @@ template <int maxBlockSize, bool first_run_checks = true> struct lipol_sse
      * tR = a * L + (1+b) * R
      */
     void trixpan_blocks(float *__restrict L, float *__restrict R, float *__restrict dL,
-                        float *__restrict dR, int bsQuad = -1)const
+                        float *__restrict dR, int bsQuad = -1) const
     {
         assert(bsQuad == -1 || bsQuad == numRegisters);
 
@@ -240,18 +253,16 @@ template <int maxBlockSize, bool first_run_checks = true> struct lipol_sse
             auto b = _mm_min_ps(zero, line[i]);
             auto l = _mm_load_ps(L + (i << 2));
             auto r = _mm_load_ps(R + (i << 2));
-            auto tl = _mm_sub_ps(_mm_mul_ps(_mm_sub_ps(one, a), l),
-                                 _mm_mul_ps(b, r));
-            auto tr = _mm_add_ps(_mm_mul_ps(a, l),
-                                  _mm_mul_ps(_mm_add_ps(one, b), r));
-            _mm_store_ps(dL + (i<<2), tl);
-            _mm_store_ps(dR + (i<<2), tr);
+            auto tl = _mm_sub_ps(_mm_mul_ps(_mm_sub_ps(one, a), l), _mm_mul_ps(b, r));
+            auto tr = _mm_add_ps(_mm_mul_ps(a, l), _mm_mul_ps(_mm_add_ps(one, b), r));
+            _mm_store_ps(dL + (i << 2), tl);
+            _mm_store_ps(dR + (i << 2), tr);
         }
     }
 
     void set_blocksize(size_t bs)
     {
-        assert( ! ( bs & (bs-1)));
+        assert(!(bs & (bs - 1)));
         assert(bs <= maxBlockSize);
         assert(bs >= 4);
         blockSize = bs;
@@ -275,18 +286,6 @@ template <int maxBlockSize, bool first_run_checks = true> struct lipol_sse
         }
         current = target;
     }
-
-    static constexpr int maxRegisters{maxBlockSize >> 2};
-
-    int numRegisters{maxBlockSize >> 2};
-    float blockSizeInv{1.f / blockSize};
-    float registerSizeInv{1.f / (blockSize >> 2)};
-
-    __m128 line[maxRegisters];
-    __m128 zeroUpByQuarters;
-    __m128 one, zero;
-    float target{0.f}, current{0.f};
-    bool first_run{true};
 };
 } // namespace sst::basic_blocks::dsp
 

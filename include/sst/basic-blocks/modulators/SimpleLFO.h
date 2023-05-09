@@ -18,8 +18,6 @@
  * https://github.com/surge-synthesizer/sst-basic-blocks
  */
 
-
-
 #ifndef INCLUDE_SST_BASIC_BLOCKS_MODULATORS_SIMPLELFO_H
 #define INCLUDE_SST_BASIC_BLOCKS_MODULATORS_SIMPLELFO_H
 
@@ -30,27 +28,26 @@
 #include <cmath>
 #include <cassert>
 
-
 namespace sst::basic_blocks::modulators
 {
 
 // For context on SRProvider see the ADSRDAHD Envelope
-template<typename SRProvider, int BLOCK_SIZE>
-struct SimpleLFO
+template <typename SRProvider, int BLOCK_SIZE> struct SimpleLFO
 {
     SRProvider *srProvider{nullptr};
     std::default_random_engine gen;
     std::uniform_real_distribution<float> distro;
     std::function<float()> urng = []() { return 0; };
 
-    static_assert((BLOCK_SIZE >= 8) & !(BLOCK_SIZE & (BLOCK_SIZE - 1)), "Block size must be power of 2 8 or above.");
-    static constexpr float BLOCK_SIZE_INV{1.f/BLOCK_SIZE};
+    static_assert((BLOCK_SIZE >= 8) & !(BLOCK_SIZE & (BLOCK_SIZE - 1)),
+                  "Block size must be power of 2 8 or above.");
+    static constexpr float BLOCK_SIZE_INV{1.f / BLOCK_SIZE};
 
     float rngState[2]{0, 0};
     float rngHistory[4]{0, 0, 0, 0};
 
     float rngCurrent{0};
-    
+
     SimpleLFO(SRProvider *s, uint32_t seed = rand()) : srProvider(s)
     {
         gen = std::default_random_engine();
@@ -164,7 +161,8 @@ struct SimpleLFO
             {
                 // The deform can push correlated noise out of bounds
                 auto ud = d * 0.8;
-                rngCurrent = dsp::correlated_noise_o2mk2_suppliedrng(rngState[0], rngState[1], ud, urng);
+                rngCurrent =
+                    dsp::correlated_noise_o2mk2_suppliedrng(rngState[0], rngState[1], ud, urng);
 
                 rngHistory[3] = rngHistory[2];
                 rngHistory[2] = rngHistory[1];
@@ -208,7 +206,8 @@ struct SimpleLFO
             target = (phase < (d + 1) * 0.5) ? 1 : -1;
             break;
         case SMOOTH_NOISE:
-            target = dsp::cubic_ipol(rngHistory[3], rngHistory[2], rngHistory[1], rngHistory[0], phase);
+            target =
+                dsp::cubic_ipol(rngHistory[3], rngHistory[2], rngHistory[1], rngHistory[0], phase);
             break;
         case SH_NOISE:
             target = rngCurrent;
@@ -220,7 +219,8 @@ struct SimpleLFO
                 if (urng() > (-d))
                 {
                     // 10 ms triggers according to spec so thats 1% of sample rate
-                    rndTrigCountdown = (int)std::round(0.01 * srProvider->samplerate * BLOCK_SIZE_INV);
+                    rndTrigCountdown =
+                        (int)std::round(0.01 * srProvider->samplerate * BLOCK_SIZE_INV);
                 }
             }
             if (rndTrigCountdown > 0)
@@ -257,11 +257,12 @@ struct SimpleLFO
         }
         lastTarget = target;
     }
-private:
-    SimpleLFO(const SimpleLFO&) = delete;
-    SimpleLFO& operator=(const SimpleLFO&) = delete;
-    SimpleLFO(SimpleLFO&&) = delete;
-    SimpleLFO& operator=(SimpleLFO&&) = delete;
+
+  private:
+    SimpleLFO(const SimpleLFO &) = delete;
+    SimpleLFO &operator=(const SimpleLFO &) = delete;
+    SimpleLFO(SimpleLFO &&) = delete;
+    SimpleLFO &operator=(SimpleLFO &&) = delete;
 };
-} // namespace sst::surgext_rack::dsp::modulators
+} // namespace sst::basic_blocks::modulators
 #endif // RACK_HACK_SIMPLELFO_H

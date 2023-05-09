@@ -34,10 +34,10 @@ namespace sst::basic_blocks::dsp
 template <int COMB_SIZE> // power of two
 struct SSESincDelayLine
 {
-    static_assert(! (COMB_SIZE & (COMB_SIZE-1))); // make sure we are a power of 2
+    static_assert(!(COMB_SIZE & (COMB_SIZE - 1))); // make sure we are a power of 2
     static constexpr int comb_size = COMB_SIZE;
 
-    using stp=tables::SurgeSincTableProvider;
+    using stp = tables::SurgeSincTableProvider;
 
     float buffer alignas(16)[COMB_SIZE + stp::FIRipol_N];
     int wp = 0;
@@ -50,7 +50,10 @@ struct SSESincDelayLine
      * but please make sure that table has lifetime longer than this interpolator, since we take the
      * pointer address of its table
      */
-    SSESincDelayLine(const tables::SurgeSincTableProvider &st) : sinctable(st.sinctable) { clear(); }
+    SSESincDelayLine(const tables::SurgeSincTableProvider &st) : sinctable(st.sinctable)
+    {
+        clear();
+    }
 
     inline void write(float f)
     {
@@ -112,5 +115,5 @@ struct SSESincDelayLine
         wp = 0;
     }
 };
-}
+} // namespace sst::basic_blocks::dsp
 #endif // SURGE_SSESINCDELAYLINE_H

@@ -18,8 +18,6 @@
  * https://github.com/surge-synthesizer/sst-basic-blocks
  */
 
-
-
 #ifndef INCLUDE_SST_BASIC_BLOCKS_MODULATORS_DAHDENVELOPE_H
 #define INCLUDE_SST_BASIC_BLOCKS_MODULATORS_DAHDENVELOPE_H
 
@@ -29,7 +27,6 @@
 
 namespace sst::basic_blocks::modulators
 {
-
 
 /**
  * The ADSR or DAHD envelope provider
@@ -42,7 +39,7 @@ namespace sst::basic_blocks::modulators
  * @tparam BLOCK_SIZE  the block size
  * @tparam RangeProvider - sets mins and maxes
  */
-template<typename SRProvider, int BLOCK_SIZE, typename RangeProvider = TenSecondRange>
+template <typename SRProvider, int BLOCK_SIZE, typename RangeProvider = TenSecondRange>
 struct DAHDEnvelope : DiscreteStagesEnvelope<BLOCK_SIZE, RangeProvider>
 {
     using base_t = DiscreteStagesEnvelope<BLOCK_SIZE, RangeProvider>;
@@ -52,7 +49,6 @@ struct DAHDEnvelope : DiscreteStagesEnvelope<BLOCK_SIZE, RangeProvider>
     {
         onSampleRateChanged();
     }
-
 
     bool isDigital{true};
     float phase{0}, start{0};
@@ -210,9 +206,13 @@ struct DAHDEnvelope : DiscreteStagesEnvelope<BLOCK_SIZE, RangeProvider>
 
         // In this case we only need the coefs in their stage
         float coef_A =
-            !discharge ? powf(2.f, std::min(0.f, coeff_offset - (a * base_t::etScale + base_t::etMin))) : 0;
+            !discharge
+                ? powf(2.f, std::min(0.f, coeff_offset - (a * base_t::etScale + base_t::etMin)))
+                : 0;
         float coef_D =
-            discharge ? powf(2.f, std::min(0.f, coeff_offset - (d * base_t::etScale + base_t::etMin))) : 0;
+            discharge
+                ? powf(2.f, std::min(0.f, coeff_offset - (d * base_t::etScale + base_t::etMin)))
+                : 0;
 
         auto diff_v_a = std::max(0.f, v_attack - v_c1);
         auto diff_v_d = std::min(0.f, v_decay - v_c1);
@@ -274,7 +274,6 @@ struct DAHDEnvelope : DiscreteStagesEnvelope<BLOCK_SIZE, RangeProvider>
 
         base_t::step();
     }
-
 };
-} // namespace sst::surgext_rack::dsp::envelopes
+} // namespace sst::basic_blocks::modulators
 #endif // RACK_HACK_ADARENVELOPE_H

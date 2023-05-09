@@ -21,7 +21,6 @@
 #ifndef INCLUDE_SST_BASIC_BLOCKS_DSP_LANCZOSRESAMPLER_H
 #define INCLUDE_SST_BASIC_BLOCKS_DSP_LANCZOSRESAMPLER_H
 
-
 #include <algorithm>
 #include <utility>
 #include <cmath>
@@ -241,5 +240,5 @@ template <int bs> void LanczosResampler<bs>::populateNextBlockSizeOS(float *fL, 
     }
     phaseO += (bs << 1) * dPhaseO;
 }
-}
+} // namespace sst::basic_blocks::dsp
 #endif

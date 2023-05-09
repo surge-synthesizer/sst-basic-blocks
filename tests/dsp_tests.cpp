@@ -48,7 +48,7 @@ TEST_CASE("lipol_sse basic", "[dsp]")
             lip.store_block(where);
             for (int i = 0; i < bs; i++)
             {
-                REQUIRE(where[i] == Approx(prev + (t - prev) / bs * (i+1)).margin(1e-5));
+                REQUIRE(where[i] == Approx(prev + (t - prev) / bs * (i + 1)).margin(1e-5));
             }
             prev = t;
         }
@@ -67,7 +67,7 @@ TEST_CASE("lipol_sse basic", "[dsp]")
             lip.store_block(where);
             for (int i = 0; i < bs; i++)
             {
-                REQUIRE(where[i] == Approx(prev + (t - prev) / bs * (i+1)).margin(1e-5));
+                REQUIRE(where[i] == Approx(prev + (t - prev) / bs * (i + 1)).margin(1e-5));
             }
             prev = t;
         }
@@ -86,7 +86,7 @@ TEST_CASE("lipol_sse basic", "[dsp]")
             lip.store_block(where);
             for (int i = 0; i < bs; i++)
             {
-                REQUIRE(where[i] == Approx(prev + (t - prev) / bs * (i+1)).margin(1e-5));
+                REQUIRE(where[i] == Approx(prev + (t - prev) / bs * (i + 1)).margin(1e-5));
             }
             prev = t;
         }
@@ -106,7 +106,7 @@ TEST_CASE("lipol_sse basic", "[dsp]")
             lip.store_block(where);
             for (int i = 0; i < bs; i++)
             {
-                REQUIRE(where[i] == Approx(prev + (t - prev) / bs * (i+1)).margin(1e-5));
+                REQUIRE(where[i] == Approx(prev + (t - prev) / bs * (i + 1)).margin(1e-5));
             }
             prev = t;
         }
@@ -126,7 +126,7 @@ TEST_CASE("lipol_sse basic", "[dsp]")
             lip.store_block(where);
             for (int i = 0; i < bs; i++)
             {
-                REQUIRE(where[i] == Approx(prev + (t - prev) / bs * (i+1)).margin(1e-5));
+                REQUIRE(where[i] == Approx(prev + (t - prev) / bs * (i + 1)).margin(1e-5));
             }
             prev = t;
         }
@@ -150,7 +150,7 @@ TEST_CASE("lipol_sse multiply_block", "[dsp]")
         lip.multiply_block_to(f, r);
         for (int i = 0; i < bs; i++)
         {
-            auto x = (0.2 + (0.6 - 0.2) / bs * (i+1)) * f[i];
+            auto x = (0.2 + (0.6 - 0.2) / bs * (i + 1)) * f[i];
             REQUIRE(x == Approx(r[i]).margin(1e-5));
         }
     }
@@ -174,7 +174,7 @@ TEST_CASE("lipol_sse fade_block", "[dsp]")
         lip.fade_blocks(f, g, r);
         for (int i = 0; i < bs; i++)
         {
-            auto cx = (0.2 + (0.6 - 0.2) / bs * (i+1));
+            auto cx = (0.2 + (0.6 - 0.2) / bs * (i + 1));
             auto rx = f[i] * (1 - cx) + g[i] * cx;
             REQUIRE(rx == Approx(r[i]).margin(1e-5));
         }
@@ -202,7 +202,6 @@ TEST_CASE("Quadrature Oscillator")
         }
     }
 }
-
 
 TEST_CASE("Surge Quadrature Oscillator")
 {
@@ -513,25 +512,22 @@ TEST_CASE("SoftClip", "[dsp]")
 
 TEST_CASE("SoftClip Block", "[dsp]")
 {
-    float r alignas(16)[32],
-        q alignas(16)[32],
-        h alignas(16)[32],
-        h8 alignas(16)[32],
+    float r alignas(16)[32], q alignas(16)[32], h alignas(16)[32], h8 alignas(16)[32],
         t7 alignas(16)[32];
     for (int i = 0; i < 32; ++i)
     {
         r[i] = rand() * 20.4 / RAND_MAX - 10.0;
     }
-    sst::basic_blocks::mechanics::copy_from_to<32>(r,q);
-    sst::basic_blocks::mechanics::copy_from_to<32>(r,h);
-    sst::basic_blocks::mechanics::copy_from_to<32>(r,h8);
-    sst::basic_blocks::mechanics::copy_from_to<32>(r,t7);
+    sst::basic_blocks::mechanics::copy_from_to<32>(r, q);
+    sst::basic_blocks::mechanics::copy_from_to<32>(r, h);
+    sst::basic_blocks::mechanics::copy_from_to<32>(r, h8);
+    sst::basic_blocks::mechanics::copy_from_to<32>(r, t7);
 
     sst::basic_blocks::dsp::softclip_block<32>(q);
     sst::basic_blocks::dsp::hardclip_block<32>(h);
     sst::basic_blocks::dsp::hardclip_block8<32>(h8);
     sst::basic_blocks::dsp::tanh7_block<32>(t7);
-    for (int i=0; i<32; ++i)
+    for (int i = 0; i < 32; ++i)
     {
         auto sci = std::clamp(r[i], -1.5f, 1.5f);
         auto sc = sci - 4.0 / 27.0 * sci * sci * sci;
@@ -543,9 +539,7 @@ TEST_CASE("SoftClip Block", "[dsp]")
         REQUIRE(t7[i] >= -1);
         REQUIRE(t7[i] <= 1);
     }
-
 }
-
 
 TEST_CASE("Sinc Delay Line", "[dsp]")
 {
@@ -659,8 +653,6 @@ TEST_CASE("Sinc Delay Line", "[dsp]")
     }
 #endif
 }
-
-
 
 TEST_CASE("lipol_ps class", "[dsp]")
 {

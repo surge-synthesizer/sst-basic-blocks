@@ -50,7 +50,7 @@ template <typename T = float> struct QuadratureOscillator
 /**
  * The Surge Magic Circle style Oscillator
  */
- template <typename T = float> struct SurgeQuadrOsc
+template <typename T = float> struct SurgeQuadrOsc
 {
   public:
     SurgeQuadrOsc()
