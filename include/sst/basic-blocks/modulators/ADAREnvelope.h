@@ -18,8 +18,6 @@
  * https://github.com/surge-synthesizer/sst-basic-blocks
  */
 
-
-
 #ifndef INCLUDE_SST_BASIC_BLOCKS_MODULATORS_ADARENVELOPE_H
 #define INCLUDE_SST_BASIC_BLOCKS_MODULATORS_ADARENVELOPE_H
 
@@ -38,15 +36,13 @@ namespace sst::basic_blocks::modulators
  * @tparam BLOCK_SIZE Must be a power of 2
  * @tparam RangeProvider Defines the min and max
  */
-template<typename SRProvider, int BLOCK_SIZE, typename RangeProvider = TenSecondRange>
+template <typename SRProvider, int BLOCK_SIZE, typename RangeProvider = TenSecondRange>
 struct ADAREnvelope : DiscreteStagesEnvelope<BLOCK_SIZE, RangeProvider>
 {
     using base_t = DiscreteStagesEnvelope<BLOCK_SIZE, RangeProvider>;
 
     SRProvider *srProvider;
-    ADAREnvelope(SRProvider *s) : srProvider(s)
-    {
-    }
+    ADAREnvelope(SRProvider *s) : srProvider(s) {}
 
     bool isDigital{true};
     bool isGated{false};
@@ -131,11 +127,10 @@ struct ADAREnvelope : DiscreteStagesEnvelope<BLOCK_SIZE, RangeProvider>
                             const bool gateActive)
     {
         processScaledAD(this->rateFrom01(1), this->rateFrom01(d), ashape, dshape, gateActive);
-
     }
 
     inline void processScaledAD(const float a, const float d, const int ashape, const int dshape,
-                        const bool gateActive)
+                                const bool gateActive)
     {
         if (base_t::preBlockCheck())
             return;
@@ -162,7 +157,8 @@ struct ADAREnvelope : DiscreteStagesEnvelope<BLOCK_SIZE, RangeProvider>
             }
             else
             {
-                const float coeff_offset = 2.f - std::log2(srProvider->samplerate * base_t::BLOCK_SIZE_INV);
+                const float coeff_offset =
+                    2.f - std::log2(srProvider->samplerate * base_t::BLOCK_SIZE_INV);
 
                 auto ndc = (v_c1_delayed >= 0.99999f);
                 if (ndc && !discharge)
@@ -231,5 +227,5 @@ struct ADAREnvelope : DiscreteStagesEnvelope<BLOCK_SIZE, RangeProvider>
         base_t::step();
     }
 };
-} // namespace sst::surgext_rack::dsp::envelopes
+} // namespace sst::basic_blocks::modulators
 #endif // RACK_HACK_ADARENVELOPE_H

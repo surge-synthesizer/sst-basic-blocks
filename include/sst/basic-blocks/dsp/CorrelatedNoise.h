@@ -27,8 +27,9 @@
 namespace sst::basic_blocks::dsp
 {
 
-inline float correlated_noise_o2mk2_supplied_value(float &lastval, float &lastval2, float correlation,
-                                                const float bipolarUniformRandValue)
+inline float correlated_noise_o2mk2_supplied_value(float &lastval, float &lastval2,
+                                                   float correlation,
+                                                   const float bipolarUniformRandValue)
 {
     float wf = correlation;
     float wfabs = fabs(wf) * 0.8f;

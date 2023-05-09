@@ -195,7 +195,6 @@ template <int BLOCK_SIZE, typename RangeProvider> struct DiscreteStagesEnvelope
     float rateFrom01(float r01) { return r01 * etScale + etMin; }
     float rateTo01(float r) { return (r - etMin) / etScale; }
     float deltaTo01(float d) { return d / etScale; }
-    
 };
 } // namespace sst::basic_blocks::modulators
 

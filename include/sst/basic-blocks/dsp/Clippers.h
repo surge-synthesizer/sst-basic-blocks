@@ -43,7 +43,6 @@ inline __m128 softclip_ps(__m128 in)
     return t;
 }
 
-
 /**
  * y = x - (4/27/8^3)*x^3,  x in [-12 .. 12], +/-12 otherwise
  */
@@ -89,8 +88,7 @@ inline __m128 tanh7_ps(__m128 v)
     return _mm_mul_ps(y, x);
 }
 
-template <size_t blockSize>
-void softclip_block(float *__restrict x)
+template <size_t blockSize> void softclip_block(float *__restrict x)
 {
     for (unsigned int i = 0; i < blockSize; i += 4)
     {
@@ -98,8 +96,7 @@ void softclip_block(float *__restrict x)
     }
 }
 
-template <size_t blockSize>
-void tanh7_block(float *__restrict x)
+template <size_t blockSize> void tanh7_block(float *__restrict x)
 {
     for (unsigned int i = 0; i < blockSize; i += 4)
     {
@@ -107,8 +104,7 @@ void tanh7_block(float *__restrict x)
     }
 }
 
-template<size_t blockSize>
-void hardclip_block(float *x)
+template <size_t blockSize> void hardclip_block(float *x)
 {
     static_assert(!(blockSize & (blockSize - 1)) && blockSize >= 4);
     const __m128 x_min = _mm_set1_ps(-1.0f);
@@ -119,9 +115,7 @@ void hardclip_block(float *x)
     }
 }
 
-
-template<size_t blockSize>
-void hardclip_block8(float *x)
+template <size_t blockSize> void hardclip_block8(float *x)
 {
     static_assert(!(blockSize & (blockSize - 1)) && blockSize >= 4);
     const __m128 x_min = _mm_set1_ps(-8.0f);
@@ -131,6 +125,6 @@ void hardclip_block8(float *x)
         _mm_store_ps(x + i, _mm_max_ps(_mm_min_ps(_mm_load_ps(x + i), x_max), x_min));
     }
 }
-}
+} // namespace sst::basic_blocks::dsp
 
 #endif // SURGE_SHAPERS_H
