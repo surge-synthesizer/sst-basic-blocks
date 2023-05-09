@@ -77,9 +77,10 @@ template <int maxBlockSize, bool first_run_checks = true> struct alignas(16) lip
     __m128 zeroUpByQuarters;
     __m128 one, zero;
 
+  public:
     static constexpr int maxRegisters{maxBlockSize >> 2};
-
     int numRegisters{maxBlockSize >> 2};
+    int blockSize{maxBlockSize};
     float blockSizeInv{1.f / blockSize};
     float registerSizeInv{1.f / (blockSize >> 2)};
 
@@ -270,8 +271,6 @@ template <int maxBlockSize, bool first_run_checks = true> struct alignas(16) lip
         blockSizeInv = 1.f / blockSize;
         registerSizeInv = 1.f / (blockSize >> 2);
     }
-
-    int blockSize{maxBlockSize};
 
   private:
     void updateLine()
