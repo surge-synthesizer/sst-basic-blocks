@@ -607,7 +607,7 @@ ParamMetaData::modulationNaturalToString(float naturalBaseVal, float modulationN
     {
     case LINEAR:
     {
-        assert(abs(modulationNatural) <= maxVal - minVal);
+        assert(std::fabs(modulationNatural) <= maxVal - minVal);
         // OK this is super easy. It's just linear!
         auto du = modulationNatural;
         auto dd = -modulationNatural;
@@ -704,7 +704,7 @@ ParamMetaData::modulationNaturalFromString(std::string_view deltaNatural, float 
         try
         {
             auto mv = std::stof(std::string(deltaNatural)) / svA;
-            if (abs(mv) > (maxVal - minVal))
+            if (std::fabs(mv) > (maxVal - minVal))
             {
                 errMsg = fmt::format("Maximum depth: {} {}", (maxVal - minVal) * svA, unit);
                 return std::nullopt;
@@ -766,11 +766,11 @@ inline std::string ParamMetaData::temposyncNotation(float f) const
 
     if (f >= 1)
     {
-        q = pow(2.0, f - 1);
+        q = std::pow(2.0f, f - 1);
         nn = "whole";
         if (q >= 3)
         {
-            if (abs(q - floor(q + 0.01)) < 0.01)
+            if (std::fabs(q - floor(q + 0.01)) < 0.01)
             {
                 snprintf(tmp, 1024, "%d whole notes", (int)floor(q + 0.01));
             }
