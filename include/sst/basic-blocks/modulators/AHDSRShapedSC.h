@@ -81,10 +81,10 @@ struct AHDSRShapedSC : DiscreteStagesEnvelope<BLOCK_SIZE, RangeProvider>
     // Shape is -1,1; phase is 0,1
     inline float kernel(float phase, float shape)
     {
-        auto b = -shape * 8.f;
-        auto c = (b < 0 ? (1.f / (1 - b) - 1) : b);
-        auto r = std::pow(phase, (1.f + c));
-        return r;
+        // TODO: We probably want a LUT or other approximation here
+        constexpr float scale{8.f};
+        auto scsh = scale * shape * shape;
+        return (std::exp(scsh * phase) - 1) / (std::exp(scsh) - 1);
     }
 
     inline void processCore(const float a, const float h, const float d, const float s,

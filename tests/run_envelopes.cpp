@@ -141,7 +141,8 @@ TEST_CASE("Run SC Envelope Some", "[run]")
         std::vector<std::vector<float>> all;
         for (int i = 0; i <= 10; ++i)
         {
-            auto r = runEnv(ahsc, 150, 80, 0.2, 0, 0.2, 0.5, 0.2, i * 0.1, i * 0.1, i * 0.1);
+            auto v = i * 0.1;
+            auto r = runEnv(ahsc, 150, 80, 0.2, 0, 0.2, 0.5, 0.2, v, v, v);
             all.push_back(r);
         }
         dumpMulti(all, "multiShapePos");
