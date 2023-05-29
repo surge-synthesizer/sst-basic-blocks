@@ -112,7 +112,7 @@ struct AHDSRShapedSC : DiscreteStagesEnvelope<BLOCK_SIZE, RangeProvider>
             phase += dPhase(a);
             if (phase > 1)
             {
-                if (h > base_t::etMin)
+                if (h > 0)
                 {
                     stage = base_t::s_hold;
                 }

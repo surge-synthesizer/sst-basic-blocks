@@ -14,7 +14,7 @@ if (${SST_BASIC_BLOCKS_BUILD_TESTS})
                 GITHUB_REPOSITORY fmtlib/fmt
                 GIT_TAG master
                 )
-    endif()
+    endif ()
 
     add_executable(sst-basic-blocks-test
             tests/smoketest.cpp
@@ -23,19 +23,20 @@ if (${SST_BASIC_BLOCKS_BUILD_TESTS})
             tests/block_tests.cpp
             tests/table_tests.cpp
             tests/param_tests.cpp
+            tests/run_envelopes.cpp
             )
     if (NOT TARGET simde)
-         message(STATUS "Importing SIMDE with CPM")
-         CPMAddPackage(NAME simde
+        message(STATUS "Importing SIMDE with CPM")
+        CPMAddPackage(NAME simde
                 GITHUB_REPOSITORY simd-everywhere/simde
                 VERSION 0.7.2
                 )
-         target_include_directories(sst-basic-blocks-test PRIVATE
-                 ${simde_SOURCE_DIR}
-                 tests)
-    else()
-          target_link_libraries(sst-basic-blocks-test PRIVATE simde)
-    endif()
+        target_include_directories(sst-basic-blocks-test PRIVATE
+                ${simde_SOURCE_DIR}
+                tests)
+    else ()
+        target_link_libraries(sst-basic-blocks-test PRIVATE simde)
+    endif ()
 
     target_link_libraries(sst-basic-blocks-test PRIVATE fmt ${PROJECT_NAME})
     target_compile_definitions(sst-basic-blocks-test PUBLIC _USE_MATH_DEFINES=1)
