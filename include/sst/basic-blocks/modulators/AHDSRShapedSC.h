@@ -82,7 +82,7 @@ struct AHDSRShapedSC : DiscreteStagesEnvelope<BLOCK_SIZE, RangeProvider>
     inline float kernel(float p, float shape)
     {
         auto fshape = std::fabs(shape);
-        if (fshape < -1e-4)
+        if (fshape < 1e-4)
         {
             /*
              * e^ax-1 -> 1 + ax + (ax)^2/2 + ...
