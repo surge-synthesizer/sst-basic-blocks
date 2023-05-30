@@ -21,6 +21,8 @@
 #include "catch2.hpp"
 
 #include <iostream>
+#include <iomanip>
+#include <chrono>
 #include "smoke_test_sse.h"
 
 #include "sst/basic-blocks/dsp/CorrelatedNoise.h"
@@ -102,6 +104,25 @@ void dumpMulti(const std::vector<std::vector<float>> &a, const std::string &bn)
         }
     }
     of.close();
+
+    std::ofstream pf("/tmp/" + bn + ".gnuplot");
+    if (pf.is_open())
+    {
+        pf << "set datafile separator \",\"\n";
+
+        auto now = std::chrono::system_clock::now();
+        auto in_time_t = std::chrono::system_clock::to_time_t(now);
+
+        pf << "set title '" << bn << " " << std::put_time(std::localtime(&in_time_t), "%Y-%m-%d %X")
+           << "'\n";
+        pf << "plot '/tmp/" << bn << ".csv' using 1:2 with lines";
+        for (int i = 1; i < a.size(); ++i)
+        {
+            pf << ", '' using 1:" << i + 2 << " with lines";
+        }
+        pf << "\n";
+    }
+    pf.close();
 #endif
 }
 
@@ -135,28 +156,16 @@ TEST_CASE("Run SC Envelope Some", "[run]")
         dumpFile(r, "simpleShapeNeg");
     }
 
-    SECTION("Multi Shape Positive")
+    SECTION("Multi Shape")
     {
         auto ahsc = sst::basic_blocks::modulators::AHDSRShapedSC<SampleSRProvider, tbs>(&srp);
         std::vector<std::vector<float>> all;
-        for (int i = 0; i <= 10; ++i)
+        for (int i = -10; i <= 10; ++i)
         {
             auto v = i * 0.1;
             auto r = runEnv(ahsc, 150, 80, 0.2, 0, 0.2, 0.5, 0.2, v, v, v);
             all.push_back(r);
         }
-        dumpMulti(all, "multiShapePos");
-    }
-
-    SECTION("Multi Shape Negative")
-    {
-        auto ahsc = sst::basic_blocks::modulators::AHDSRShapedSC<SampleSRProvider, tbs>(&srp);
-        std::vector<std::vector<float>> all;
-        for (int i = 0; i <= 10; ++i)
-        {
-            auto r = runEnv(ahsc, 150, 80, 0.2, 0, 0.2, 0.5, 0.2, -i * 0.1, -i * 0.1, -i * 0.1);
-            all.push_back(r);
-        }
-        dumpMulti(all, "multiShapeNeg");
+        dumpMulti(all, "multiShape");
     }
 }
