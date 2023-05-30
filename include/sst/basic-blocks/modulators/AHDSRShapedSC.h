@@ -79,12 +79,25 @@ struct AHDSRShapedSC : DiscreteStagesEnvelope<BLOCK_SIZE, RangeProvider>
     }
 
     // Shape is -1,1; phase is 0,1
-    inline float kernel(float phase, float shape)
+    inline float kernel(float p, float shape)
     {
+        auto fshape = std::fabs(shape);
+        if (fshape < -1e-4)
+        {
+            /*
+             * e^ax-1 -> 1 + ax + (ax)^2/2 + ...
+             * so ax + (ax^2)/2 / ( a + a^2/2)
+             * but since we square shape anyway we can just
+             * drop the second order term here, avoid the divide by zero, and
+             */
+            return phase;
+        }
+
         // TODO: We probably want a LUT or other approximation here
         constexpr float scale{8.f};
-        auto scsh = scale * shape * shape;
-        return (std::exp(scsh * phase) - 1) / (std::exp(scsh) - 1);
+        // Square it for better response
+        auto scsh = scale * shape * fshape;
+        return (std::exp(scsh * p) - 1) / (std::exp(scsh) - 1);
     }
 
     inline void processCore(const float a, const float h, const float d, const float s,
