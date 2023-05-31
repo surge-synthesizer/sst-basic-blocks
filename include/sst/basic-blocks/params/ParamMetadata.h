@@ -100,25 +100,29 @@ struct ParamMetaData
 
         FeatureState(){};
 
-        FeatureState &withHighPrecision(bool e)
+        FeatureState withHighPrecision(bool e)
         {
-            isHighPrecision = e;
-            return *this;
+            auto res = *this;
+            res.isHighPrecision = e;
+            return res;
         }
-        FeatureState &withExtended(bool e)
+        FeatureState withExtended(bool e)
         {
-            isExtended = e;
-            return *this;
+            auto res = *this;
+            res.isExtended = e;
+            return res;
         }
-        FeatureState &withAbsolute(bool e)
+        FeatureState withAbsolute(bool e)
         {
+            auto res = *this;
             isAbsolute = e;
-            return *this;
+            return res;
         }
-        FeatureState &withTemposync(bool e)
+        FeatureState withTemposync(bool e)
         {
-            isTemposynced = e;
-            return *this;
+            auto res = *this;
+            res.isTemposynced = e;
+            return res;
         }
     };
 
@@ -235,129 +239,147 @@ struct ParamMetaData
         return 0.f;
     }
 
-    ParamMetaData &withType(Type t)
+    ParamMetaData withType(Type t)
     {
-        type = t;
-        return *this;
+        auto res = *this;
+        res.type = t;
+        return res;
     }
-    ParamMetaData &withName(const std::string t)
+    ParamMetaData withName(const std::string t)
     {
-        name = t;
-        return *this;
+        auto res = *this;
+        res.name = t;
+        return res;
     }
-    ParamMetaData &withRange(float mn, float mx)
+    ParamMetaData withRange(float mn, float mx)
     {
-        minVal = mn;
-        maxVal = mx;
-        defaultVal = std::clamp(defaultVal, minVal, maxVal);
-        return *this;
+        auto res = *this;
+        res.minVal = mn;
+        res.maxVal = mx;
+        res.defaultVal = std::clamp(defaultVal, minVal, maxVal);
+        return res;
     }
-    ParamMetaData &withDefault(float t)
+    ParamMetaData withDefault(float t)
     {
-        defaultVal = t;
-        return *this;
+        auto res = *this;
+        res.defaultVal = t;
+        return res;
     }
-    ParamMetaData &extendable(bool b = true)
+    ParamMetaData extendable(bool b = true)
     {
-        canExtend = b;
-        return *this;
+        auto res = *this;
+        res.canExtend = b;
+        return res;
     }
     // extend is f -> A f + B
-    ParamMetaData &withExtendFactors(float A, float B)
+    ParamMetaData withExtendFactors(float A, float B)
     {
-        exA = A;
-        exB = B;
-        return *this;
+        auto res = *this;
+        res.exA = A;
+        res.exB = B;
+        return res;
     }
-    ParamMetaData &deformable(bool b = true)
+    ParamMetaData deformable(bool b = true)
     {
-        canDeform = b;
-        return *this;
+        auto res = *this;
+        res.canDeform = b;
+        return res;
     }
-    ParamMetaData &withDeformationCount(int c)
+    ParamMetaData withDeformationCount(int c)
     {
-        deformationCount = c;
-        return *this;
+        auto res = *this;
+        res.deformationCount = c;
+        return res;
     }
-    ParamMetaData &absolutable(bool b = true)
+    ParamMetaData absolutable(bool b = true)
     {
-        canAbsolute = b;
-        return *this;
+        auto res = *this;
+        res.canAbsolute = b;
+        return res;
     }
-    ParamMetaData &temposyncable(bool b = true)
+    ParamMetaData temposyncable(bool b = true)
     {
-        canTemposync = b;
-        return *this;
+        auto res = *this;
+        res.canTemposync = b;
+        return res;
     }
-    ParamMetaData &deactivatable(bool b = true)
+    ParamMetaData deactivatable(bool b = true)
     {
-        canDeactivate = b;
-        return *this;
+        auto res = *this;
+        res.canDeactivate = b;
+        return res;
     }
 
-    ParamMetaData &withATwoToTheBFormatting(float A, float B, std::string_view units)
+    ParamMetaData withATwoToTheBFormatting(float A, float B, std::string_view units)
     {
         return withATwoToTheBPlusCFormatting(A, B, 0.f, units);
     }
 
-    ParamMetaData &withATwoToTheBPlusCFormatting(float A, float B, float C, std::string_view units)
+    ParamMetaData withATwoToTheBPlusCFormatting(float A, float B, float C, std::string_view units)
     {
-        svA = A;
-        svB = B;
-        svC = C;
-        unit = units;
-        displayScale = A_TWO_TO_THE_B;
-        supportsStringConversion = true;
-        return *this;
+        auto res = *this;
+        res.svA = A;
+        res.svB = B;
+        res.svC = C;
+        res.unit = units;
+        res.displayScale = A_TWO_TO_THE_B;
+        res.supportsStringConversion = true;
+        return res;
     }
 
-    ParamMetaData &withSemitoneZeroAt400Formatting()
+    ParamMetaData withSemitoneZeroAt400Formatting()
     {
         return withATwoToTheBFormatting(440, 1.0 / 12.0, "Hz");
     }
-    ParamMetaData &withLog2SecondsFormatting() { return withATwoToTheBFormatting(1, 1, "s"); }
+    ParamMetaData withLog2SecondsFormatting() { return withATwoToTheBFormatting(1, 1, "s"); }
 
-    ParamMetaData &withLinearScaleFormatting(std::string units, float scale = 1.f)
+    ParamMetaData withLinearScaleFormatting(std::string units, float scale = 1.f)
     {
-        svA = scale;
-        unit = units;
-        displayScale = LINEAR;
-        supportsStringConversion = true;
-        return *this;
+        auto res = *this;
+        res.svA = scale;
+        res.unit = units;
+        res.displayScale = LINEAR;
+        res.supportsStringConversion = true;
+        return res;
     }
 
-    ParamMetaData &withUnorderedMapFormatting(const std::unordered_map<int, std::string> &map)
+    ParamMetaData withUnorderedMapFormatting(const std::unordered_map<int, std::string> &map)
     {
-        discreteValues = map;
-        displayScale = UNORDERED_MAP;
-        supportsStringConversion = true;
-        return *this;
+        auto res = *this;
+        res.discreteValues = map;
+        res.displayScale = UNORDERED_MAP;
+        res.supportsStringConversion = true;
+        return res;
     }
 
-    ParamMetaData &withDecimalPlaces(int d)
+    ParamMetaData withDecimalPlaces(int d)
     {
-        decimalPlaces = d;
-        return *this;
+        auto res = *this;
+        res.decimalPlaces = d;
+        return res;
     }
 
-    ParamMetaData &withCustomMaxDisplay(const std::string &v)
+    ParamMetaData withCustomMaxDisplay(const std::string &v)
     {
-        customMaxDisplay = v;
-        return *this;
+        auto res = *this;
+        res.customMaxDisplay = v;
+        return res;
     }
 
-    ParamMetaData &withCustomMinDisplay(const std::string &v)
+    ParamMetaData withCustomMinDisplay(const std::string &v)
     {
-        customMinDisplay = v;
-        return *this;
+        auto res = *this;
+        res.customMinDisplay = v;
+        return res;
     }
-    ParamMetaData &withCustomDefaultDisplay(const std::string &v)
+    ParamMetaData withCustomDefaultDisplay(const std::string &v)
     {
-        customDefaultDisplay = v;
-        return *this;
+        auto res = *this;
+        res.customDefaultDisplay = v;
+        return res;
     }
 
-    ParamMetaData &asPercent()
+    ParamMetaData asPercent()
     {
         return withRange(0.f, 1.f)
             .withDefault(0.f)
@@ -366,12 +388,12 @@ struct ParamMetaData
             .withDecimalPlaces(2);
     }
 
-    ParamMetaData &asPercentExtendableToBipolar()
+    ParamMetaData asPercentExtendableToBipolar()
     {
         return asPercent().extendable().withExtendFactors(2.f, -1.f);
     }
 
-    ParamMetaData &asPercentBipolar()
+    ParamMetaData asPercentBipolar()
     {
         return withRange(-1.f, 1.f)
             .withDefault(0.f)
@@ -379,28 +401,28 @@ struct ParamMetaData
             .withLinearScaleFormatting("%", 100.f)
             .withDecimalPlaces(2);
     }
-    ParamMetaData &asDecibelNarrow()
+    ParamMetaData asDecibelNarrow()
     {
         return withRange(-24.f, 24.f)
             .withDefault(0.f)
             .withType(FLOAT)
             .withLinearScaleFormatting("dB");
     }
-    ParamMetaData &asDecibel()
+    ParamMetaData asDecibel()
     {
         return withRange(-48.f, 48.f)
             .withDefault(0.f)
             .withType(FLOAT)
             .withLinearScaleFormatting("dB");
     }
-    ParamMetaData &asMIDIPitch()
+    ParamMetaData asMIDIPitch()
     {
         return withType(FLOAT)
             .withRange(0.f, 127.f)
             .withDefault(60.f)
             .withLinearScaleFormatting("semitones");
     }
-    ParamMetaData &asMIDINote()
+    ParamMetaData asMIDINote()
     {
         return withType(INT)
             .withRange(0, 127)
@@ -408,12 +430,12 @@ struct ParamMetaData
             .withLinearScaleFormatting("semitones")
             .withDecimalPlaces(0);
     }
-    ParamMetaData &asLfoRate()
+    ParamMetaData asLfoRate()
     {
         return withType(FLOAT).withRange(-7, 9).temposyncable().withATwoToTheBFormatting(1, 1,
                                                                                          "Hz");
     }
-    ParamMetaData &asEnvelopeTime()
+    ParamMetaData asEnvelopeTime()
     {
         return withType(FLOAT)
             .withRange(-8.f, 5.f)
@@ -421,7 +443,7 @@ struct ParamMetaData
             .temposyncable()
             .withATwoToTheBFormatting(1, 1, "s");
     }
-    ParamMetaData &asAudibleFrequency()
+    ParamMetaData asAudibleFrequency()
     {
         return withType(FLOAT).withRange(-60, 70).withDefault(0).withSemitoneZeroAt400Formatting();
     }
