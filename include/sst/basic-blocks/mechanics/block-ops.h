@@ -44,6 +44,25 @@ inline void accumulate_from_to(const float *__restrict src, float *__restrict ds
 }
 
 template <size_t blocksize>
+inline void scale_accumulate_from_to(const float *__restrict src, float scale,
+                                     float *__restrict dst)
+{
+    for (auto i = 0U; i < blocksize; ++i)
+        dst[i] += src[i] * scale;
+}
+
+template <size_t blocksize>
+inline void scale_accumulate_from_to(const float *__restrict srcL, float *__restrict srcR,
+                                     float scale, float *__restrict dstL, float *__restrict dstR)
+{
+    for (auto i = 0U; i < blocksize; ++i)
+    {
+        dstR[i] += srcR[i] * scale;
+        dstL[i] += srcL[i] * scale;
+    }
+}
+
+template <size_t blocksize>
 inline void copy_from_to(const float *__restrict src, float *__restrict dst)
 {
     for (auto i = 0U; i < blocksize; ++i)

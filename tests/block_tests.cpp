@@ -63,5 +63,15 @@ TEST_CASE("Clear and Copy", "[block]")
             eq += std::fabs(g[i]) == am;
         }
         REQUIRE(eq > 0);
+
+        for (int i = 0; i < bs; ++i)
+            f[i] = (float)std::sin(i * 0.1);
+        mech::clear_block<bs>(g);
+        mech::scale_accumulate_from_to<bs>(f, 0.5f, g);
+        for (int i = 0; i < bs; ++i)
+            REQUIRE(0.5f * f[i] == g[i]);
+        mech::scale_accumulate_from_to<bs>(f, 0.25f, g);
+        for (int i = 0; i < bs; ++i)
+            REQUIRE(0.75f * f[i] == g[i]);
     }
 }
