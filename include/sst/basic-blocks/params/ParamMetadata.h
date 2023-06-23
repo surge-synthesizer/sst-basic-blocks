@@ -161,6 +161,9 @@ struct ParamMetaData
 
         // baseValue, valUp/Dn and changeUp/Dn are no unit indications of change in each direction.
         std::string baseValue, valUp, valDown, changeUp, changeDown;
+
+        // modulationSummary is a longer-than-menu display suitable for single line infowindows
+        std::string singleLineModulationSummary;
     };
     std::optional<ModulationDisplay> modulationNaturalToString(float naturalBaseVal,
                                                                float modulationNatural,
@@ -657,13 +660,20 @@ ParamMetaData::modulationNaturalToString(float naturalBaseVal, float modulationN
         result.valUp = fmt::format("{:.{}f}", svA * (naturalBaseVal + du), dp);
 
         if (isBipolar)
-            result.valDown = fmt::format("{:.{}f}", svA * (naturalBaseVal + du), dp);
+            result.valDown = fmt::format("{:.{}f}", svA * (naturalBaseVal - du), dp);
         // TODO pass this on not create
         auto v2s = valueToString(naturalBaseVal, fs);
         if (v2s.has_value())
             result.baseValue = *v2s;
         else
             result.baseValue = "-ERROR-";
+
+        if (isBipolar)
+            result.singleLineModulationSummary = fmt::format(
+                "{} {} < {} > {} {}", result.valDown, unit, result.baseValue, result.valUp, unit);
+        else
+            result.singleLineModulationSummary =
+                fmt::format("{} > {} {}", result.baseValue, result.valUp, unit);
         return result;
     }
     case A_TWO_TO_THE_B:
@@ -697,15 +707,23 @@ ParamMetaData::modulationNaturalToString(float naturalBaseVal, float modulationN
         result.changeUp = fmt::format("{:.{}f}", du, dp);
         if (isBipolar)
             result.changeDown = fmt::format("{:.{}f}", dd, dp);
-        result.valUp = fmt::format("{:.{}f}", nvu, dp);
+        result.valUp = fmt::format("{:.{}f}", svu, dp);
 
         if (isBipolar)
-            result.valDown = fmt::format("{:.{}f}", nvd, dp);
+            result.valDown = fmt::format("{:.{}f}", svd, dp);
         auto v2s = valueToString(naturalBaseVal, fs);
         if (v2s.has_value())
             result.baseValue = *v2s;
         else
             result.baseValue = "-ERROR-";
+
+        if (isBipolar)
+            result.singleLineModulationSummary = fmt::format(
+                "{} {} < {} > {} {}", result.valDown, unit, result.baseValue, result.valUp, unit);
+        else
+            result.singleLineModulationSummary =
+                fmt::format("{} > {} {}", result.baseValue, result.valUp, unit);
+
         return result;
     }
     default:
