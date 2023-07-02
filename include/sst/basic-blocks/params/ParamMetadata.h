@@ -59,6 +59,7 @@
 #include <cmath>
 
 #include <fmt/core.h>
+#include <array>
 
 namespace sst::basic_blocks::params
 {
@@ -179,6 +180,7 @@ struct ParamMetaData
         A_TWO_TO_THE_B, // out = A 2^(B r + C)
         DECIBEL,        // TODO - implement
         UNORDERED_MAP,  // out = discreteValues[(int)std::round(val)]
+        MIDI_NOTE,      // uses C4 etc.. notation. The octaveOffset has 0 -> 69=A4, 1 = A5, -1 = A3
         USER_PROVIDED   // TODO - implement
     } displayScale{LINEAR};
 
@@ -189,6 +191,9 @@ struct ParamMetaData
 
     std::unordered_map<int, std::string> discreteValues;
     int decimalPlaces{2};
+    inline static int defaultMidiNoteOctaveOffset{0};
+    int midiNoteOctaveOffset{defaultMidiNoteOctaveOffset};
+
     float svA{0.f}, svB{0.f}, svC{0.f}, svD{0.f}; // for various functional forms
     float exA{1.f}, exB{0.f};
 
@@ -346,6 +351,16 @@ struct ParamMetaData
         return res;
     }
 
+    ParamMetaData withMidiNoteFormatting(int octave)
+    {
+        auto res = *this;
+        res.unit = "semitones";
+        res.displayScale = MIDI_NOTE;
+        res.supportsStringConversion = true;
+        res.midiNoteOctaveOffset = octave;
+        return res;
+    }
+
     ParamMetaData withUnorderedMapFormatting(const std::unordered_map<int, std::string> &map)
     {
         auto res = *this;
@@ -359,6 +374,13 @@ struct ParamMetaData
     {
         auto res = *this;
         res.decimalPlaces = d;
+        return res;
+    }
+
+    ParamMetaData withUnit(std::string_view s)
+    {
+        auto res = *this;
+        res.unit = s;
         return res;
     }
 
@@ -423,14 +445,18 @@ struct ParamMetaData
         return withType(FLOAT)
             .withRange(0.f, 127.f)
             .withDefault(60.f)
-            .withLinearScaleFormatting("semitones");
+            .withLinearScaleFormatting("semitones")
+            .withDecimalPlaces(0);
     }
-    ParamMetaData asMIDINote()
+    ParamMetaData asMIDINote(int octave = 1000)
     {
+        if (octave > 2 || octave < -2)
+            octave = defaultMidiNoteOctaveOffset;
+
         return withType(INT)
             .withRange(0, 127)
             .withDefault(60)
-            .withLinearScaleFormatting("semitones")
+            .withMidiNoteFormatting(octave)
             .withDecimalPlaces(0);
     }
     ParamMetaData asLfoRate()
@@ -476,6 +502,25 @@ inline std::optional<std::string> ParamMetaData::valueToString(float val,
                 return discreteValues.at(iv);
             return std::nullopt;
         }
+        if (displayScale == MIDI_NOTE)
+        {
+            if (iv < 0)
+                return "";
+            auto n = iv;
+            auto o = n / 12 - 1 + midiNoteOctaveOffset;
+            auto ni = n % 12;
+            static std::array<std::string, 12> nn{"C",  "C#", "D",  "D#", "E",  "F",
+                                                  "F#", "G",  "G#", "A",  "A#", "B"};
+
+            auto res = nn[ni] + std::to_string(o);
+
+            return res;
+        }
+        if (displayScale == LINEAR)
+        {
+            return std::to_string(iv);
+        }
+
         return std::nullopt;
     }
 
@@ -533,9 +578,39 @@ inline std::optional<float> ParamMetaData::valueFromString(std::string_view v,
                                                            std::string &errMsg) const
 {
     if (type == BOOL)
-        return std::nullopt;
+    {
+        if (v == "On" || v == "on" || v == "1" || v == "true" || v == "True")
+            return 1;
+        if (v == "Off" || v == "off" || v == "0" || v == "false" || v == "False")
+            return 1;
+    }
     if (type == INT)
+    {
+        if (displayScale == MIDI_NOTE)
+        {
+            auto s = std::string(v);
+            auto c0 = std::toupper(s[0]);
+            if (c0 >= 'A' && c0 <= 'G')
+            {
+                auto n0 = c0 - 'A';
+                auto sharp = s[1] == '#';
+                auto flat = s[1] == 'b';
+                auto oct = std::atoi(s.c_str() + 1 + (sharp ? 1 : 0) + (flat ? 1 : 0));
+
+                std::array<int, 7> noteToPosition{9, 11, 0, 2, 4, 5, 7};
+                auto res =
+                    noteToPosition[n0] + sharp - flat + (oct + 1 + midiNoteOctaveOffset) * 12;
+                return res;
+            }
+            else
+                return std::atoi(s.c_str());
+        }
+        if (displayScale == LINEAR)
+        {
+            return std::atoi(std::string(v).c_str());
+        }
         return std::nullopt;
+    }
 
     if (!customMinDisplay.empty() && v == customMinDisplay)
         return minVal;
