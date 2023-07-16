@@ -21,6 +21,28 @@
 #ifndef INCLUDE_SST_BASIC_BLOCKS_DSP_LANCZOSRESAMPLER_H
 #define INCLUDE_SST_BASIC_BLOCKS_DSP_LANCZOSRESAMPLER_H
 
+/*
+ * A special note on licensing: This file (and only this file)
+ * has Paul Walker (baconpaul) as the sole author to date.
+ *
+ * In order to make this handy small function based on public
+ * information available to a set of open source projects
+ * adapting hardware to software, but which are licensed under
+ * MIT or BSD or similar licenses, this file and only this file
+ * can be used in an MIT/BSD context as well as a GPL3 context, by
+ * copying it and modifying it as you see fit.
+ *
+ * If you do that, you will need to replace the `sum_ps_to_float`
+ * call below with either an hadd if you are SSE3 or higher or
+ * an appropriate reduction operator from your toolkit.
+ *
+ * But basically: Need to resample 48k to variable rate with
+ * a small window and want to use this? Go for it!
+ *
+ * For avoidance of doubt, this license exception only
+ * applies to this file.
+ */
+
 #include <algorithm>
 #include <utility>
 #include <cmath>
