@@ -227,6 +227,28 @@ template <int maxBlockSize, bool first_run_checks = true> struct alignas(16) lip
         fade_block_to(src21, src22, dst2, bsQuad);
     }
 
+    void fade_blocks_inplace(float *__restrict inAOut, float *__restrict inB) const
+    {
+        for (int i = 0; i < numRegisters; ++i)
+        {
+            auto a = _mm_load_ps(inAOut + (i << 2));
+            auto b = _mm_load_ps(inB + (i << 2));
+            auto sa = _mm_mul_ps(a, _mm_sub_ps(one, line[i]));
+            auto sb = _mm_mul_ps(b, line[i]);
+            auto r = _mm_add_ps(sa, sb);
+            _mm_store_ps(inAOut + (i << 2), r);
+        }
+    }
+
+    void fade_2_blocks_inplace(float *__restrict src11out, float *__restrict src12,
+                               float *__restrict src21out, float *__restrict src22,
+                               int bsQuad = -1) const
+    {
+        assert(bsQuad == -1 || bsQuad == numRegisters);
+        fade_blocks_inplace(src11out, src12);
+        fade_blocks_inplace(src21out, src22);
+    }
+
     void store_block(float *__restrict out, int bsQuad = -1) const
     {
         assert(bsQuad == -1 || bsQuad == numRegisters);

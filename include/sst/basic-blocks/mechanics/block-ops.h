@@ -79,6 +79,15 @@ inline void add_block(const float *__restrict src1, const float *__restrict src2
     }
 }
 
+template <size_t blocksize>
+inline void add_block(float *__restrict srcdst, const float *__restrict src2)
+{
+    for (auto i = 0U; i < blocksize; ++i)
+    {
+        srcdst[i] = srcdst[i] + src2[i];
+    }
+}
+
 template <size_t blockSize>
 inline void mul_block(float *__restrict src1, float *src2, float *__restrict dst)
 {
@@ -96,6 +105,26 @@ inline void mul_block(float *__restrict src1, float scalar, float *__restrict ds
         dst[i] = src1[i] * scalar;
     }
 }
+
+template <size_t blockSize>
+inline void mul_block(float *__restrict srcDst, float *__restrict by)
+{
+    for (auto i = 0U; i < blockSize; ++i)
+    {
+        srcDst[i] = srcDst[i] * by[i];
+    }
+}
+
+
+template <size_t blockSize>
+inline void mul_block(float *__restrict srcDst, float  by)
+{
+    for (auto i = 0U; i < blockSize; ++i)
+    {
+        srcDst[i] = srcDst[i] * by;
+    }
+}
+
 template <size_t blockSize>
 inline void scale_by(const float *__restrict scale, float *__restrict target)
 {
