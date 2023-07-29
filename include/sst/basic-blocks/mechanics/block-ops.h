@@ -106,8 +106,7 @@ inline void mul_block(float *__restrict src1, float scalar, float *__restrict ds
     }
 }
 
-template <size_t blockSize>
-inline void mul_block(float *__restrict srcDst, float *__restrict by)
+template <size_t blockSize> inline void mul_block(float *__restrict srcDst, float *__restrict by)
 {
     for (auto i = 0U; i < blockSize; ++i)
     {
@@ -115,9 +114,7 @@ inline void mul_block(float *__restrict srcDst, float *__restrict by)
     }
 }
 
-
-template <size_t blockSize>
-inline void mul_block(float *__restrict srcDst, float  by)
+template <size_t blockSize> inline void mul_block(float *__restrict srcDst, float by)
 {
     for (auto i = 0U; i < blockSize; ++i)
     {
