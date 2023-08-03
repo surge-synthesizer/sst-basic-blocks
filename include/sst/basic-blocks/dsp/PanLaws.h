@@ -54,6 +54,13 @@ inline void monoEqualPower(float pan, panmatrix_t &res)
     sinCosSqrt2(res[3], res[0], pan * float(M_PI * 0.5));
 }
 
+inline void monoEqualPowerUnityGainAtExtrema(float pan, panmatrix_t &res)
+{
+    res[1] = 0;
+    res[2] = 0;
+    sinCos(res[3], res[0], pan * float(M_PI * 0.5));
+}
+
 inline void stereoEqualPower(float pan, panmatrix_t &res)
 {
     res[2] = 0;
