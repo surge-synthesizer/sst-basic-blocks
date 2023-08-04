@@ -176,12 +176,13 @@ struct ParamMetaData
 
     enum DisplayScale
     {
-        LINEAR,         // out = A * r + B
-        A_TWO_TO_THE_B, // out = A 2^(B r + C)
-        DECIBEL,        // TODO - implement
-        UNORDERED_MAP,  // out = discreteValues[(int)std::round(val)]
-        MIDI_NOTE,      // uses C4 etc.. notation. The octaveOffset has 0 -> 69=A4, 1 = A5, -1 = A3
-        USER_PROVIDED   // TODO - implement
+        LINEAR,           // out = A * r + B
+        A_TWO_TO_THE_B,   // out = A 2^(B r + C)
+        CUBED_AS_DECIBEL, // the underlier is an amplitude applied as v*v*v and displayed as db
+        DECIBEL,          // TODO - implement
+        UNORDERED_MAP,    // out = discreteValues[(int)std::round(val)]
+        MIDI_NOTE,    // uses C4 etc.. notation. The octaveOffset has 0 -> 69=A4, 1 = A5, -1 = A3
+        USER_PROVIDED // TODO - implement
     } displayScale{LINEAR};
 
     std::string unit;
@@ -476,6 +477,12 @@ struct ParamMetaData
     {
         return withType(FLOAT).withRange(-60, 70).withDefault(0).withSemitoneZeroAt400Formatting();
     }
+    ParamMetaData asCubicDecibelAttenuation()
+    {
+        auto res = withType(FLOAT).withRange(0.f, 1.f).withDefault(1.f);
+        res.displayScale = CUBED_AS_DECIBEL;
+        return res;
+    }
 
     std::string temposyncNotation(float f) const;
 };
@@ -568,6 +575,19 @@ inline std::optional<std::string> ParamMetaData::valueToString(float val,
         return fmt::format("{:.{}f} {:s}", svA * pow(2.0, svB * val + svC),
                            (fs.isHighPrecision ? (decimalPlaces + 4) : decimalPlaces), unit);
         break;
+    case CUBED_AS_DECIBEL:
+    {
+        if (val <= 0)
+        {
+            return "-inf";
+        }
+
+        auto v3 = val * val * val;
+        auto db = 20 * std::log10(v3);
+        return fmt::format("{:.{}f} dB", db,
+                           (fs.isHighPrecision ? (decimalPlaces + 4) : decimalPlaces));
+    }
+    break;
     default:
         break;
     }
@@ -676,6 +696,31 @@ inline std::optional<float> ParamMetaData::valueFromString(std::string_view v,
             }
 
             return r;
+        }
+        catch (const std::exception &)
+        {
+            errMsg = rangeMsg();
+            return std::nullopt;
+        }
+    }
+    break;
+    case CUBED_AS_DECIBEL:
+    {
+        try
+        {
+            if (v == "-inf")
+                return 0;
+
+            auto r = std::stof(std::string(v));
+            auto db = pow(10.f, r / 20);
+            auto lv = std::cbrt(db);
+            if (lv < minVal || lv > maxVal)
+            {
+                errMsg = rangeMsg();
+                return std::nullopt;
+            }
+
+            return lv;
         }
         catch (const std::exception &)
         {
