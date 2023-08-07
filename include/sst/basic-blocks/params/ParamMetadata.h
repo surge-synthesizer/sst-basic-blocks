@@ -465,14 +465,22 @@ struct ParamMetaData
         return withType(FLOAT).withRange(-7, 9).temposyncable().withATwoToTheBFormatting(1, 1,
                                                                                          "Hz");
     }
-    ParamMetaData asEnvelopeTime()
+    ParamMetaData asSemitoneRange(float lower = -96, float upper = 96)
     {
         return withType(FLOAT)
-            .withRange(-8.f, 5.f)
-            .withDefault(-1.f)
+            .withRange(lower, upper)
+            .withDefault(0)
+            .withLinearScaleFormatting("semitones");
+    }
+    ParamMetaData asLog2SecondsRange(float lower, float upper, float defVal = 0)
+    {
+        return withType(FLOAT)
+            .withRange(lower, upper)
+            .withDefault(std::clamp(defVal, lower, upper))
             .temposyncable()
             .withATwoToTheBFormatting(1, 1, "s");
     }
+    ParamMetaData asEnvelopeTime() { return asLog2SecondsRange(-8.f, 5.f, -1.f); }
     ParamMetaData asAudibleFrequency()
     {
         return withType(FLOAT).withRange(-60, 70).withDefault(0).withSemitoneZeroAt400Formatting();
@@ -482,6 +490,13 @@ struct ParamMetaData
         auto res = withType(FLOAT).withRange(0.f, 1.f).withDefault(1.f);
         res.displayScale = CUBED_AS_DECIBEL;
         return res;
+    }
+    ParamMetaData asLinearDecibel(float lower = -96, float upper = 12)
+    {
+        return withType(FLOAT)
+            .withRange(lower, upper)
+            .withDefault(0)
+            .withLinearScaleFormatting("dB");
     }
 
     std::string temposyncNotation(float f) const;
