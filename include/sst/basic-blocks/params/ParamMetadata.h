@@ -77,6 +77,10 @@ struct ParamMetaData
     } type{FLOAT};
 
     std::string name;
+    std::string groupName{}; // optional one level grouping, like VST3, AU and CLAP.
+
+    uint32_t id{0};    // optional cache of an integer ID for plugin projection.
+    uint32_t flags{0}; // optional flags to pass to a subsequent interpreter. Used by CLAP
 
     float minVal{0.f}, maxVal{1.f}, defaultVal{0.f};
     bool canExtend{false}, canDeform{false}, canAbsolute{false}, canTemposync{false},
@@ -254,10 +258,46 @@ struct ParamMetaData
         res.type = t;
         return res;
     }
+    ParamMetaData asFloat()
+    {
+        auto res = *this;
+        res.type = FLOAT;
+        return res;
+    }
+    ParamMetaData asInt()
+    {
+        auto res = *this;
+        res.type = INT;
+        return res;
+    }
+    ParamMetaData asBool()
+    {
+        auto res = *this;
+        res.type = BOOL;
+        return res;
+    }
     ParamMetaData withName(const std::string t)
     {
         auto res = *this;
         res.name = t;
+        return res;
+    }
+    ParamMetaData withGroupName(const std::string t)
+    {
+        auto res = *this;
+        res.groupName = t;
+        return res;
+    }
+    ParamMetaData withID(const uint32_t id)
+    {
+        auto res = *this;
+        res.id = id;
+        return res;
+    }
+    ParamMetaData withFlags(const uint32_t f)
+    {
+        auto res = *this;
+        res.flags = f;
         return res;
     }
     ParamMetaData withRange(float mn, float mx)
@@ -339,6 +379,10 @@ struct ParamMetaData
     ParamMetaData withSemitoneZeroAt400Formatting()
     {
         return withATwoToTheBFormatting(440, 1.0 / 12.0, "Hz");
+    }
+    ParamMetaData withSemitoneZeroAtMIDIZeroFormatting()
+    {
+        return withATwoToTheBFormatting(440.f * pow(2.f, -69 / 12), 1.0 / 12.0, "Hz");
     }
     ParamMetaData withLog2SecondsFormatting() { return withATwoToTheBFormatting(1, 1, "s"); }
 
@@ -500,6 +544,22 @@ struct ParamMetaData
     }
 
     std::string temposyncNotation(float f) const;
+
+    /*
+     * OK so I'm doing something a bit tricky here. I want to be able to project
+     * a PMD onto a clap_param_info * but I don't want to couple this low level library
+     * to clap/ext/param.h. So I will duck type it with a template
+     */
+    template <int stringSize, typename IsAClapParamInfo> void toClapParamInfo(IsAClapParamInfo *info) const
+    {
+        info->id = id;
+        strncpy(info->name, name.c_str(), stringSize);
+        strncpy(info->module, groupName.c_str(), stringSize);
+        info->min_value = minVal;
+        info->max_value = maxVal;
+        info->default_value = defaultVal;
+        info->flags = flags;
+    }
 };
 
 /*
@@ -540,7 +600,7 @@ inline std::optional<std::string> ParamMetaData::valueToString(float val,
         }
         if (displayScale == LINEAR)
         {
-            return std::to_string(iv);
+            return std::to_string(iv) + (unit.empty() ? "" : " ") + unit;
         }
 
         return std::nullopt;
