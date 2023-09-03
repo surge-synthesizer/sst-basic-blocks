@@ -550,11 +550,11 @@ struct ParamMetaData
      * a PMD onto a clap_param_info * but I don't want to couple this low level library
      * to clap/ext/param.h. So I will duck type it with a template
      */
-    template <typename IsAClapParamInfo> void toClapParamInfo(IsAClapParamInfo *info) const
+    template <int stringSize, typename IsAClapParamInfo> void toClapParamInfo(IsAClapParamInfo *info) const
     {
         info->id = id;
-        strncpy(info->name, name.c_str(), CLAP_NAME_SIZE);
-        strncpy(info->module, groupName.c_str(), CLAP_NAME_SIZE);
+        strncpy(info->name, name.c_str(), stringSize);
+        strncpy(info->module, groupName.c_str(), stringSize);
         info->min_value = minVal;
         info->max_value = maxVal;
         info->default_value = defaultVal;
