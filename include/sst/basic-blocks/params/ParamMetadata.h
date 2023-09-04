@@ -677,7 +677,7 @@ inline std::optional<float> ParamMetaData::valueFromString(std::string_view v,
         if (v == "On" || v == "on" || v == "1" || v == "true" || v == "True")
             return 1;
         if (v == "Off" || v == "off" || v == "0" || v == "false" || v == "False")
-            return 1;
+            return 0;
     }
     if (type == INT)
     {
