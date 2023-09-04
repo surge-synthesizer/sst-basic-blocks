@@ -675,9 +675,9 @@ inline std::optional<float> ParamMetaData::valueFromString(std::string_view v,
     if (type == BOOL)
     {
         if (v == "On" || v == "on" || v == "1" || v == "true" || v == "True")
-            return 1;
+            return 1.f;
         if (v == "Off" || v == "off" || v == "0" || v == "false" || v == "False")
-            return 0;
+            return 0.f;
     }
     if (type == INT)
     {
@@ -695,14 +695,14 @@ inline std::optional<float> ParamMetaData::valueFromString(std::string_view v,
                 std::array<int, 7> noteToPosition{9, 11, 0, 2, 4, 5, 7};
                 auto res =
                     noteToPosition[n0] + sharp - flat + (oct + 1 + midiNoteOctaveOffset) * 12;
-                return res;
+                return (float)res;
             }
             else
-                return std::atoi(s.c_str());
+                return (float)std::atoi(s.c_str());
         }
         if (displayScale == LINEAR)
         {
-            return std::atoi(std::string(v).c_str());
+            return (float)std::atoi(std::string(v).c_str());
         }
         return std::nullopt;
     }
@@ -784,7 +784,7 @@ inline std::optional<float> ParamMetaData::valueFromString(std::string_view v,
         try
         {
             if (v == "-inf")
-                return 0;
+                return 0.f;
 
             auto r = std::stof(std::string(v));
             auto db = pow(10.f, r / 20);
@@ -795,7 +795,7 @@ inline std::optional<float> ParamMetaData::valueFromString(std::string_view v,
                 return std::nullopt;
             }
 
-            return lv;
+            return (float)lv;
         }
         catch (const std::exception &)
         {
@@ -971,7 +971,7 @@ ParamMetaData::modulationNaturalFromString(std::string_view deltaNatural, float 
                 return std::nullopt;
             }
 
-            return r - naturalBaseVal;
+            return (float)(r - naturalBaseVal);
         }
         catch (const std::exception &e)
         {
