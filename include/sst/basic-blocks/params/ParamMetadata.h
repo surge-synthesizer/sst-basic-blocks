@@ -274,6 +274,8 @@ struct ParamMetaData
     {
         auto res = *this;
         res.type = BOOL;
+        res.minVal = 0;
+        res.maxVal = 1;
         return res;
     }
     ParamMetaData withName(const std::string t)
@@ -570,7 +572,7 @@ inline std::optional<std::string> ParamMetaData::valueToString(float val,
 {
     if (type == BOOL)
     {
-        if (val < 0)
+        if (val < 0.5)
             return customMinDisplay.empty() ? "Off" : customMinDisplay;
         return customMaxDisplay.empty() ? "On" : customMaxDisplay;
     }
