@@ -30,7 +30,7 @@ struct DbToLinearProvider
 
     void init()
     {
-        for (int i = 0; i < nPoints; i++)
+        for (auto i = 0U; i < nPoints; i++)
         {
             table_dB[i] = powf(10.f, 0.05f * ((float)i - 384.f));
         }
