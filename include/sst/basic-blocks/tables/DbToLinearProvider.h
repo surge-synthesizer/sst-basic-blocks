@@ -21,6 +21,8 @@
 #ifndef INCLUDE_SST_BASIC_BLOCKS_TABLES_DBTOLINEARPROVIDER_H
 #define INCLUDE_SST_BASIC_BLOCKS_TABLES_DBTOLINEARPROVIDER_H
 
+#include <cmath>
+
 namespace sst::basic_blocks::tables
 {
 struct DbToLinearProvider
