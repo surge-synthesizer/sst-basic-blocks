@@ -89,8 +89,9 @@ template <class T, bool first_run_checks = true> struct SurgeLag
     T v;
     T target_v;
 
-  private:
     bool first_run;
+
+  private:
     T lp, lpinv;
 };
 } // namespace sst::basic_blocks::dsp
