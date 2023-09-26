@@ -24,9 +24,48 @@
 #include <cstdint>
 #include <cmath>
 #include "Lag.h"
+#include "BlockInterpolators.h"
 
 namespace sst::basic_blocks::dsp
 {
+struct LagSmoothingStrategy
+{
+    using smoothValue_t = SurgeLag<double, true>;
+    static void setTarget(smoothValue_t &v, float t) { v.newValue(t); }
+    static void setValueInstant(smoothValue_t &v, float t)
+    {
+        v.newValue(t);
+        v.instantize();
+    }
+    static double getValue(smoothValue_t &v) { return v.v; }
+    static void process(smoothValue_t &v) { v.process(); }
+
+    static void resetFirstRun(smoothValue_t &v) { v.first_run = true; }
+};
+template <int blockSize> struct BlockInterpSmoothingStrategy
+{
+    using smoothValue_t = lipol<double, blockSize, true>;
+    static void setTarget(smoothValue_t &v, float t) { v.newValue(t); }
+    static void setValueInstant(smoothValue_t &v, float t)
+    {
+        v.newValue(t);
+        v.instantize();
+    }
+    static double getValue(smoothValue_t &v) { return v.v; }
+    static void process(smoothValue_t &v) { v.process(); }
+    static void resetFirstRun(smoothValue_t &v) { v.first_run = true; }
+};
+struct NoSmoothingStrategy
+{
+    using smoothValue_t = double;
+    static void setTarget(smoothValue_t &v, float t) { v = t; }
+    static void setValueInstant(smoothValue_t &v, float t) { v = t; }
+    static double getValue(smoothValue_t &v) { return v; }
+    static void process(smoothValue_t &v) {}
+
+    static void resetFirstRun(smoothValue_t &v) {}
+};
+
 /*
  * Use a cubic integrated saw and second derive it at
  * each point. This is basically the math I worked
@@ -36,11 +75,16 @@ namespace sst::basic_blocks::dsp
  * we do in Surge Modern. The waveform is the same both
  * channels.
  */
-struct DPWSawOscillator
+template <typename SmoothingStrategy = LagSmoothingStrategy> struct DPWSawOscillator
 {
+    void retrigger()
+    {
+        phase = 0;
+        SmoothingStrategy::resetFirstRun(dPhase);
+    }
     void setFrequency(double freqInHz, double sampleRateInv)
     {
-        dPhase.newValue(freqInHz * sampleRateInv);
+        SmoothingStrategy::setTarget(dPhase, freqInHz * sampleRateInv);
     }
 
     inline static double valueAt(double p, double dp)
@@ -64,13 +108,13 @@ struct DPWSawOscillator
     }
     inline double step()
     {
-        auto res = valueAt(phase, dPhase.v);
+        auto res = valueAt(phase, SmoothingStrategy::getValue(dPhase));
 
-        phase += dPhase.v;
+        phase += SmoothingStrategy::getValue(dPhase);
         if (phase > 1)
             phase -= 1;
 
-        dPhase.process();
+        SmoothingStrategy::process(dPhase);
         return res;
     }
 
@@ -83,45 +127,49 @@ struct DPWSawOscillator
     }
 
     double phase;
-    SurgeLag<double, true> dPhase;
+    typename SmoothingStrategy::smoothValue_t dPhase;
 };
 
-struct DPWPulseOscillator
+template <typename SmoothingStrategy = LagSmoothingStrategy> struct DPWPulseOscillator
 {
-    DPWPulseOscillator()
+    DPWPulseOscillator() { SmoothingStrategy::setValueInstant(pulseWidth, 0.5); }
+
+    void retrigger()
     {
-        pulseWidth.startValue(0.5);
-        pulseWidth.instantize();
+        phase = 0;
+        SmoothingStrategy::resetFirstRun(dPhase);
+        SmoothingStrategy::resetFirstRun(pulseWidth);
     }
 
     void setFrequency(double freqInHz, double sampleRateInv)
     {
-        dPhase.newValue(freqInHz * sampleRateInv);
+        SmoothingStrategy::setTarget(dPhase, freqInHz * sampleRateInv);
     }
 
-    void setPulseWidth(double pw) { pulseWidth.newValue(pw); }
+    void setPulseWidth(double pw) { SmoothingStrategy::setTarget(pulseWidth, pw); }
 
     inline double step()
     {
-        auto res0 = DPWSawOscillator::valueAt(phase, dPhase.v);
-        auto np = phase + pulseWidth.v;
+        auto dpv = SmoothingStrategy::getValue(dPhase);
+        auto res0 = DPWSawOscillator<SmoothingStrategy>::valueAt(phase, dpv);
+        auto np = phase + SmoothingStrategy::getValue(pulseWidth);
         np = np - (np > 1);
-        auto res1 = DPWSawOscillator::valueAt(np, dPhase.v);
+        auto res1 = DPWSawOscillator<SmoothingStrategy>::valueAt(np, dpv);
 
         auto res = res0 - res1;
 
-        phase += dPhase.v;
+        phase += dpv;
         if (phase > 1)
             phase -= 1;
 
-        dPhase.process();
-        pulseWidth.process();
+        SmoothingStrategy::process(dPhase);
+        SmoothingStrategy::process(pulseWidth);
         return res;
     }
 
     double phase;
-    SurgeLag<double, true> dPhase;
-    SurgeLag<double, true> pulseWidth;
+    typename SmoothingStrategy::smoothValue_t dPhase;
+    typename SmoothingStrategy::smoothValue_t pulseWidth;
 };
 } // namespace sst::basic_blocks::dsp
 
