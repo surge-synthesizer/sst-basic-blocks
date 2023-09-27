@@ -260,6 +260,57 @@ TEST_CASE("LanczosResampler", "[dsp]")
             }
         }
     }
+
+    SECTION("441 / 48 up down")
+    {
+        sst::basic_blocks::dsp::LanczosResampler<32> lUp(44100, 48000);
+        sst::basic_blocks::dsp::LanczosResampler<32> lDn(48000, 44100);
+
+        // plot 'lancos_raw.csv' using 1:2 with lines, 'lancos_samp.csv' using 1:2 with lines
+        int points = lUp.BUFFER_SZ - 400;
+        double dp = 1.0 / 370;
+        float phase = 0;
+        for (auto i = 0; i < points; ++i)
+        {
+            auto obsS = std::sin(phase * 2.0 * M_PI);
+            auto obsR = phase * 2 - 1;
+            phase += dp;
+            if (phase > 1)
+                phase -= 1;
+            lUp.push(obsS, obsR);
+        }
+
+        std::cout << lUp.inputsRequiredToGenerateOutputs(1) << std::endl;
+        while (lUp.inputsRequiredToGenerateOutputs(1) <= 0)
+        {
+            float L, R;
+            lUp.populateNext(&L, &R, 1);
+            lDn.push(L, R);
+        }
+
+        phase = 0;
+        int spool{0};
+        float diff{0};
+        float maxDiff{0};
+        for (auto i = 0; i < points - 80; ++i)
+        {
+            float L, R;
+            lDn.populateNext(&L, &R, 1);
+
+            if (spool > 10)
+            {
+                auto expL = std::sin((phase - 2 * dp) * 2.0 * M_PI);
+                auto expR = phase * 2 - 1;
+
+                diff += fabs(expL - L);
+                maxDiff = std::max((float)fabs(expL - L), maxDiff);
+            }
+            spool++;
+            phase += dp;
+        }
+        REQUIRE(diff / (points - 80) < 1e-2);
+        REQUIRE(maxDiff < 0.015);
+    }
 }
 
 TEST_CASE("Check FastMath Functions", "[dsp]")
