@@ -105,14 +105,15 @@ template <int blockSize> struct LanczosResampler
             {
                 for (size_t i = 0; i < filterWidth; ++i)
                 {
+                    // t+1 is fine here since the input goes up to tableObs + 1 size
                     lanczosTableDX[t][i] =
-                        lanczosTable[(t + 1) & (tableObs - 1)][i] - lanczosTable[t][i];
+                        lanczosTable[t + 1][i] - lanczosTable[t][i];
                 }
             }
             for (size_t i = 0; i < filterWidth; ++i)
             {
                 // Wrap at the end - deriv is the same
-                lanczosTableDX[tableObs][i] = lanczosTable[0][i];
+                lanczosTableDX[tableObs][i] = lanczosTableDX[0][i];
             }
             tablesInitialized = true;
         }
