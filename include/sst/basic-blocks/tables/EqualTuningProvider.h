@@ -48,7 +48,7 @@ struct EqualTuningProvider
      * note is float offset from note 69 / A440
      * return is 2^(note * 12), namely frequency / 440.0
      */
-    float note_to_pitch(float note)
+    float note_to_pitch(float note) const
     {
         auto x = std::clamp(note + 256, 1.e-4f, tuning_table_size - (float)1.e-4);
         // x += 256;
