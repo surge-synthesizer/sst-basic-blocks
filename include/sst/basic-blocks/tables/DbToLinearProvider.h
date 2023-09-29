@@ -37,7 +37,7 @@ struct DbToLinearProvider
             table_dB[i] = powf(10.f, 0.05f * ((float)i - 384.f));
         }
     }
-    float dbToLinear(float db)
+    float dbToLinear(float db) const
     {
         db += 384;
         int e = (int)db;
