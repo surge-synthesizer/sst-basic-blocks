@@ -22,6 +22,8 @@
 #include "smoke_test_sse.h"
 
 #include "sst/basic-blocks/tables/DbToLinearProvider.h"
+#include "sst/basic-blocks/tables/EqualTuningProvider.h"
+#include "sst/basic-blocks/tables/TwoToTheXProvider.h"
 
 namespace tabl = sst::basic_blocks::tables;
 
@@ -34,5 +36,31 @@ TEST_CASE("DB to Linear", "[tables]")
     {
         INFO("Testing at " << db);
         REQUIRE(dbt.dbToLinear(db) == Approx(pow(10, db / 20.0)).margin(0.01));
+    }
+}
+
+TEST_CASE("Equal Tuning", "[tables]")
+{
+    tabl::EqualTuningProvider equal;
+    equal.init();
+
+    REQUIRE(equal.note_to_pitch(60) == 32.0);
+    REQUIRE(equal.note_to_pitch(12) == 2.0);
+
+    for (int i = 0; i < 128; ++i)
+    {
+        REQUIRE(equal.note_to_pitch(i) == Approx(pow(2.0, i / 12.f)).margin(1e-5));
+    }
+}
+
+TEST_CASE("Two to the X Provider"
+          "[tables]")
+{
+    tabl::TwoToTheXProvider twox;
+    twox.init();
+
+    for (float x = -10; x < 10; x += 0.0173)
+    {
+        REQUIRE(twox.twoToThe(x) == Approx(pow(2.0, x)).margin(1e-5));
     }
 }
