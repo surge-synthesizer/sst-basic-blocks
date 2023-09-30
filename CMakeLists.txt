@@ -25,6 +25,7 @@ if (${SST_BASIC_BLOCKS_BUILD_TESTS})
             tests/table_tests.cpp
             tests/param_tests.cpp
             tests/run_envelopes.cpp
+            tests/modulator_tests.cpp
             )
     if (NOT TARGET simde)
         message(STATUS "Importing SIMDE with CPM")
