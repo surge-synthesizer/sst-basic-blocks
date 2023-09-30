@@ -29,7 +29,7 @@
 namespace sst::basic_blocks::modulators
 {
 
-struct FXModControl
+template <int blockSize> struct FXModControl
 {
   public:
     float samplerate{0}, samplerate_inv{0};
@@ -223,8 +223,8 @@ struct FXModControl
     }
 
   private:
-    dsp::lipol<float, true> lfoval{};
-    dsp::lipol<float, true> depth{};
+    dsp::lipol<float, blockSize, true> lfoval{};
+    dsp::lipol<float, blockSize, true> depth{};
     float lfophase;
     float lfosandhtarget;
 
