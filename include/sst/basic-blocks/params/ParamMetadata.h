@@ -85,6 +85,7 @@ struct ParamMetaData
     float minVal{0.f}, maxVal{1.f}, defaultVal{0.f};
     bool canExtend{false}, canDeform{false}, canAbsolute{false}, canTemposync{false},
         canDeactivate{false};
+    float temposyncMultiplier{1.f};
 
     int deformationCount{0};
 
@@ -316,6 +317,12 @@ struct ParamMetaData
         res.defaultVal = t;
         return res;
     }
+    ParamMetaData withTemposyncMultiplier(float f)
+    {
+        auto res = *this;
+        res.temposyncMultiplier = f;
+        return res;
+    }
     ParamMetaData extendable(bool b = true)
     {
         auto res = *this;
@@ -508,8 +515,11 @@ struct ParamMetaData
     }
     ParamMetaData asLfoRate()
     {
-        return withType(FLOAT).withRange(-7, 9).temposyncable().withATwoToTheBFormatting(1, 1,
-                                                                                         "Hz");
+        return withType(FLOAT)
+            .withRange(-7, 9)
+            .temposyncable()
+            .withTemposyncMultiplier(-1)
+            .withATwoToTheBFormatting(1, 1, "Hz");
     }
     ParamMetaData asSemitoneRange(float lower = -96, float upper = 96)
     {
@@ -621,7 +631,7 @@ inline std::optional<std::string> ParamMetaData::valueToString(float val,
 
     if (fs.isTemposynced)
     {
-        return temposyncNotation(val);
+        return temposyncNotation(temposyncMultiplier * val);
     }
 
     // float cases
