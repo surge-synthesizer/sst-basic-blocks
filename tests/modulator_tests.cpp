@@ -26,7 +26,7 @@ namespace smod = sst::basic_blocks::modulators;
 
 TEST_CASE("Mod LFO Is Well Behaved", "[mod]")
 {
-    for (int m = smod::FXModControl::mod_sine; m <= smod::FXModControl::mod_square; ++m)
+    for (int m = smod::FXModControl<32>::mod_sine; m <= smod::FXModControl<32>::mod_square; ++m)
     {
         DYNAMIC_SECTION("Mod Control Bounded For Type " << m)
         {
@@ -37,7 +37,7 @@ TEST_CASE("Mod LFO Is Well Behaved", "[mod]")
                 float depth = 1.0;
 
                 INFO("200 Samples at " << rate << " with po " << phase_offset);
-                smod::FXModControl mc(48000, 1.0 / 48000);
+                smod::FXModControl<32> mc(48000, 1.0 / 48000);
                 for (int s = 0; s < 200; ++s)
                 {
                     mc.pre_process(m, rate, depth, phase_offset);

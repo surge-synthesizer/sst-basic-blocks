@@ -25,7 +25,7 @@
 
 namespace sst::basic_blocks::dsp
 {
-template <class T, int defaultBlockSize, bool first_run_checks = true> struct lipol
+template <class T, int defaultBlockSize, bool first_run_checks> struct lipol
 {
   public:
     lipol() { reset(); }
