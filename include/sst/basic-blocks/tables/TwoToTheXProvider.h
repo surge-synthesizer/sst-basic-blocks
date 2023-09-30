@@ -50,7 +50,7 @@ struct TwoToTheXProvider
         }
     }
 
-    float twoToThe(float x)
+    float twoToThe(float x) const
     {
         auto xb = std::clamp(x - intBase, 0.f, providerRange * 1.f);
         auto e = (int16_t)xb;
