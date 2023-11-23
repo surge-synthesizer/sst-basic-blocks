@@ -329,8 +329,8 @@ struct ParamMetaData
         res.canExtend = b;
         return res;
     }
-    // extend is f -> A f + B
-    ParamMetaData withExtendFactors(float A, float B)
+    // extend is val = (A * val) + B
+    ParamMetaData withExtendFactors(float A, float B = 0.f)
     {
         auto res = *this;
         res.exA = A;
