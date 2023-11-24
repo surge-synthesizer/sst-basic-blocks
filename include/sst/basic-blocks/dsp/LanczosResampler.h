@@ -12,7 +12,13 @@
  * sst-basic-blocks is released under the GNU General Public Licence v3
  * or later (GPL-3.0-or-later). The license is found in the "LICENSE"
  * file in the root of this repository, or at
- * https://www.gnu.org/licenses/gpl-3.0.en.html
+ * https://www.gnu.org/licenses/gpl-3.0.en.html.
+ *
+ * A very small number of explicitly chosen header files can also be
+ * used in an MIT/BSD context. Please see the README.md file in this
+ * repo or the comments in the individual files. Only headers with an
+ * explicit mention that they are dual licensed may be copied and reused
+ * outside the GPL3 terms.
  *
  * All source in sst-basic-blocks available at
  * https://github.com/surge-synthesizer/sst-basic-blocks
@@ -22,25 +28,22 @@
 #define INCLUDE_SST_BASIC_BLOCKS_DSP_LANCZOSRESAMPLER_H
 
 /*
- * A special note on licensing: This file (and only this file)
- * has Paul Walker (baconpaul) as the sole author to date.
+ * A special note on licensing: This file can be re-used either
+ * in a GPL3 or MIT licensing context. See the information in
+ * README.md. If you commit changes to this file, you are also
+ * willing to have it re-used in a GPL3 or MIT/BSD context.
  *
- * In order to make this handy small function based on public
- * information available to a set of open source projects
- * adapting hardware to software, but which are licensed under
- * MIT or BSD or similar licenses, this file and only this file
- * can be used in an MIT/BSD context as well as a GPL3 context, by
- * copying it and modifying it as you see fit.
- *
- * If you do that, you will need to replace the `sum_ps_to_float`
+ * If you do use this in a GPL3 context, you will need to copy,
+ * strip the single include and replace the `sum_ps_to_float`
  * call below with either an hadd if you are SSE3 or higher or
  * an appropriate reduction operator from your toolkit.
  *
  * But basically: Need to resample 48k to variable rate with
  * a small window and want to use this? Go for it!
  *
- * For avoidance of doubt, this license exception only
- * applies to this file.
+ * For avoidance of doubt, this license modification only applies
+ * to the files in this package which have an explicit mention
+ * in the header and which are listed in README.md
  */
 
 #include <algorithm>

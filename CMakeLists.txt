@@ -1,4 +1,5 @@
 cmake_minimum_required(VERSION 3.10)
+
 project(sst-basic-blocks VERSION 0.5 LANGUAGES C CXX)
 
 set(CMAKE_CXX_STANDARD 17)
@@ -41,6 +42,11 @@ if (${SST_BASIC_BLOCKS_BUILD_TESTS})
     endif ()
 
     target_link_libraries(sst-basic-blocks-test PRIVATE fmt ${PROJECT_NAME})
-    target_compile_definitions(sst-basic-blocks-test PRIVATE CATCH_CONFIG_DISABLE_EXCEPTIONS=1)
+    if ("${CMAKE_OSX_DEPLOYMENT_TARGET}" VERSION_LESS "10.12")
+        message(STATUS "Deactivating exceptions for ${CMAKE_OSX_DEPLOYMENT_TARGET} catch library")
+        target_compile_definitions(sst-basic-blocks-test PRIVATE CATCH_CONFIG_DISABLE_EXCEPTIONS=1)
+    else()
+        message(STATUS "Keeping Catch exception handling on for more modern macOS")
+    endif()
 
 endif ()
