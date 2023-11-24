@@ -13,3 +13,4 @@ individual header files are also available to use in an MIT license context. Tho
 are explicitly marked in the text of the header file and are listed here also
 
 - include/sst/basic-blocks/dsp/LanczosResampler.h
+- include/sst/basic-blocks/dsp/HilbertTransform.h

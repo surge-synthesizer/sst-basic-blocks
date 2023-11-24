@@ -30,6 +30,7 @@
 #include "sst/basic-blocks/dsp/BlockInterpolators.h"
 #include "sst/basic-blocks/dsp/QuadratureOscillators.h"
 #include "sst/basic-blocks/dsp/LanczosResampler.h"
+#include "sst/basic-blocks/dsp/HilbertTransform.h"
 #include "sst/basic-blocks/dsp/FastMath.h"
 #include "sst/basic-blocks/dsp/Clippers.h"
 #include "sst/basic-blocks/mechanics/block-ops.h"
@@ -252,7 +253,7 @@ TEST_CASE("LanczosResampler", "[dsp]")
         }
 
         float outBlock alignas(16)[64], outBlockR alignas(16)[64];
-        int q, gen;
+        int gen;
         dp /= 88100.0 / 48000.0;
 
         phase = 0;
@@ -306,7 +307,6 @@ TEST_CASE("LanczosResampler", "[dsp]")
             if (spool > 10)
             {
                 auto expL = std::sin((phase - 2 * dp) * 2.0 * M_PI);
-                auto expR = phase * 2 - 1;
 
                 diff += fabs(expL - L);
                 maxDiff = std::max((float)fabs(expL - L), maxDiff);
@@ -725,7 +725,7 @@ TEST_CASE("lipol_ps class", "[dsp]")
     assert(mypol.blockSize == nfloat);
     mypol.store_block(storeTarget);
 
-    for (auto i = 0; i < nfloat; ++i)
+    for (auto i = 0U; i < nfloat; ++i)
         REQUIRE(storeTarget[i] == prevtarget); // should be constant in the first instance
 
     for (int i = 0; i < 10; ++i)
@@ -738,7 +738,7 @@ TEST_CASE("lipol_ps class", "[dsp]")
         REQUIRE(storeTarget[nfloat - 1] == Approx(target));
 
         float dy = storeTarget[1] - storeTarget[0];
-        for (auto j = 1; j < nfloat; ++j)
+        for (auto j = 1U; j < nfloat; ++j)
         {
             REQUIRE(storeTarget[j] - storeTarget[j - 1] == Approx(dy).epsilon(1e-3));
         }
@@ -746,5 +746,161 @@ TEST_CASE("lipol_ps class", "[dsp]")
         REQUIRE(prevtarget + dy == Approx(storeTarget[0]));
 
         prevtarget = target;
+    }
+}
+
+TEST_CASE("Hilbert Float", "[dsp]")
+{
+    SECTION("Hilbert has Positive Frequencies")
+    {
+        /*
+         * This test does the hibert transform of real sin
+         * and shows that the angle of the resulting complex
+         * tracks only positive frequencies. Which is basically
+         * the definition.
+         */
+        auto sr = 48000;
+        sst::basic_blocks::dsp::QuadratureOscillator<float> src, qoP, qoN;
+        sst::basic_blocks::dsp::HilbertTransformMonoFloat hilbert;
+        hilbert.setSampleRate(sr);
+
+        src.setRate(2.0 * M_PI * 440 / sr);
+        qoP.setRate(2.0 * M_PI * 440 / sr);
+        qoN.setRate(-2.0 * M_PI * 440 / sr);
+
+        auto accDP{0.f}, accDN{0.f}, dP{0.f}, dN{0.f};
+        constexpr int nSteps = 2500, warmUp = 100;
+        for (auto i = 0; i < nSteps; ++i)
+        {
+            auto sC = hilbert.stepComplex(src.u);
+            auto qP = std::complex<float>(qoP.u, -qoP.v);
+            auto qN = std::complex<float>(qoN.u, -qoN.v);
+
+            auto aC = std::arg(sC);
+            auto aP = std::arg(qP);
+            auto aN = std::arg(qN);
+
+            if (i == warmUp)
+            {
+                dP = aC - aP;
+                dN = aC - aN;
+            }
+            if (i > warmUp)
+            {
+                if (aC < aP)
+                {
+                    aP -= 2.0 * M_PI;
+                }
+                if (aC < aN)
+                {
+                    aN -= 2.0 * M_PI;
+                }
+                accDN += std::abs(aC - aN - dN);
+                accDP += std::abs(aC - aP - dP);
+            }
+            src.step();
+            qoP.step();
+            qoN.step();
+        }
+
+        accDN /= (nSteps - warmUp);
+        accDP /= (nSteps - warmUp);
+        REQUIRE(accDP < 0.1);
+        REQUIRE(accDN > 1);
+    }
+}
+
+TEST_CASE("Hilbert SSE", "[dsp]")
+{
+    SECTION("Hilbert SSE has Positive Frequencies")
+    {
+        /*
+         * This test does the hibert transform of real sin
+         * and shows that the angle of the resulting complex
+         * tracks only positive frequencies. Which is basically
+         * the definition.
+         */
+        auto sr = 48000;
+        sst::basic_blocks::dsp::QuadratureOscillator<float> src, qoP, qoN;
+        sst::basic_blocks::dsp::QuadratureOscillator<float> srcR, qoPR, qoNR;
+        sst::basic_blocks::dsp::HilbertTransformStereoSSE hilbert;
+        hilbert.setSampleRate(sr);
+
+        src.setRate(2.0 * M_PI * 440 / sr);
+        qoP.setRate(2.0 * M_PI * 440 / sr);
+        qoN.setRate(-2.0 * M_PI * 440 / sr);
+
+        srcR.setRate(2.0 * M_PI * 762 / sr);
+        qoPR.setRate(2.0 * M_PI * 762 / sr);
+        qoNR.setRate(-2.0 * M_PI * 762 / sr);
+
+        auto accDP{0.f}, accDN{0.f}, dP{0.f}, dN{0.f};
+        auto accDPR{0.f}, accDNR{0.f}, dPR{0.f}, dNR{0.f};
+        constexpr int nSteps = 2500, warmUp = 100;
+        for (auto i = 0; i < nSteps; ++i)
+        {
+            auto [sC, sR] = hilbert.stepToComplex(src.u, srcR.u);
+            auto qP = std::complex<float>(qoP.u, -qoP.v);
+            auto qN = std::complex<float>(qoN.u, -qoN.v);
+
+            auto qPR = std::complex<float>(qoPR.u, -qoPR.v);
+            auto qNR = std::complex<float>(qoNR.u, -qoNR.v);
+
+            auto aC = std::arg(sC);
+            auto aP = std::arg(qP);
+            auto aN = std::arg(qN);
+
+            auto aCR = std::arg(sR);
+            auto aPR = std::arg(qPR);
+            auto aNR = std::arg(qNR);
+
+            if (aC < aP)
+            {
+                aP -= 2.0 * M_PI;
+            }
+            if (aC < aN)
+            {
+                aN -= 2.0 * M_PI;
+            }
+            if (aCR < aPR)
+            {
+                aPR -= 2.0 * M_PI;
+            }
+            if (aCR < aNR)
+            {
+                aNR -= 2.0 * M_PI;
+            }
+
+            if (i == warmUp)
+            {
+                dP = aC - aP;
+                dN = aC - aN;
+                dPR = aCR - aPR;
+                dNR = aCR - aNR;
+            }
+            if (i > warmUp)
+            {
+                accDN += std::abs(aC - aN - dN);
+                accDP += std::abs(aC - aP - dP);
+
+                accDNR += std::abs(aCR - aNR - dNR);
+                accDPR += std::abs(aCR - aPR - dPR);
+            }
+            src.step();
+            srcR.step();
+            qoP.step();
+            qoN.step();
+            qoPR.step();
+            qoNR.step();
+        }
+
+        accDN /= (nSteps - warmUp);
+        accDP /= (nSteps - warmUp);
+        accDNR /= (nSteps - warmUp);
+        accDPR /= (nSteps - warmUp);
+        REQUIRE(accDP < 0.1);
+        REQUIRE(accDN > 1);
+        REQUIRE(accDPR < 0.1);
+        REQUIRE(accDNR > 1);
     }
 }
