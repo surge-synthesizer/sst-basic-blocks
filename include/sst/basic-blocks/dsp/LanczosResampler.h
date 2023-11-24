@@ -236,7 +236,7 @@ template <int bs> bool LanczosResampler<bs>::tablesInitialized{false};
 
 template <int bs> inline size_t LanczosResampler<bs>::populateNext(float *fL, float *fR, size_t max)
 {
-    int populated = 0;
+    size_t populated = 0;
     while (populated < max && (phaseI - phaseO) > A + 1)
     {
         read((phaseI - phaseO), fL[populated], fR[populated]);
