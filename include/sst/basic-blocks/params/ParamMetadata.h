@@ -97,6 +97,36 @@ struct ParamMetaData
 
     bool supportsStringConversion{false};
 
+    // Polarity can either be explicit set or inferred from the underling min max
+    enum struct Polarity
+    {
+        INFERRED,          // figure out from min-max
+        UNIPOLAR_POSITIVE, // 0 .. x
+        UNIPOLAR_NEGATIVE, // -x .. 0
+        BIPOLAR,           // -x .. x
+        NO_POLARITY        // x .. y not meeting above conditions
+    } polarity{Polarity::INFERRED};
+
+    Polarity getPolarity() const
+    {
+        if (polarity != Polarity::INFERRED)
+            return polarity;
+        if (minVal == 0 && maxVal > 0)
+            return Polarity::UNIPOLAR_POSITIVE;
+        if (minVal < 0 && maxVal == 0)
+            return Polarity::UNIPOLAR_NEGATIVE;
+        if (minVal == -maxVal)
+            return Polarity::BIPOLAR;
+        return Polarity::NO_POLARITY;
+    }
+
+    bool isBipolar() const { return getPolarity() == Polarity::BIPOLAR; }
+    bool isUnipolar() const
+    {
+        auto p = getPolarity();
+        return p == Polarity::UNIPOLAR_NEGATIVE || p == Polarity::UNIPOLAR_POSITIVE;
+    }
+
     /*
      * To String and From String conversion functions require information about the
      * parameter to execute. The primary driver is the value so the API takes the form
@@ -323,6 +353,13 @@ struct ParamMetaData
         res.defaultVal = t;
         return res;
     }
+    ParamMetaData withPolarity(Polarity p)
+    {
+        auto res = *this;
+        res.polarity = p;
+        return res;
+    }
+
     ParamMetaData withTemposyncMultiplier(float f)
     {
         auto res = *this;

@@ -74,12 +74,42 @@ TEST_CASE("Percent and BiPolar Percent")
         REQUIRE(*(p.valueFromString("440", ems)) == 0);
         REQUIRE(*(p.valueFromString("220", ems)) == -12);
     }
-
+}
+TEST_CASE("Parameter Constructability")
+{
     SECTION("Default Constructors")
     {
         static_assert(std::is_copy_constructible_v<pmd::ParamMetaData::FeatureState>);
         static_assert(std::is_move_constructible_v<pmd::ParamMetaData::FeatureState>);
         static_assert(std::is_copy_assignable_v<pmd::ParamMetaData::FeatureState>);
         static_assert(std::is_move_assignable_v<pmd::ParamMetaData::FeatureState>);
+    }
+}
+TEST_CASE("Parameter Polarity")
+{
+    SECTION("Polarity Test")
+    {
+        auto p = pmd::ParamMetaData().withRange(0, 4);
+        REQUIRE(p.getPolarity() == pmd::ParamMetaData::Polarity::UNIPOLAR_POSITIVE);
+        REQUIRE(p.isUnipolar());
+        REQUIRE(!p.isBipolar());
+        p = pmd::ParamMetaData().withRange(-4, 4);
+        REQUIRE(p.getPolarity() == pmd::ParamMetaData::Polarity::BIPOLAR);
+        REQUIRE(p.isBipolar());
+        REQUIRE(!p.isUnipolar());
+
+        p = pmd::ParamMetaData().withRange(-4, 0);
+        REQUIRE(p.getPolarity() == pmd::ParamMetaData::Polarity::UNIPOLAR_NEGATIVE);
+        REQUIRE(p.isUnipolar());
+        REQUIRE(!p.isBipolar());
+
+        p = pmd::ParamMetaData().withRange(-4, 7);
+        REQUIRE(p.getPolarity() == pmd::ParamMetaData::Polarity::NO_POLARITY);
+        REQUIRE(!p.isBipolar());
+        REQUIRE(!p.isUnipolar());
+
+        p = pmd::ParamMetaData().withRange(-4, 7).withPolarity(
+            pmd::ParamMetaData::Polarity::BIPOLAR);
+        REQUIRE(p.getPolarity() == pmd::ParamMetaData::Polarity::BIPOLAR);
     }
 }
