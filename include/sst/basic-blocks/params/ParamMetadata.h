@@ -183,7 +183,8 @@ struct ParamMetaData
     /*
      * Convert a value to a string; if the optional is empty populate the error message.
      */
-    std::optional<float> valueFromString(std::string_view, std::string &errMsg) const;
+    std::optional<float> valueFromString(std::string_view, std::string &errMsg,
+                                         const FeatureState &fs = {}) const;
 
     /*
      * Distances to String conversions are more peculiar, especially with non-linear ranges.
@@ -725,8 +726,8 @@ inline std::optional<std::string> ParamMetaData::valueToString(float val,
     return std::nullopt;
 }
 
-inline std::optional<float> ParamMetaData::valueFromString(std::string_view v,
-                                                           std::string &errMsg) const
+inline std::optional<float> ParamMetaData::valueFromString(std::string_view v, std::string &errMsg,
+                                                           const FeatureState &fs) const
 {
     if (type == BOOL)
     {
@@ -788,6 +789,12 @@ inline std::optional<float> ParamMetaData::valueFromString(std::string_view v,
             auto r = std::stof(std::string(v));
             assert(svA != 0);
             r = r / svA;
+
+            if (fs.isExtended)
+            {
+                r = (r - exB) / exA;
+            }
+
             if (r < minVal || r > maxVal)
             {
                 errMsg = rangeMsg();

@@ -42,7 +42,7 @@ if (${SST_BASIC_BLOCKS_BUILD_TESTS})
     endif ()
 
     target_link_libraries(sst-basic-blocks-test PRIVATE fmt ${PROJECT_NAME})
-    if ("${CMAKE_OSX_DEPLOYMENT_TARGET}" VERSION_LESS "10.12")
+    if ((DEFINED ${CMAKE_OSX_DEPLOYMENT_TARGET}) AND ("${CMAKE_OSX_DEPLOYMENT_TARGET}" VERSION_LESS "10.12"))
         message(STATUS "Deactivating exceptions for ${CMAKE_OSX_DEPLOYMENT_TARGET} catch library")
         target_compile_definitions(sst-basic-blocks-test PRIVATE CATCH_CONFIG_DISABLE_EXCEPTIONS=1)
     else()

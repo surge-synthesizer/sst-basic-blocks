@@ -188,7 +188,7 @@ TEST_CASE("lipol_sse fade_block", "[dsp]")
     }
 }
 
-TEST_CASE("Quadrature Oscillator")
+TEST_CASE("Quadrature Oscillator", "[dsp]")
 {
     for (const auto omega : {0.04, 0.12, 0.43, 0.97})
     {
@@ -210,7 +210,7 @@ TEST_CASE("Quadrature Oscillator")
     }
 }
 
-TEST_CASE("Surge Quadrature Oscillator")
+TEST_CASE("Surge Quadrature Oscillator", "[dsp]")
 {
     for (const auto omega : {0.04, 0.12, 0.43, 0.97})
     {

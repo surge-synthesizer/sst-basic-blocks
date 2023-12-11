@@ -33,7 +33,7 @@
 #include "sst/basic-blocks/params/ParamMetadata.h"
 
 namespace pmd = sst::basic_blocks::params;
-TEST_CASE("Percent and BiPolar Percent")
+TEST_CASE("Percent and BiPolar Percent", "[param]")
 {
     SECTION("Percent")
     {
@@ -75,7 +75,7 @@ TEST_CASE("Percent and BiPolar Percent")
         REQUIRE(*(p.valueFromString("220", ems)) == -12);
     }
 }
-TEST_CASE("Parameter Constructability")
+TEST_CASE("Parameter Constructability", "[param]")
 {
     SECTION("Default Constructors")
     {
@@ -85,7 +85,7 @@ TEST_CASE("Parameter Constructability")
         static_assert(std::is_move_assignable_v<pmd::ParamMetaData::FeatureState>);
     }
 }
-TEST_CASE("Parameter Polarity")
+TEST_CASE("Parameter Polarity", "[param]")
 {
     SECTION("Polarity Test")
     {
@@ -111,5 +111,80 @@ TEST_CASE("Parameter Polarity")
         p = pmd::ParamMetaData().withRange(-4, 7).withPolarity(
             pmd::ParamMetaData::Polarity::BIPOLAR);
         REQUIRE(p.getPolarity() == pmd::ParamMetaData::Polarity::BIPOLAR);
+    }
+}
+
+TEST_CASE("Extended Float Parameter", "[param]")
+{
+    SECTION("Simple Extend Value to String")
+    {
+        auto p = pmd::ParamMetaData()
+                     .asFloat()
+                     .withRange(-2, 4)
+                     .withExtendFactors(10)
+                     .withLinearScaleFormatting("whoozits");
+
+        auto nonEV = p.valueToString(0.2);
+        REQUIRE(nonEV.has_value());
+        REQUIRE(*nonEV == "0.20 whoozits");
+
+        auto ev = p.valueToString(0.2, pmd::ParamMetaData::FeatureState().withExtended(true));
+        REQUIRE(ev.has_value());
+        REQUIRE(*ev == "2.00 whoozits");
+    }
+
+    SECTION("Simple Extend String to Value")
+    {
+        auto p = pmd::ParamMetaData()
+                     .asFloat()
+                     .withRange(-2, 4)
+                     .withExtendFactors(10)
+                     .withLinearScaleFormatting("whoozits");
+
+        std::string emsg;
+        auto nonEV = p.valueFromString("0.20 whoozits", emsg);
+        REQUIRE(nonEV.has_value());
+        REQUIRE(*nonEV == 0.2f);
+
+        auto ev = p.valueFromString("2.00 whoozits", emsg,
+                                    pmd::ParamMetaData::FeatureState().withExtended(true));
+        REQUIRE(ev.has_value());
+        REQUIRE(*ev == 0.2f);
+    }
+
+    SECTION("AB Extend Value to String")
+    {
+        auto p = pmd::ParamMetaData()
+                     .asFloat()
+                     .withRange(0, 4)
+                     .withExtendFactors(10, -20)
+                     .withLinearScaleFormatting("jimbobs");
+
+        auto nonEV = p.valueToString(0.2);
+        REQUIRE(nonEV.has_value());
+        REQUIRE(*nonEV == "0.20 jimbobs");
+
+        auto ev = p.valueToString(0.2, pmd::ParamMetaData::FeatureState().withExtended(true));
+        REQUIRE(ev.has_value());
+        REQUIRE(*ev == "-18.00 jimbobs");
+    }
+
+    SECTION("AB Extend String to Value")
+    {
+        auto p = pmd::ParamMetaData()
+                     .asFloat()
+                     .withRange(0, 4)
+                     .withExtendFactors(10, -20)
+                     .withLinearScaleFormatting("jimbobs");
+
+        std::string emsg;
+        auto nonEV = p.valueFromString("0.20 jimbobs", emsg);
+        REQUIRE(nonEV.has_value());
+        REQUIRE(*nonEV == 0.2f);
+
+        auto ev = p.valueFromString("-18.00 jimbobs", emsg,
+                                    pmd::ParamMetaData::FeatureState().withExtended(true));
+        REQUIRE(ev.has_value());
+        REQUIRE(*ev == 0.2f);
     }
 }
