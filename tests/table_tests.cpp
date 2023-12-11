@@ -59,8 +59,7 @@ TEST_CASE("Equal Tuning", "[tables]")
     }
 }
 
-TEST_CASE("Two to the X Provider"
-          "[tables]")
+TEST_CASE("Two to the X Provider", "[tables]")
 {
     tabl::TwoToTheXProvider twox;
     twox.init();
