@@ -32,31 +32,9 @@ namespace sst::basic_blocks::dsp
 template <class T, bool first_run_checks = true> struct SurgeLag
 {
   public:
-    SurgeLag(T lp)
-    {
-        this->lp = lp;
-        lpinv = 1 - lp;
-        v = 0;
-        target_v = 0;
+    SurgeLag(T lp) { setRate(lp); }
 
-        if (first_run_checks)
-        {
-            first_run = true;
-        }
-    }
-
-    SurgeLag()
-    {
-        lp = 0.004;
-        lpinv = 1 - lp;
-        v = 0;
-        target_v = 0;
-
-        if (first_run_checks)
-        {
-            first_run = true;
-        }
-    }
+    SurgeLag() { setRate(0.004); }
 
     void setRate(T lp)
     {
@@ -89,16 +67,17 @@ template <class T, bool first_run_checks = true> struct SurgeLag
     inline void instantize() { v = target_v; }
 
     inline T getTargetValue() { return target_v; }
+    inline T getValue() { return v; }
 
     inline void process() { v = v * lpinv + target_v * lp; }
 
-    T v;
-    T target_v;
+    T v{0};
+    T target_v{0};
 
-    bool first_run;
+    bool first_run{true};
 
   private:
-    T lp, lpinv;
+    T lp{0}, lpinv{0};
 };
 } // namespace sst::basic_blocks::dsp
 #endif // SURGE_LAG_H
