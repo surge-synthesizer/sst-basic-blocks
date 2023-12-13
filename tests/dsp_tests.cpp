@@ -33,6 +33,7 @@
 #include "sst/basic-blocks/dsp/HilbertTransform.h"
 #include "sst/basic-blocks/dsp/FastMath.h"
 #include "sst/basic-blocks/dsp/Clippers.h"
+#include "sst/basic-blocks/dsp/Lag.h"
 #include "sst/basic-blocks/mechanics/block-ops.h"
 #include "sst/basic-blocks/tables/SincTableProvider.h"
 
@@ -902,5 +903,89 @@ TEST_CASE("Hilbert SSE", "[dsp]")
         REQUIRE(accDN > 1);
         REQUIRE(accDPR < 0.1);
         REQUIRE(accDNR > 1);
+    }
+}
+
+TEST_CASE("SurgeLag", "[dsp]")
+{
+    SECTION("Basic Default Construct")
+    {
+        auto l = sst::basic_blocks::dsp::SurgeLag<float, true>();
+        // First Run works
+        l.newValue(1.f);
+        REQUIRE(l.v == 1.f);
+        for (auto i = 0; i < 10; ++i)
+        {
+            l.process();
+            REQUIRE(l.v == 1.f);
+        }
+
+        // Decreaes is monotonic
+        l.newValue(0.9);
+        REQUIRE(l.v == 1.f);
+        auto pv = l.v;
+        for (auto i = 0; i < 10; ++i)
+        {
+            l.process();
+            REQUIRE(l.v < pv);
+            pv = l.v;
+        }
+
+        // The default speed is fixed. Don't break it
+        REQUIRE(l.v == Approx(0.99607f).margin(0.0001f));
+
+        // Turns around
+        l.newValue(1.0);
+        for (auto i = 0; i < 10; ++i)
+        {
+            l.process();
+            REQUIRE(l.v > pv);
+            pv = l.v;
+        }
+        // Doesn't make it back - its' not linear
+        REQUIRE(l.v == Approx(0.99623f).margin(0.0001f));
+    }
+
+    SECTION("Speeds Work")
+    {
+        auto l1 = sst::basic_blocks::dsp::SurgeLag<float, true>(0.05);
+        auto l2 = sst::basic_blocks::dsp::SurgeLag<float, true>(0.07);
+        // First Run works
+        l1.newValue(1.f);
+        l2.newValue(1.f);
+        REQUIRE(l1.v == 1.f);
+        REQUIRE(l2.v == 1.f);
+
+        l1.newValue(0.9);
+        l2.newValue(0.9);
+        for (auto i = 0; i < 100; ++i)
+        {
+            l1.process();
+            l2.process();
+            REQUIRE(l1.v > l2.v);
+        }
+    }
+
+    SECTION("Instantize Works")
+    {
+        auto l1 = sst::basic_blocks::dsp::SurgeLag<float, true>(0.05);
+        // First Run works
+        l1.newValue(1.f);
+        REQUIRE(l1.v == 1.f);
+
+        l1.newValue(0.9);
+        auto pv = l1.v;
+        for (auto i = 0; i < 100; ++i)
+        {
+            l1.process();
+            REQUIRE(l1.v < pv);
+            pv = l1.v;
+        }
+
+        l1.newValue(0.7);
+        l1.process();
+        REQUIRE(l1.v != 0.7f);
+        l1.instantize();
+        REQUIRE(l1.v == 0.7f);
     }
 }
