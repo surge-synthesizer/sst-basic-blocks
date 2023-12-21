@@ -600,9 +600,8 @@ TEST_CASE("SoftClip Block", "[dsp]")
 }
 
 TEST_CASE("Sinc Delay Line", "[dsp]")
-{
-    // This requires SurgeStorate to initialize its tables. Easiest way
-    // to do that is to just make a surge
+{ // This requires SurgeStorate to initialize its tables.
+    // Easiest way to do that is to just make a surge
     SECTION("Test Constants")
     {
         float val = 1.324;
@@ -987,5 +986,91 @@ TEST_CASE("SurgeLag", "[dsp]")
         REQUIRE(l1.v != 0.7f);
         l1.instantize();
         REQUIRE(l1.v == 0.7f);
+    }
+}
+
+TEST_CASE("UIComponentLagHandler", "[dsp]")
+{
+    SECTION("Basics Up")
+    {
+        sst::basic_blocks::dsp::UIComponentLagHandler lag;
+
+        lag.setRate(120, 16, 48000);
+        float f{0};
+        lag.setNewDestination(&f, 0.5);
+        REQUIRE(f == 0);
+        REQUIRE(lag.active);
+        lag.process();
+        REQUIRE(f > 0);
+        auto fp = f;
+        int its{0};
+        while (lag.active && its++ < 100)
+        {
+            lag.process();
+            REQUIRE(fp <= f);
+            fp = f;
+            REQUIRE(f <= 0.5);
+        }
+        REQUIRE(!lag.active);
+        REQUIRE(its < 100);
+        REQUIRE(f == 0.5);
+    }
+
+    SECTION("Basics Down")
+    {
+        sst::basic_blocks::dsp::UIComponentLagHandler lag;
+
+        lag.setRate(120, 16, 48000);
+        float f{1.0};
+        lag.setNewDestination(&f, 0.5);
+        REQUIRE(f == 1.0);
+        REQUIRE(lag.active);
+        lag.process();
+        REQUIRE(f < 1.0);
+        auto fp = f;
+        int its{0};
+        while (lag.active && its++ < 100)
+        {
+            lag.process();
+            REQUIRE(fp >= f);
+            fp = f;
+            REQUIRE(f >= 0.5);
+        }
+        REQUIRE(!lag.active);
+        REQUIRE(its < 100);
+        REQUIRE(f == 0.5);
+    }
+
+    SECTION("Instant")
+    {
+        sst::basic_blocks::dsp::UIComponentLagHandler lag;
+
+        lag.setRate(120, 16, 48000);
+        float f{0};
+        lag.setNewDestination(&f, 0.5);
+        REQUIRE(f == 0);
+        REQUIRE(lag.active);
+        lag.instantlySnap();
+        REQUIRE(f == 0.5);
+        REQUIRE(!lag.active);
+    }
+
+    SECTION("Interrupt")
+    {
+        sst::basic_blocks::dsp::UIComponentLagHandler lag;
+
+        lag.setRate(120, 16, 48000);
+        float f{0};
+        float g{1};
+        lag.setNewDestination(&f, 0.5);
+        REQUIRE(f == 0);
+        for (int i = 0; i < 4; ++i)
+            lag.process();
+        REQUIRE(f < 0.5);
+        REQUIRE(lag.active);
+        lag.setNewDestination(&g, 0.7);
+        REQUIRE(f == 0.5);
+        lag.process();
+        REQUIRE(g < 1.0);
     }
 }
