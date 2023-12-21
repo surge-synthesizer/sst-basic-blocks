@@ -79,5 +79,75 @@ template <class T, bool first_run_checks = true> struct SurgeLag
   private:
     T lp{0}, lpinv{0};
 };
+
+/*
+ * Linearly lag a float value onto a destination. Takes a pointer to the destination
+ * and the target. Handles restatements properly etc...
+ *
+ * Intended uses case is for a per-block processor while bound to a UI element
+ *
+ * If target is reached, does nothing other than a single branch / return
+ */
+struct UIComponentLagHandler
+{
+    float *destination{nullptr};
+    float targetValue{0.f};
+    float value{0.f};
+    float dTarget{0.f}, dTargetScale{0.05f};
+    bool active{false};
+
+    void setRate(float rateInHz, uint16_t blockSize, float sampleRate)
+    {
+        int blocks = (int)std::round(sampleRate / rateInHz / blockSize);
+        dTargetScale = 1.f / blocks;
+    }
+
+    void setNewDestination(float *d, float toTarget)
+    {
+        if (active && d == destination)
+        {
+            // restating an active target
+            setTarget(toTarget);
+        }
+        else
+        {
+            if (active)
+            {
+                // We are still lagging the prior. Rare case. Just speed it up.
+                *destination = targetValue;
+            }
+            value = *d;
+            destination = d;
+            setTarget(toTarget);
+        }
+    }
+
+    void setTarget(float t)
+    {
+        targetValue = t;
+        dTarget = (targetValue - value) * dTargetScale;
+        active = true;
+    }
+
+    void process()
+    {
+        if (!active)
+            return;
+
+        value += dTarget;
+        if (std::fabs(value - targetValue) < std::fabs(dTarget))
+        {
+            value = targetValue;
+            active = false;
+        }
+        *destination = value;
+    }
+
+    void instantlySnap()
+    {
+        *destination = targetValue;
+        active = false;
+    }
+};
 } // namespace sst::basic_blocks::dsp
 #endif // SURGE_LAG_H
