@@ -27,6 +27,8 @@
 #ifndef INCLUDE_SST_BASIC_BLOCKS_DSP_LAG_H
 #define INCLUDE_SST_BASIC_BLOCKS_DSP_LAG_H
 
+#include <cmath>
+
 namespace sst::basic_blocks::dsp
 {
 template <class T, bool first_run_checks = true> struct SurgeLag
