@@ -92,7 +92,8 @@ template <int blockSize> struct LanczosResampler
         dPhaseI = 1.0;
         dPhaseO = sri / sro;
 
-        memset(input, 0, 2 * BUFFER_SZ * sizeof(float));
+        memset(input[0], 0, 2 * BUFFER_SZ * sizeof(float));
+        memset(input[1], 0, 2 * BUFFER_SZ * sizeof(float));
         if (!tablesInitialized)
         {
             for (size_t t = 0; t < tableObs + 1; ++t)
