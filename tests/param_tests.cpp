@@ -85,6 +85,7 @@ TEST_CASE("Parameter Constructability", "[param]")
         static_assert(std::is_move_assignable_v<pmd::ParamMetaData::FeatureState>);
     }
 }
+
 TEST_CASE("Parameter Polarity", "[param]")
 {
     SECTION("Polarity Test")
@@ -186,5 +187,144 @@ TEST_CASE("Extended Float Parameter", "[param]")
                                     pmd::ParamMetaData::FeatureState().withExtended(true));
         REQUIRE(ev.has_value());
         REQUIRE(*ev == 0.2f);
+    }
+}
+
+TEST_CASE("Alternate Scales Above and Below", "[param]")
+{
+    SECTION("Linear no alternate")
+    {
+        auto p = pmd::ParamMetaData().asFloat().withRange(0, 10).withLinearScaleFormatting("s");
+
+        REQUIRE(*(p.valueToString(0.2)) == "0.20 s");
+        REQUIRE(*(p.valueToString(1.2)) == "1.20 s");
+        REQUIRE(*(p.valueToString(4.2)) == "4.20 s");
+
+        std::string em;
+        REQUIRE(*(p.valueFromString("0.20 s", em)) == Approx(0.2f));
+        REQUIRE(*(p.valueFromString("1.20 s", em)) == Approx(1.2f));
+        REQUIRE(*(p.valueFromString("4.20 s", em)) == Approx(4.2f));
+    }
+
+    SECTION("Linear alternate below")
+    {
+        auto p = pmd::ParamMetaData()
+                     .asFloat()
+                     .withRange(0, 10)
+                     .withLinearScaleFormatting("s")
+                     .withDisplayRescalingBelow(1.f, 1000.f, "ms");
+
+        REQUIRE(*(p.valueToString(0.2)) == "200.00 ms");
+        REQUIRE(*(p.valueToString(1.2)) == "1.20 s");
+        REQUIRE(*(p.valueToString(4.2)) == "4.20 s");
+
+        std::string em;
+        REQUIRE(*(p.valueFromString("0.20 s", em)) == Approx(0.2f));
+        REQUIRE(*(p.valueFromString("200.00 ms", em)) == Approx(0.2f));
+        REQUIRE(*(p.valueFromString("1.20 s", em)) == Approx(1.2f));
+        REQUIRE(*(p.valueFromString("4.20 s", em)) == Approx(4.2f));
+    }
+
+    SECTION("Linear alternate above")
+    {
+        auto p = pmd::ParamMetaData()
+                     .asFloat()
+                     .withRange(100, 10000)
+                     .withLinearScaleFormatting("Hz")
+                     .withDisplayRescalingAbove(1000.f, 0.001f, "kHz");
+
+        REQUIRE(*(p.valueToString(400)) == "400.00 Hz");
+        REQUIRE(*(p.valueToString(1100)) == "1.10 kHz");
+        REQUIRE(*(p.valueToString(9840)) == "9.84 kHz");
+
+        std::string em;
+        REQUIRE(*(p.valueFromString("400 Hz", em)) == Approx(400.f));
+        REQUIRE(*(p.valueFromString("1100 Hz", em)) == Approx(1100.f));
+        REQUIRE(*(p.valueFromString("1.10 kHz", em)) == Approx(1100.f));
+        REQUIRE(*(p.valueFromString("9840 Hz", em)) == Approx(9840.f));
+        REQUIRE(*(p.valueFromString("9.84 kHz", em)) == Approx(9840.f));
+    }
+
+    SECTION("Scaled Linear no alternate")
+    {
+        auto p =
+            pmd::ParamMetaData().asFloat().withRange(0, 10).withLinearScaleFormatting("s", 4.f);
+
+        REQUIRE(*(p.valueToString(0.2)) == "0.80 s");
+        REQUIRE(*(p.valueToString(1.2)) == "4.80 s");
+        REQUIRE(*(p.valueToString(4.2)) == "16.80 s");
+
+        std::string em;
+        REQUIRE(*(p.valueFromString("0.80 s", em)) == Approx(0.2f));
+        REQUIRE(*(p.valueFromString("4.80 s", em)) == Approx(1.2f));
+        REQUIRE(*(p.valueFromString("16.80 s", em)) == Approx(4.2f));
+    }
+
+    SECTION("Scaled Linear alternate below")
+    {
+        auto p = pmd::ParamMetaData()
+                     .asFloat()
+                     .withRange(0, 10)
+                     .withLinearScaleFormatting("s", 4.f)
+                     .withDisplayRescalingBelow(1.f, 1000.f, "ms");
+
+        REQUIRE(*(p.valueToString(0.2)) == "800.00 ms");
+        REQUIRE(*(p.valueToString(1.2)) == "4.80 s");
+        REQUIRE(*(p.valueToString(4.2)) == "16.80 s");
+
+        std::string em;
+        REQUIRE(*(p.valueFromString("0.80 s", em)) == Approx(0.2f));
+        REQUIRE(*(p.valueFromString("800.00 ms", em)) == Approx(0.2f));
+        REQUIRE(*(p.valueFromString("4.80 s", em)) == Approx(1.2f));
+        REQUIRE(*(p.valueFromString("16.80 s", em)) == Approx(4.2f));
+    }
+
+    SECTION("Scaled Linear alternate above")
+    {
+        auto p = pmd::ParamMetaData()
+                     .asFloat()
+                     .withRange(0, 10)
+                     .withLinearScaleFormatting("s", 4.f)
+                     .withDisplayRescalingAbove(1.f, 0.1f, "ds");
+
+        REQUIRE(*(p.valueToString(0.2)) == "0.80 s");
+        REQUIRE(*(p.valueToString(1.2)) == "0.48 ds");
+        REQUIRE(*(p.valueToString(4.2)) == "1.68 ds");
+
+        std::string em;
+        REQUIRE(*(p.valueFromString("0.80 s", em)) == Approx(0.2f));
+        REQUIRE(*(p.valueFromString("4.80 s", em)) == Approx(1.2f));
+        REQUIRE(*(p.valueFromString("0.48 ds", em)) == Approx(1.2f));
+        REQUIRE(*(p.valueFromString("16.80 s", em)) == Approx(4.2f));
+        REQUIRE(*(p.valueFromString("1.68 ds", em)) == Approx(4.2f));
+    }
+
+    SECTION("ABX")
+    {
+        auto p = pmd::ParamMetaData().asEnvelopeTime().withoutDisplayRescaling();
+
+        REQUIRE(*(p.valueToString(0.0)) == "1.00 s");
+        REQUIRE(*(p.valueToString(2.0)) == "4.00 s");
+        REQUIRE(*(p.valueToString(-1.0)) == "0.50 s");
+
+        std::string em;
+        REQUIRE(*(p.valueFromString("1.00 s", em)) == Approx(0.0f));
+        REQUIRE(*(p.valueFromString("4.00 0s", em)) == Approx(2.f));
+        REQUIRE(*(p.valueFromString("0.50 s", em)) == Approx(-1.f));
+    }
+
+    SECTION("ABX Miliseconds")
+    {
+        auto p = pmd::ParamMetaData().asEnvelopeTime();
+
+        REQUIRE(*(p.valueToString(0.0)) == "1.00 s");
+        REQUIRE(*(p.valueToString(2.0)) == "4.00 s");
+        REQUIRE(*(p.valueToString(-1.0)) == "500.00 ms");
+
+        std::string em;
+        REQUIRE(*(p.valueFromString("1.00 s", em)) == Approx(0.0f));
+        REQUIRE(*(p.valueFromString("4.00 0s", em)) == Approx(2.f));
+        REQUIRE(*(p.valueFromString("0.50 s", em)) == Approx(-1.f));
+        REQUIRE(*(p.valueFromString("500.00 ms", em)) == Approx(-1.f));
     }
 }
