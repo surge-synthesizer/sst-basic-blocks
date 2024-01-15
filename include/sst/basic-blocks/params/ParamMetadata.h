@@ -240,6 +240,16 @@ struct ParamMetaData
     float svA{0.f}, svB{0.f}, svC{0.f}, svD{0.f}; // for various functional forms
     float exA{1.f}, exB{0.f};
 
+    enum AlternateScaleWhen
+    {
+        NO_ALTERNATE,
+        SCALE_BELOW,
+        SCALE_ABOVE
+    } alternateScaleWhen{NO_ALTERNATE};
+
+    double alternateScaleCutoff{0.f}, alternateScaleRescaling{0.f};
+    std::string alternateScaleUnits{};
+
     float naturalToNormalized01(float naturalValue) const
     {
         float v = 0;
@@ -502,6 +512,41 @@ struct ParamMetaData
         return res;
     }
 
+    ParamMetaData withDisplayRescalingBelow(const float cutoff, const float rescale,
+                                            const std::string &units)
+    {
+        auto res = *this;
+        res.alternateScaleWhen = SCALE_BELOW;
+        res.alternateScaleCutoff = cutoff;
+        res.alternateScaleRescaling = rescale;
+        res.alternateScaleUnits = units;
+        return res;
+    }
+
+    ParamMetaData withoutDisplayRescaling()
+    {
+        auto res = *this;
+        res.alternateScaleWhen = NO_ALTERNATE;
+        return res;
+    }
+
+    ParamMetaData withMilisecondsBelowOneSecond()
+    {
+        auto res = withDisplayRescalingBelow(1.f, 1000.f, "ms");
+        return res;
+    }
+
+    ParamMetaData withDisplayRescalingAbove(const float cutoff, const float rescale,
+                                            const std::string &units)
+    {
+        auto res = *this;
+        res.alternateScaleWhen = SCALE_ABOVE;
+        res.alternateScaleCutoff = cutoff;
+        res.alternateScaleRescaling = rescale;
+        res.alternateScaleUnits = units;
+        return res;
+    }
+
     ParamMetaData asPercent()
     {
         return withRange(0.f, 1.f)
@@ -578,9 +623,11 @@ struct ParamMetaData
             .withRange(lower, upper)
             .withDefault(std::clamp(defVal, lower, upper))
             .temposyncable()
-            .withATwoToTheBFormatting(1, 1, "s");
+            .withATwoToTheBFormatting(1, 1, "s")
+            .withMilisecondsBelowOneSecond();
     }
     ParamMetaData asEnvelopeTime() { return asLog2SecondsRange(-8.f, 5.f, -1.f); }
+
     ParamMetaData asAudibleFrequency()
     {
         return withType(FLOAT).withRange(-60, 70).withDefault(0).withSemitoneZeroAt400Formatting();
@@ -691,8 +738,29 @@ inline std::optional<std::string> ParamMetaData::valueToString(float val,
             return customMinDisplay;
         }
 
-        return fmt::format("{:.{}f} {:s}", svA * val,
-                           (fs.isHighPrecision ? (decimalPlaces + 4) : decimalPlaces), unit);
+        if (alternateScaleWhen == NO_ALTERNATE)
+        {
+            return fmt::format("{:.{}f} {:s}", svA * val,
+                               (fs.isHighPrecision ? (decimalPlaces + 4) : decimalPlaces), unit);
+        }
+        else
+        {
+            auto rsv = svA * val;
+            if ((alternateScaleWhen == SCALE_BELOW && rsv < alternateScaleCutoff) ||
+                (alternateScaleWhen == SCALE_ABOVE && rsv > alternateScaleCutoff))
+            {
+                rsv = rsv * alternateScaleRescaling;
+                return fmt::format("{:.{}f} {:s}", rsv,
+                                   (fs.isHighPrecision ? (decimalPlaces + 4) : decimalPlaces),
+                                   alternateScaleUnits);
+            }
+            else
+            {
+                return fmt::format("{:.{}f} {:s}", svA * val,
+                                   (fs.isHighPrecision ? (decimalPlaces + 4) : decimalPlaces),
+                                   unit);
+            }
+        }
         break;
     case A_TWO_TO_THE_B:
         if (val == minVal && !customMinDisplay.empty())
@@ -704,8 +772,29 @@ inline std::optional<std::string> ParamMetaData::valueToString(float val,
             return customMinDisplay;
         }
 
-        return fmt::format("{:.{}f} {:s}", svA * pow(2.0, svB * val + svC),
-                           (fs.isHighPrecision ? (decimalPlaces + 4) : decimalPlaces), unit);
+        if (alternateScaleWhen == NO_ALTERNATE)
+        {
+            return fmt::format("{:.{}f} {:s}", svA * pow(2.0, svB * val + svC),
+                               (fs.isHighPrecision ? (decimalPlaces + 4) : decimalPlaces), unit);
+        }
+        else
+        {
+            auto rsv = svA * pow(2.0, svB * val + svC);
+            if ((alternateScaleWhen == SCALE_BELOW && rsv < alternateScaleCutoff) ||
+                (alternateScaleWhen == SCALE_ABOVE && rsv > alternateScaleCutoff))
+            {
+                rsv = rsv * alternateScaleRescaling;
+                return fmt::format("{:.{}f} {:s}", rsv,
+                                   (fs.isHighPrecision ? (decimalPlaces + 4) : decimalPlaces),
+                                   alternateScaleUnits);
+            }
+            else
+            {
+                return fmt::format("{:.{}f} {:s}", rsv,
+                                   (fs.isHighPrecision ? (decimalPlaces + 4) : decimalPlaces),
+                                   unit);
+            }
+        }
         break;
     case CUBED_AS_DECIBEL:
     {
@@ -790,6 +879,16 @@ inline std::optional<float> ParamMetaData::valueFromString(std::string_view v, s
             assert(svA != 0);
             r = r / svA;
 
+            if (alternateScaleWhen != NO_ALTERNATE)
+            {
+                auto ps = v.find(alternateScaleUnits);
+                if (ps != std::string::npos && alternateScaleRescaling != 0.f)
+                {
+                    // We have a string containing the alterante units
+                    r = r / alternateScaleRescaling;
+                }
+            }
+
             if (fs.isExtended)
             {
                 r = (r - exB) / exA;
@@ -817,6 +916,17 @@ inline std::optional<float> ParamMetaData::valueFromString(std::string_view v, s
             auto r = std::stof(std::string(v));
             assert(svA != 0);
             assert(svB != 0);
+
+            if (alternateScaleWhen != NO_ALTERNATE)
+            {
+                auto ps = v.find(alternateScaleUnits);
+                if (ps != std::string::npos && alternateScaleRescaling != 0.f)
+                {
+                    // We have a string containing the alterante units
+                    r = r / alternateScaleRescaling;
+                }
+            }
+
             if (r < 0)
             {
                 errMsg = rangeMsg();
