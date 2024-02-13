@@ -53,7 +53,6 @@ HAS_MEMBER(isTargetModMatrixDepth)
 HAS_MEMBER(getTargetModMatrixElement)
 #undef HAS_MEMBER
 
-// And thanks StackOverflow!
 struct detailTypeNo
 {
 };
@@ -63,7 +62,8 @@ template <typename T, typename Arg = T> struct has_operator_equal
 {
     enum
     {
-        value = !std::is_same<decltype(*(T *)(0) == *(Arg *)(0)), detailTypeNo>::value
+        value =
+            !std::is_same<decltype(std::declval<T>() == std::declval<Arg>()), detailTypeNo>::value
     };
 };
 
