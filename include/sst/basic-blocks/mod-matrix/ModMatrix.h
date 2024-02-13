@@ -96,6 +96,8 @@ struct ModMatrix : details::CheckModMatrixConstraints<ModMatrixTraits>
             return false;
         }
     }
+
+    static constexpr bool supportsCurves{details::has_getCurveOperator<TR>::value};
 };
 
 template <typename ModMatrixTraits> struct FixedLengthRoutingTable : RoutingTable<ModMatrixTraits>
@@ -188,6 +190,7 @@ template <typename ModMatrixTraits> struct FixedMatrix : ModMatrix<ModMatrixTrai
         bool *active{nullptr};
         float *source{nullptr}, *sourceVia{nullptr}, *depth{nullptr}, *target{nullptr};
         float depthScale{1.f};
+        std::function<float(float)> curveFn;
     };
     std::array<RoutingValuePointers, TR::FixedMatrixSize> routingValuePointers{};
 
@@ -232,6 +235,14 @@ template <typename ModMatrixTraits> struct FixedMatrix : ModMatrix<ModMatrixTrai
             rv.depth = &r.depth;
             rv.active = &r.active;
 
+            if constexpr (ModMatrix<TR>::supportsCurves)
+            {
+                if (r.curve.has_value())
+                    rv.curveFn = TR::getCurveOperator(*(r.curve));
+                else
+                    rv.curveFn = nullptr;
+            }
+
             rv.target = &matrixOutputs[routingTable.targetToOutputIndex.at(*r.target)];
         }
 
@@ -268,7 +279,18 @@ template <typename ModMatrixTraits> struct FixedMatrix : ModMatrix<ModMatrixTrai
             if (r.sourceVia)
                 sourceViaVal = *r.sourceVia;
 
-            *(r.target) += *(r.source) * *(r.depth) * r.depthScale * sourceViaVal;
+            if constexpr (ModMatrix<TR>::supportsCurves)
+            {
+                auto offs = *(r.source) * sourceViaVal;
+                if (r.curveFn)
+                    *(r.target) += *(r.depth) * r.depthScale * r.curveFn(offs);
+                else
+                    *(r.target) += *(r.depth) * r.depthScale * offs;
+            }
+            else
+            {
+                *(r.target) += *(r.source) * *(r.depth) * r.depthScale * sourceViaVal;
+            }
         }
     }
 
