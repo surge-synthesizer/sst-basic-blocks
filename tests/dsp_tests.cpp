@@ -239,7 +239,7 @@ TEST_CASE("LanczosResampler", "[dsp]")
     {
         sst::basic_blocks::dsp::LanczosResampler<32> lr(48000, 88100);
         auto bs = lr.BUFFER_SZ;
-        for (int i=0; i < 2 * bs; ++i)
+        for (int i = 0; i < 2 * bs; ++i)
         {
             REQUIRE(lr.input[0][i] == 0.f);
             REQUIRE(lr.input[1][i] == 0.f);

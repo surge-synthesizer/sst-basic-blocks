@@ -347,3 +347,69 @@ TEST_CASE("Routing Via", "[mod-matrix]")
     m.process();
     REQUIRE(*t3P == Approx(t3V + 0.5 * barSVal * fooSVal).margin(1e-5));
 }
+
+struct CurveConfig
+{
+    using SourceIdentifier = int;
+    using TargetIdentifier = int;
+    using CurveIdentifier = int;
+
+    using RoutingExtraPayload = int;
+
+    static constexpr bool IsFixedMatrix{true};
+    static constexpr size_t FixedMatrixSize{16};
+
+    static std::function<float(float)> getCurveOperator(CurveIdentifier id)
+    {
+        switch (id)
+        {
+        case 2:
+            return [](auto x) { return std::sin(x); };
+        case 1:
+            return [](auto x) { return x * x * x; };
+        }
+        return [](auto x) { return x; };
+    }
+};
+
+TEST_CASE("WithCurves", "[mod-matrix]")
+{
+    FixedMatrix<CurveConfig> m;
+    FixedMatrix<CurveConfig>::RoutingTable rt;
+
+    auto barS = CurveConfig::SourceIdentifier{7};
+
+    auto tg3T = CurveConfig::TargetIdentifier{3};
+
+    float barSVal{1.1};
+    m.bindSourceValue(barS, barSVal);
+
+    float t3V{0.2}, t3PV{0.3};
+    m.bindTargetBaseValue(tg3T, t3V);
+
+    // bind with a 'via'
+    rt.updateRoutingAt(0, barS, tg3T, 0.5);
+    rt.routes[0].curve = 0;
+
+    m.prepare(rt);
+    m.process();
+
+    auto t3P = m.getTargetValuePointer(tg3T);
+
+    REQUIRE(t3P);
+    REQUIRE(*t3P == Approx(t3V + 0.5 * barSVal).margin(1e-5));
+
+    rt.routes[0].curve = 1;
+    m.prepare(rt);
+    m.process();
+
+    REQUIRE(t3P);
+    REQUIRE(*t3P == Approx(t3V + 0.5 * barSVal * barSVal * barSVal).margin(1e-5));
+
+    rt.routes[0].curve = 2;
+    m.prepare(rt);
+    m.process();
+
+    REQUIRE(t3P);
+    REQUIRE(*t3P == Approx(t3V + 0.5 * std::sin(barSVal)).margin(1e-5));
+}

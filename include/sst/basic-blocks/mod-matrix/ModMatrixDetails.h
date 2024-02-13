@@ -51,6 +51,7 @@ namespace sst::basic_blocks::mod_matrix::details
 
 HAS_MEMBER(isTargetModMatrixDepth)
 HAS_MEMBER(getTargetModMatrixElement)
+HAS_MEMBER(getCurveOperator)
 #undef HAS_MEMBER
 
 struct detailTypeNo
