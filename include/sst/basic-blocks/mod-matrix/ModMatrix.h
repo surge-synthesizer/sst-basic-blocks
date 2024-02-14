@@ -32,6 +32,7 @@
 #include <cassert>
 #include <unordered_map>
 #include <unordered_set>
+#include <functional>
 
 #include <iostream>
 #include "ModMatrixDetails.h"
@@ -157,7 +158,7 @@ template <typename ModMatrixTraits> struct FixedLengthRoutingTable : RoutingTabl
         size_t outIdx{0};
         for (auto &r : routes)
         {
-            if (!r.source.has_value() && !r.target.has_value())
+            if (!r.source.has_value() || !r.target.has_value())
                 continue;
 
             isOutputMapped[*r.target] = true;
