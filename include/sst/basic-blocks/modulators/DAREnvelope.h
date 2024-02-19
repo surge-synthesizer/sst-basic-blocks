@@ -140,11 +140,28 @@ struct DAREnvelope : DiscreteStagesEnvelope<BLOCK_SIZE, RangeProvider>
         return target;
     }
 
-    inline void process01AD(const float d, const float a, const float r, const bool gateActive)
+    inline void processBlock01AD(const float d, const float a, const float r, const bool gateActive)
     {
-        processScaledAD(this->rateFrom01(d), this->rateFrom01(a), this->rateFrom01(r), gateActive);
+        processBlockScaledAD(this->rateFrom01(d), this->rateFrom01(a), this->rateFrom01(r),
+                             gateActive);
     }
 
+    inline void processBlockScaledAD(const float d, const float a, const float r,
+                                     const bool gateActive)
+    {
+        if (base_t::preBlockCheck())
+            return;
+
+        float target = 0;
+
+        if (gateActive)
+            target = stepDigital<true>(d, a, r);
+        else
+            target = stepDigital<false>(d, a, r);
+
+        base_t::updateBlockTo(target);
+        base_t::step();
+    }
     inline void processScaledAD(const float d, const float a, const float r, const bool gateActive)
     {
         if (base_t::preBlockCheck())

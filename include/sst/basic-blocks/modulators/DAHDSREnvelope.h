@@ -41,7 +41,8 @@ namespace sst::basic_blocks::modulators
  * @tparam BLOCK_SIZE Must be a power of 2
  * @tparam RangeProvider Defines the min and max
  */
-template <typename SRProvider, int BLOCK_SIZE, typename RangeProvider = TenSecondRange>
+template <typename SRProvider, int BLOCK_SIZE, typename RangeProvider = TenSecondRange,
+          bool processEverySample = true>
 struct DAHDSREnvelope : DiscreteStagesEnvelope<BLOCK_SIZE, RangeProvider>
 {
     using base_t = DiscreteStagesEnvelope<BLOCK_SIZE, RangeProvider>;
@@ -174,20 +175,36 @@ struct DAHDSREnvelope : DiscreteStagesEnvelope<BLOCK_SIZE, RangeProvider>
         return target;
     }
 
-    inline void process01AD(const float dl, const float a, const float h, const float dc,
-                            const float s, const float r, const bool gateActive)
+    inline void processBlock01AD(const float dl, const float a, const float h, const float dc,
+                                 const float s, const float r, const bool gateActive)
     {
-        processScaledAD(this->rateFrom01(dl), this->rateFrom01(a), this->rateFrom01(h),
-                        this->rateFrom01(dc), s, this->rateFrom01(r), gateActive);
+        processBlockScaledAD(this->rateFrom01(dl), this->rateFrom01(a), this->rateFrom01(h),
+                             this->rateFrom01(dc), s, this->rateFrom01(r), gateActive);
     }
 
+    inline void processBlockScaledAD(const float dl, const float a, const float h, const float dc,
+                                     const float s, const float r, const bool gateActive)
+    {
+        if (base_t::preBlockCheck())
+            return;
+
+        float target = 0;
+
+        if (gateActive)
+            target = stepDigital<true>(dl, a, h, dc, s, r);
+        else
+            target = stepDigital<false>(dl, a, h, dc, s, r);
+
+        base_t::updateBlockTo(target);
+        base_t::step();
+    }
     inline void processScaledAD(const float dl, const float a, const float h, const float dc,
                                 const float s, const float r, const bool gateActive)
     {
         if (base_t::preBlockCheck())
             return;
 
-        if (this->current == BLOCK_SIZE)
+        if (!processEverySample || this->current == BLOCK_SIZE)
         {
             float target = 0;
 
