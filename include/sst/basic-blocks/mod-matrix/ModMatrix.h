@@ -64,7 +64,7 @@ struct RoutingTable : details::CheckModMatrixConstraints<ModMatrixTraits>
 
         float depth{0};
 
-        typename TR::RoutingExtraPayload extraPayload;
+        std::optional<typename TR::RoutingExtraPayload> extraPayload;
     };
 };
 
