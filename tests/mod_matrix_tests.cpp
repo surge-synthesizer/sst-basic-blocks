@@ -302,7 +302,7 @@ TEST_CASE("Routing Activation", "[mod-matrix]")
     REQUIRE(*t3P == Approx(t3V + 0.5 * barSVal).margin(1e-5));
     REQUIRE(*t3PP == Approx(t3PV - 0.5 * fooSVal).margin(1e-5));
 
-    m.routingTable.routes[0].active = false;
+    rt.routes[0].active = false;
     m.process();
 
     REQUIRE(*t3P == Approx(t3V).margin(1e-5));
