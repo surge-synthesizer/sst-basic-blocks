@@ -108,9 +108,6 @@ template <typename ModMatrixTraits> struct FixedLengthRoutingTable : RoutingTabl
     static_assert(std::is_same<decltype(TR::FixedMatrixSize), const size_t>::value);
 
     std::array<typename RT::Routing, TR::FixedMatrixSize> routes{};
-    std::unordered_map<typename TR::TargetIdentifier, bool> isOutputMapped;
-    std::unordered_map<typename TR::TargetIdentifier, size_t> targetToOutputIndex;
-    std::unordered_map<typename TR::SourceIdentifier, bool> isSourceUsed;
 
     // fixed API for changing the mod matrix in increasing completeness
     void updateDepthAt(size_t position, float depth)
@@ -132,8 +129,6 @@ template <typename ModMatrixTraits> struct FixedLengthRoutingTable : RoutingTabl
         routes[position].source = source;
         routes[position].target = target;
         routes[position].depth = depth;
-
-        updateRoutingState();
     }
     void updateRoutingAt(size_t position, const typename TR::SourceIdentifier &source,
                          const typename TR::SourceIdentifier &sourceVia,
@@ -146,17 +141,38 @@ template <typename ModMatrixTraits> struct FixedLengthRoutingTable : RoutingTabl
         routes[position].curve = curve;
         routes[position].target = target;
         routes[position].depth = depth;
-
-        updateRoutingState();
     }
+};
 
-    void updateRoutingState()
+template <typename ModMatrixTraits> struct FixedMatrix : ModMatrix<ModMatrixTraits>
+{
+    using TR = ModMatrixTraits;
+    using PT = ModMatrix<ModMatrixTraits>;
+    using RT = FixedLengthRoutingTable<ModMatrixTraits>;
+    using RoutingTable = RT;
+
+    std::array<float, TR::FixedMatrixSize> matrixOutputs{};
+
+    struct RoutingValuePointers
+    {
+        bool *active{nullptr};
+        float *source{nullptr}, *sourceVia{nullptr}, *depth{nullptr}, *target{nullptr};
+        float depthScale{1.f};
+        std::function<float(float)> curveFn;
+    };
+    std::array<RoutingValuePointers, TR::FixedMatrixSize> routingValuePointers{};
+
+    std::unordered_map<typename TR::TargetIdentifier, bool> isOutputMapped;
+    std::unordered_map<typename TR::TargetIdentifier, size_t> targetToOutputIndex;
+    std::unordered_map<typename TR::SourceIdentifier, bool> isSourceUsed;
+
+    void updateRoutingState(const RoutingTable &rt)
     {
         isOutputMapped.clear();
         isSourceUsed.clear();
         targetToOutputIndex.clear();
         size_t outIdx{0};
-        for (auto &r : routes)
+        for (auto &r : rt.routes)
         {
             if (!r.source.has_value() || !r.target.has_value())
                 continue;
@@ -173,36 +189,14 @@ template <typename ModMatrixTraits> struct FixedLengthRoutingTable : RoutingTabl
             }
         }
     }
-};
 
-template <typename ModMatrixTraits> struct FixedMatrix : ModMatrix<ModMatrixTraits>
-{
-    using TR = ModMatrixTraits;
-    using PT = ModMatrix<ModMatrixTraits>;
-    using RT = FixedLengthRoutingTable<ModMatrixTraits>;
-    using RoutingTable = RT;
-
-    RoutingTable routingTable;
-
-    std::array<float, TR::FixedMatrixSize> matrixOutputs{};
-
-    struct RoutingValuePointers
+    void prepare(RT &rt)
     {
-        bool *active{nullptr};
-        float *source{nullptr}, *sourceVia{nullptr}, *depth{nullptr}, *target{nullptr};
-        float depthScale{1.f};
-        std::function<float(float)> curveFn;
-    };
-    std::array<RoutingValuePointers, TR::FixedMatrixSize> routingValuePointers{};
-
-    void prepare(RT rt)
-    {
-        this->routingTable = rt;
-        this->routingTable.updateRoutingState();
+        updateRoutingState(rt);
 
         int idx{0};
         std::unordered_set<typename TR::TargetIdentifier> depthMaps;
-        for (auto &r : routingTable.routes)
+        for (auto &r : rt.routes)
         {
             if (!r.source.has_value() && !r.target.has_value())
                 continue;
@@ -214,8 +208,7 @@ template <typename ModMatrixTraits> struct FixedMatrix : ModMatrix<ModMatrixTrai
             {
                 continue;
             }
-            if (this->routingTable.targetToOutputIndex.find(*r.target) ==
-                this->routingTable.targetToOutputIndex.end())
+            if (this->targetToOutputIndex.find(*r.target) == this->targetToOutputIndex.end())
             {
                 continue;
             }
@@ -244,7 +237,7 @@ template <typename ModMatrixTraits> struct FixedMatrix : ModMatrix<ModMatrixTrai
                     rv.curveFn = nullptr;
             }
 
-            rv.target = &matrixOutputs[routingTable.targetToOutputIndex.at(*r.target)];
+            rv.target = &matrixOutputs[targetToOutputIndex.at(*r.target)];
         }
 
         if constexpr (ModMatrix<TR>::canSelfModulate)
@@ -253,9 +246,8 @@ template <typename ModMatrixTraits> struct FixedMatrix : ModMatrix<ModMatrixTrai
             {
                 auto depthIndex = TR::getTargetModMatrixElement(m);
                 assert(depthIndex < routingValuePointers.size());
-                routingValuePointers[depthIndex].depth =
-                    &matrixOutputs[routingTable.targetToOutputIndex.at(m)];
-                this->baseValues.insert_or_assign(m, this->routingTable.routes[depthIndex].depth);
+                routingValuePointers[depthIndex].depth = &matrixOutputs[targetToOutputIndex.at(m)];
+                this->baseValues.insert_or_assign(m, rt.routes[depthIndex].depth);
             }
         }
     }
@@ -264,7 +256,7 @@ template <typename ModMatrixTraits> struct FixedMatrix : ModMatrix<ModMatrixTrai
     {
         std::fill(matrixOutputs.begin(), matrixOutputs.end(), 0.f);
 
-        for (const auto &[tgt, outIdx] : routingTable.targetToOutputIndex)
+        for (const auto &[tgt, outIdx] : targetToOutputIndex)
         {
             matrixOutputs[outIdx] = this->baseValues.at(tgt);
         }
@@ -297,14 +289,14 @@ template <typename ModMatrixTraits> struct FixedMatrix : ModMatrix<ModMatrixTrai
 
     const float *getTargetValuePointer(const typename TR::TargetIdentifier &s) const
     {
-        auto f = routingTable.isOutputMapped.find(s);
-        if (f == routingTable.isOutputMapped.end() || !f->second)
+        auto f = isOutputMapped.find(s);
+        if (f == isOutputMapped.end() || !f->second)
         {
             return &this->baseValues.at(s);
         }
         else
         {
-            return &matrixOutputs[routingTable.targetToOutputIndex.at(s)];
+            return &matrixOutputs[targetToOutputIndex.at(s)];
         }
     }
     float getTargetValue(const typename TR::TargetIdentifier &s) const
