@@ -76,12 +76,14 @@ struct ModMatrix : details::CheckModMatrixConstraints<ModMatrixTraits>
     std::unordered_map<typename TR::TargetIdentifier, float &> baseValues;
     void bindTargetBaseValue(const typename TR::TargetIdentifier &t, float &f)
     {
+        baseValues.erase(t);
         baseValues.insert_or_assign(t, f);
     }
 
     std::unordered_map<typename TR::SourceIdentifier, float &> sourceValues;
     void bindSourceValue(const typename TR::SourceIdentifier &s, float &f)
     {
+        sourceValues.erase(s);
         sourceValues.insert_or_assign(s, f);
     }
 
