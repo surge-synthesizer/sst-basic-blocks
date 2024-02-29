@@ -468,13 +468,28 @@ struct ParamMetaData
         res.midiNoteOctaveOffset = octave;
         return res;
     }
-
-    ParamMetaData withUnorderedMapFormatting(const std::unordered_map<int, std::string> &map)
+    // Scan defaults to false because it needs to iterate through the map to find the value range
+    // and client code could already know the appropriate min and max anyway
+    ParamMetaData withUnorderedMapFormatting(const std::unordered_map<int, std::string> &map,
+                                             bool scanAndInitParamRange = false)
     {
         auto res = *this;
         res.discreteValues = map;
         res.displayScale = UNORDERED_MAP;
         res.supportsStringConversion = true;
+        if (scanAndInitParamRange)
+        {
+            auto valmax = std::numeric_limits<int>::min();
+            auto valmin = std::numeric_limits<int>::max();
+            for (const auto &e : map)
+            {
+                valmax = std::max(e.first, valmax);
+                valmin = std::min(e.first, valmin);
+            }
+            res.minVal = valmin;
+            res.maxVal = valmax;
+        }
+        res.type = INT;
         return res;
     }
 
