@@ -28,6 +28,7 @@
 #define INCLUDE_SST_BASIC_BLOCKS_MOD_MATRIX_MODMATRIXDETAILS_H
 
 #include <type_traits>
+#include <cstdint>
 
 namespace sst::basic_blocks::mod_matrix::details
 {
