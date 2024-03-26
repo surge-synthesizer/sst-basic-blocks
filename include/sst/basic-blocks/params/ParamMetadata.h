@@ -63,6 +63,7 @@
 #include <unordered_map>
 #include <cassert>
 #include <cmath>
+#include <cstdint>
 
 #include <fmt/core.h>
 #include <array>
