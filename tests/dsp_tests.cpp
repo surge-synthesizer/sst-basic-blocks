@@ -27,6 +27,9 @@
 #include "catch2.hpp"
 #include "smoke_test_sse.h"
 #include <cmath>
+#include <array>
+#include <iostream>
+
 #include "sst/basic-blocks/dsp/BlockInterpolators.h"
 #include "sst/basic-blocks/dsp/QuadratureOscillators.h"
 #include "sst/basic-blocks/dsp/LanczosResampler.h"
@@ -36,8 +39,6 @@
 #include "sst/basic-blocks/dsp/Lag.h"
 #include "sst/basic-blocks/mechanics/block-ops.h"
 #include "sst/basic-blocks/tables/SincTableProvider.h"
-
-#include <iostream>
 #include "sst/basic-blocks/dsp/SSESincDelayLine.h"
 #include "sst/basic-blocks/dsp/FollowSlewAndSmooth.h"
 
