@@ -27,6 +27,9 @@
 #include "catch2.hpp"
 #include "smoke_test_sse.h"
 #include <cmath>
+#include <array>
+#include <iostream>
+
 #include "sst/basic-blocks/dsp/BlockInterpolators.h"
 #include "sst/basic-blocks/dsp/QuadratureOscillators.h"
 #include "sst/basic-blocks/dsp/LanczosResampler.h"
@@ -36,9 +39,8 @@
 #include "sst/basic-blocks/dsp/Lag.h"
 #include "sst/basic-blocks/mechanics/block-ops.h"
 #include "sst/basic-blocks/tables/SincTableProvider.h"
-
-#include <iostream>
 #include "sst/basic-blocks/dsp/SSESincDelayLine.h"
+#include "sst/basic-blocks/dsp/FollowSlewAndSmooth.h"
 
 TEST_CASE("lipol_sse basic", "[dsp]")
 {
@@ -1083,5 +1085,61 @@ TEST_CASE("UIComponentLagHandler", "[dsp]")
         REQUIRE(f == 0.5);
         lag.process();
         REQUIRE(g < 1.0);
+    }
+}
+
+TEST_CASE("Slew", "[dsp]")
+{
+    auto sl = sst::basic_blocks::dsp::SlewLimiter();
+    sl.setParams(100, 1.0, 1000);
+
+    for (int i=0; i<100; ++i)
+    {
+        auto val = sl.step(0.5);
+        if (i < 50)
+            REQUIRE(val == Approx((i+1) * 0.01));
+        else
+            REQUIRE(val == 0.5);
+    }
+
+    for (int i=0; i<200; ++i)
+    {
+        auto val = sl.step(-0.5);
+        if (i < 100)
+            REQUIRE(val == Approx(0.5 - (i+1) * 0.01).margin(1e-5));
+        else
+            REQUIRE(val == -0.5);
+
+    }
+}
+
+TEST_CASE("Running Avg", "[dsp]")
+{
+    SECTION("Constants")
+    {
+        std::array<float, 1000> data{};
+        auto ra = sst::basic_blocks::dsp::RunningAverage(data.data(), data.size());
+        for (int i = 0; i < data.size() - 1; ++i)
+        {
+            auto val = ra.step(3.2);
+            REQUIRE(val == Approx(3.2 * (i + 1) / 1000.0).margin(0.005));
+        }
+    }
+
+
+    SECTION("RAMP")
+    {
+        std::array<float, 101> data{};
+        auto ra = sst::basic_blocks::dsp::RunningAverage(data.data(), data.size());
+        for (int i = 0; i < 500; ++i)
+        {
+            auto val = ra.step(i * 0.1);
+            if (i > data.size() - 1)
+            {
+                // Filled with a ramp. Average is start - end / count
+                auto avg = (i + (i - (data.size()-1 -1))) * 0.5 * 0.1;
+                REQUIRE( val == Approx(avg).margin(0.005));
+            }
+        }
     }
 }
