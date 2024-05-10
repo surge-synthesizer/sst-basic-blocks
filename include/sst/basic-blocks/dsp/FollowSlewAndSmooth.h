@@ -24,8 +24,8 @@
  * https://github.com/surge-synthesizer/sst-basic-blocks
  */
 
-#ifndef INCLUDE_SST_BASIC_BLOCKS_DSP_ENVELOPEFOLLOWER_H
-#define INCLUDE_SST_BASIC_BLOCKS_DSP_ENVELOPEFOLLOWER_H
+#ifndef INCLUDE_SST_BASIC_BLOCKS_DSP_FOLLOWSLEWANDSMOOTH_H
+#define INCLUDE_SST_BASIC_BLOCKS_DSP_FOLLOWSLEWANDSMOOTH_H
 
 #include <algorithm>
 #include <utility>
@@ -145,7 +145,7 @@ struct RunningAverage
     RunningAverage(float *ontoStorage, size_t np) : storage{ontoStorage}, nPoints{np}
     {
         reset();
-        oneOverN = 1.0 / (nPoints-1);
+        oneOverN = 1.0 / (nPoints - 1);
     }
     RunningAverage() = delete;
 
