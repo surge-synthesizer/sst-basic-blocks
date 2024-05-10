@@ -147,6 +147,9 @@ struct UIComponentLagHandler
 
     void instantlySnap()
     {
+        if (!active)
+            return;
+
         if (destination)
         {
             *destination = targetValue;

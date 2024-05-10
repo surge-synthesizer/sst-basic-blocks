@@ -1093,23 +1093,22 @@ TEST_CASE("Slew", "[dsp]")
     auto sl = sst::basic_blocks::dsp::SlewLimiter();
     sl.setParams(100, 1.0, 1000);
 
-    for (int i=0; i<100; ++i)
+    for (int i = 0; i < 100; ++i)
     {
         auto val = sl.step(0.5);
         if (i < 50)
-            REQUIRE(val == Approx((i+1) * 0.01));
+            REQUIRE(val == Approx((i + 1) * 0.01));
         else
             REQUIRE(val == 0.5);
     }
 
-    for (int i=0; i<200; ++i)
+    for (int i = 0; i < 200; ++i)
     {
         auto val = sl.step(-0.5);
         if (i < 100)
-            REQUIRE(val == Approx(0.5 - (i+1) * 0.01).margin(1e-5));
+            REQUIRE(val == Approx(0.5 - (i + 1) * 0.01).margin(1e-5));
         else
             REQUIRE(val == -0.5);
-
     }
 }
 
@@ -1126,7 +1125,6 @@ TEST_CASE("Running Avg", "[dsp]")
         }
     }
 
-
     SECTION("RAMP")
     {
         std::array<float, 101> data{};
@@ -1137,8 +1135,8 @@ TEST_CASE("Running Avg", "[dsp]")
             if (i > data.size() - 1)
             {
                 // Filled with a ramp. Average is start - end / count
-                auto avg = (i + (i - (data.size()-1 -1))) * 0.5 * 0.1;
-                REQUIRE( val == Approx(avg).margin(0.005));
+                auto avg = (i + (i - (data.size() - 1 - 1))) * 0.5 * 0.1;
+                REQUIRE(val == Approx(avg).margin(0.005));
             }
         }
     }
