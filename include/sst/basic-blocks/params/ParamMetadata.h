@@ -1065,9 +1065,9 @@ ParamMetaData::modulationNaturalToString(float naturalBaseVal, float modulationN
         auto nvu = naturalBaseVal + modulationNatural;
         auto nvd = naturalBaseVal - modulationNatural;
 
-        auto scv = svA * pow(2, svB * naturalBaseVal);
-        auto svu = svA * pow(2, svB * nvu);
-        auto svd = svA * pow(2, svB * nvd);
+        auto scv = svA * pow(2, svB * naturalBaseVal + svC);
+        auto svu = svA * pow(2, svB * nvu + svC);
+        auto svd = svA * pow(2, svB * nvd + svC);
         auto du = svu - scv;
         auto dd = scv - svd;
 
