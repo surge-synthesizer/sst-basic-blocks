@@ -29,7 +29,8 @@
 
 #include <type_traits>
 
-static_assert(__cplusplus >= 202002L, "sst-basic-blocks requires C++20; please update your build");
+// Why this form? gcc10 works but provides -std=c++2a in some cases
+static_assert(__cplusplus > 201703L, "sst-basic-blocks requires C++20; please update your build");
 
 namespace sst::basic_blocks::concepts
 {
