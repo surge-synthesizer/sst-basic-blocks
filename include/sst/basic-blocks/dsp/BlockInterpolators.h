@@ -27,11 +27,15 @@
 #ifndef INCLUDE_SST_BASIC_BLOCKS_DSP_BLOCKINTERPOLATORS_H
 #define INCLUDE_SST_BASIC_BLOCKS_DSP_BLOCKINTERPOLATORS_H
 
+#include "../concepts/concepts.h"
+
 #include <cassert>
 
 namespace sst::basic_blocks::dsp
 {
-template <class T, int defaultBlockSize, bool first_run_checks> struct lipol
+template <class T, size_t defaultBlockSize, bool first_run_checks>
+    requires(concepts::is_positive_power_of_two(defaultBlockSize))
+struct lipol
 {
   public:
     lipol() { reset(); }
@@ -75,7 +79,9 @@ template <class T, int defaultBlockSize, bool first_run_checks> struct lipol
     bool first_run{true};
 };
 
-template <int maxBlockSize, bool first_run_checks = true> struct alignas(16) lipol_sse
+template <size_t maxBlockSize, bool first_run_checks = true>
+    requires(concepts::is_positive_power_of_two(maxBlockSize))
+struct alignas(16) lipol_sse
 {
   private:
     // put these at the top to preserve alignment
