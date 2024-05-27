@@ -9,6 +9,10 @@ add_library(${PROJECT_NAME} INTERFACE)
 target_include_directories(${PROJECT_NAME} INTERFACE include)
 target_compile_definitions(${PROJECT_NAME} INTERFACE _USE_MATH_DEFINES=1)
 
+if (MSVC)
+  target_compile_options(${PROJECT_NAME} INTERFACE  $<$<COMPILE_LANGUAGE:CXX>:/Zc:__cplusplus>)
+endif()
+
 if (${SST_BASIC_BLOCKS_BUILD_TESTS})
     include(cmake/CPM.cmake)
 
