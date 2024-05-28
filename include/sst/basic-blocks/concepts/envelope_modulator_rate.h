@@ -24,29 +24,35 @@
  * https://github.com/surge-synthesizer/sst-basic-blocks
  */
 
-#ifndef INCLUDE_SST_BASIC_BLOCKS_CONCEPTS_CONCEPTS_H
-#define INCLUDE_SST_BASIC_BLOCKS_CONCEPTS_CONCEPTS_H
+#ifndef INCLUDE_SST_BASIC_BLOCKS_CONCEPTS_ENVELOPE_MODULATOR_RATE_H
+#define INCLUDE_SST_BASIC_BLOCKS_CONCEPTS_ENVELOPE_MODULATOR_RATE_H
 
 #include <concepts>
 #include <type_traits>
 
-// Why this form? gcc10 works but provides -std=c++2a in some cases
-static_assert(__cplusplus > 201703L, "sst-basic-blocks requires C++20; please update your build");
-
-#include "sample_rate.h"
-#include "envelope_modulator_rate.h"
-#include "unit_conversions.h"
-
 namespace sst::basic_blocks::concepts
 {
-template <class T> constexpr bool is_positive_power_of_two(T x) noexcept
+
+/*
+ * Envelope Rate Linear No-Wrap is defined as
+ * block size * 2^f / sample rate
+ */
+template <typename T>
+concept has_envelope_rate_linear_nowrap = requires(T *t, float f) {
+    {
+        t->envelope_rate_linear_nowrap(f)
+    } -> std::convertible_to<float>;
+};
+
+template <typename T>
+concept providesModulatorDPhase = has_envelope_rate_linear_nowrap<T>;
+
+template <typename T>
+    requires(providesModulatorDPhase<T>)
+inline double getModulatorDPhase(T *t, float f)
 {
-    return (x > 0) && ((x & (x - 1)) == 0) && std::is_integral_v<T>;
-}
-template <class T> constexpr bool is_power_of_two_ge(T x, T above) noexcept
-{
-    return (x > 0) && ((x & (x - 1)) == 0) && std::is_integral_v<T>;
+    return t->envelope_rate_linear_nowrap(f);
 }
 } // namespace sst::basic_blocks::concepts
 
-#endif // SURGE_CONCEPTS_H
+#endif // SHORTCIRCUITXT_ENVELOPE_MODULATOR_RATE_H
