@@ -133,21 +133,21 @@ concept has_staticDbToLinear = requires(T *s, float f) {
 template <typename T>
 concept providesDbToLinear = has_dbToLinear<T> || has_db_to_linear<T> || has_staticDbToLinear<T>;
 
-template <typename T>
-    requires(providesDbToLinear<T>)
-inline float convertDbToLinear(T *t, float n)
+template <typename T, typename F>
+    requires(providesDbToLinear<T> && std::is_floating_point_v<F>)
+inline float convertDbToLinear(T *t, F n)
 {
     if constexpr (has_db_to_linear<T>)
     {
-        return t->db_to_linear(n);
+        return t->db_to_linear((float)n);
     }
     else if constexpr (has_dbToLinear<T>)
     {
-        return t->dbToLinear(n);
+        return t->dbToLinear((float)n);
     }
     else if constexpr (has_staticDbToLinear<T>)
     {
-        return T::dbToLinear(t, n);
+        return T::dbToLinear(t, (float)n);
     }
     assert(false);
     return 0;
