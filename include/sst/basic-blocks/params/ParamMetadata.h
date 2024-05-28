@@ -652,6 +652,7 @@ struct ParamMetaData
     {
         auto res = withType(FLOAT).withRange(0.f, 1.f).withDefault(1.f);
         res.displayScale = CUBED_AS_DECIBEL;
+        res.supportsStringConversion = true;
         return res;
     }
     ParamMetaData asLinearDecibel(float lower = -96, float upper = 12)
