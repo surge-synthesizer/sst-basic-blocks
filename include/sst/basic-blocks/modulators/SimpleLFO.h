@@ -33,23 +33,20 @@
 #include <random>
 #include <cmath>
 #include <cassert>
-#include "../concepts/concepts.h"
 
 namespace sst::basic_blocks::modulators
 {
 
 // For context on SRProvider see the ADSRDAHD Envelope
-template <typename SRProvider, int BLOCK_SIZE>
-    requires(concepts::is_power_of_two_ge(BLOCK_SIZE, 8) &&
-             concepts::supportsSampleRate<SRProvider> &&
-             concepts::providesModulatorDPhase<SRProvider>)
-struct SimpleLFO
+template <typename SRProvider, int BLOCK_SIZE> struct SimpleLFO
 {
     SRProvider *srProvider{nullptr};
     std::default_random_engine gen;
     std::uniform_real_distribution<float> distro;
     std::function<float()> urng = []() { return 0; };
 
+    static_assert((BLOCK_SIZE >= 8) & !(BLOCK_SIZE & (BLOCK_SIZE - 1)),
+                  "Block size must be power of 2 8 or above.");
     static constexpr float BLOCK_SIZE_INV{1.f / BLOCK_SIZE};
 
     float rngState[2]{0, 0};
@@ -159,7 +156,7 @@ struct SimpleLFO
     {
         float target{0.f};
 
-        auto frate = concepts::getModulatorDPhase(srProvider, -r);
+        auto frate = srProvider->envelope_rate_linear_nowrap(-r);
         phase += frate * (reverse ? -1 : 1);
         int phaseMidpoint{0};
         bool phaseTurned{false};
@@ -228,8 +225,8 @@ struct SimpleLFO
                 if (urng() > (-d))
                 {
                     // 10 ms triggers according to spec so thats 1% of sample rate
-                    rndTrigCountdown = (int)std::round(0.01 * concepts::getSampleRate(srProvider) *
-                                                       BLOCK_SIZE_INV);
+                    rndTrigCountdown =
+                        (int)std::round(0.01 * srProvider->samplerate * BLOCK_SIZE_INV);
                 }
             }
             if (rndTrigCountdown > 0)
