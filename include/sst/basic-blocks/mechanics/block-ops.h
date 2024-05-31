@@ -146,6 +146,14 @@ inline void scale_by(const float *__restrict scale, float *__restrict targetL,
     }
 }
 
+template <size_t blockSize> inline void scale_by(const float scale, float *__restrict target)
+{
+    for (auto i = 0U; i < blockSize; ++i)
+    {
+        target[i] *= scale;
+    }
+}
+
 template <size_t blockSize>
 inline void scale_by(const float scale, float *__restrict targetL, float *__restrict targetR)
 {
