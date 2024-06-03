@@ -70,8 +70,29 @@ struct TwentyFiveSecondExp
 
 template <int BLOCK_SIZE, typename RangeProvider> struct DiscreteStagesEnvelope
 {
-    static constexpr float etMin{RangeProvider::etMin}, etMax{RangeProvider::etMax},
-        etScale{etMax - etMin};
+    static constexpr float etminV()
+    {
+        if constexpr (RangeProvider::phaseStrategy == ENVTIME_2TWOX)
+        {
+            return RangeProvider::etMin;
+        }
+        else
+        {
+            return 0.f;
+        }
+    }
+    static constexpr float etmaxV()
+    {
+        if constexpr (RangeProvider::phaseStrategy == ENVTIME_2TWOX)
+        {
+            return RangeProvider::etMax;
+        }
+        else
+        {
+            return 1.f;
+        }
+    }
+    static constexpr float etMin{etminV()}, etMax{etmaxV()}, etScale{etMax - etMin};
 
     static_assert((BLOCK_SIZE >= 8) & !(BLOCK_SIZE & (BLOCK_SIZE - 1)),
                   "Block size must be power of 2 8 or above.");
