@@ -29,23 +29,43 @@
 
 namespace sst::basic_blocks::modulators
 {
-
+enum DPhaseStrategies
+{
+    /*
+     * SR Provider provides envelope_rate_linear_nowrap(f) = blockSize * 2^-f / sampleRate
+     * and we scale into units in the 2^x space
+     */
+    ENVTIME_2TWOX,
+    /*
+     * SRProvider isn't consulted. Instead we use an exp table (probably. For now use exp)
+     */
+    ENVTIME_EXP
+};
 struct TenSecondRange
 {
     // 0.0039s -> 10s
+    static constexpr DPhaseStrategies phaseStrategy{ENVTIME_2TWOX};
     static constexpr float etMin{-8}, etMax{3.32192809489};
 };
 
 struct ThirtyTwoSecondRange
 {
     // 0.0039s -> 32s
+    static constexpr DPhaseStrategies phaseStrategy{ENVTIME_2TWOX};
     static constexpr float etMin{-8}, etMax{5};
 };
 
 struct TwoMinuteRange
 {
     // 0.0039s -> 120s
+    static constexpr DPhaseStrategies phaseStrategy{ENVTIME_2TWOX};
     static constexpr float etMin{-8}, etMax{6.90689059561};
+};
+
+struct TwentyFiveSecondExp
+{
+    static constexpr DPhaseStrategies phaseStrategy{ENVTIME_EXP};
+    static constexpr double A{0.6931471824646}, B{10.1267113685608}, C{-2.0}, D{1000.0};
 };
 
 template <int BLOCK_SIZE, typename RangeProvider> struct DiscreteStagesEnvelope
@@ -198,9 +218,28 @@ template <int BLOCK_SIZE, typename RangeProvider> struct DiscreteStagesEnvelope
         memset(outputCacheCubed, 0, sizeof(outputCacheCubed));
     }
 
-    float rateFrom01(float r01) { return r01 * etScale + etMin; }
-    float rateTo01(float r) { return (r - etMin) / etScale; }
-    float deltaTo01(float d) { return d / etScale; }
+    float rateFrom01(float r01)
+    {
+        // EXP works entirely in normalized params
+        if constexpr (RangeProvider::phaseStrategy == DPhaseStrategies::ENVTIME_EXP)
+            return r01;
+        else
+            return r01 * etScale + etMin;
+    }
+    float rateTo01(float r)
+    {
+        if constexpr (RangeProvider::phaseStrategy == DPhaseStrategies::ENVTIME_EXP)
+            return r;
+        else
+            return (r - etMin) / etScale;
+    }
+    float deltaTo01(float d)
+    {
+        if constexpr (RangeProvider::phaseStrategy == DPhaseStrategies::ENVTIME_EXP)
+            return d;
+        else
+            return d / etScale;
+    }
 };
 } // namespace sst::basic_blocks::modulators
 

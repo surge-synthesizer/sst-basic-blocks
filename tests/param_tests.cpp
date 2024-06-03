@@ -328,3 +328,30 @@ TEST_CASE("Alternate Scales Above and Below", "[param]")
         REQUIRE(*(p.valueFromString("500.00 ms", em)) == Approx(-1.f));
     }
 }
+
+TEST_CASE("25 Second Exp", "[param]")
+{
+    SECTION("To String")
+    {
+        auto p = pmd::ParamMetaData().as25SecondExpTime();
+        REQUIRE(*(p.valueToString(0.8)) == "3.79 s");
+        REQUIRE(*(p.valueToString(0.5)) == "221.62 ms");
+    }
+
+    SECTION("From String")
+    {
+        auto p = pmd::ParamMetaData().as25SecondExpTime();
+        std::string em;
+        // remember these are truncated displays hence the margin
+        REQUIRE(*(p.valueFromString("3.79 s", em)) == Approx(0.8f).margin(0.01));
+        REQUIRE(*(p.valueFromString("0.22162 s", em)) == Approx(0.5f).margin(0.01));
+        REQUIRE(*(p.valueFromString("221.62 ms", em)) == Approx(0.5f).margin(0.01));
+    }
+
+    SECTION("Modulation")
+    {
+        auto p = pmd::ParamMetaData().as25SecondExpTime();
+        auto md = p.modulationNaturalToString(0.5, 0.1, true, pmd::ParamMetaData::FeatureState());
+        REQUIRE(md.has_value());
+    }
+}

@@ -219,11 +219,12 @@ struct ParamMetaData
 
     enum DisplayScale
     {
-        LINEAR,           // out = A * r + B
-        A_TWO_TO_THE_B,   // out = A 2^(B r + C)
-        CUBED_AS_DECIBEL, // the underlier is an amplitude applied as v*v*v and displayed as db
-        DECIBEL,          // TODO - implement
-        UNORDERED_MAP,    // out = discreteValues[(int)std::round(val)]
+        LINEAR,            // out = A * r + B
+        A_TWO_TO_THE_B,    // out = A 2^(B r + C)
+        CUBED_AS_DECIBEL,  // the underlier is an amplitude applied as v*v*v and displayed as db
+        SCALED_OFFSET_EXP, // (exp(A + x ( B - A )) + C) / D
+        DECIBEL,           // TODO - implement
+        UNORDERED_MAP,     // out = discreteValues[(int)std::round(val)]
         MIDI_NOTE,    // uses C4 etc.. notation. The octaveOffset has 0 -> 69=A4, 1 = A5, -1 = A3
         USER_PROVIDED // TODO - implement
     } displayScale{LINEAR};
@@ -440,6 +441,20 @@ struct ParamMetaData
         return res;
     }
 
+    ParamMetaData withScaledOffsetExpFormatting(float A, float B, float C, float D,
+                                                const std::string &units)
+    {
+        auto res = *this;
+        res.svA = A;
+        res.svB = B;
+        res.svC = C;
+        res.svD = D;
+        res.unit = units;
+        res.displayScale = SCALED_OFFSET_EXP;
+        res.supportsStringConversion = true;
+        return res;
+    }
+
     ParamMetaData withSemitoneZeroAt400Formatting()
     {
         return withATwoToTheBFormatting(440, 1.0 / 12.0, "Hz");
@@ -644,6 +659,17 @@ struct ParamMetaData
     }
     ParamMetaData asEnvelopeTime() { return asLog2SecondsRange(-8.f, 5.f, -1.f); }
 
+    // (exp(lerp(norm_val, 0.6931471824646, 10.1267113685608)) - 2.0)/1000.0
+    ParamMetaData as25SecondExpTime()
+    {
+        return withType(FLOAT)
+            .withRange(0, 1)
+            .withDefault(0.1)
+            .temposyncable()
+            .withScaledOffsetExpFormatting(0.6931471824646, 10.1267113685608, -2.0, 1000.0, "s")
+            .withMilisecondsBelowOneSecond();
+    }
+
     ParamMetaData asAudibleFrequency()
     {
         return withType(FLOAT).withRange(-60, 70).withDefault(0).withSemitoneZeroAt400Formatting();
@@ -746,15 +772,6 @@ inline std::optional<std::string> ParamMetaData::valueToString(float val,
     switch (displayScale)
     {
     case LINEAR:
-        if (val == minVal && !customMinDisplay.empty())
-        {
-            return customMinDisplay;
-        }
-        if (val == maxVal && !customMaxDisplay.empty())
-        {
-            return customMinDisplay;
-        }
-
         if (alternateScaleWhen == NO_ALTERNATE)
         {
             return fmt::format("{:.{}f} {:s}", svA * val,
@@ -780,15 +797,6 @@ inline std::optional<std::string> ParamMetaData::valueToString(float val,
         }
         break;
     case A_TWO_TO_THE_B:
-        if (val == minVal && !customMinDisplay.empty())
-        {
-            return customMinDisplay;
-        }
-        if (val == maxVal && !customMaxDisplay.empty())
-        {
-            return customMinDisplay;
-        }
-
         if (alternateScaleWhen == NO_ALTERNATE)
         {
             return fmt::format("{:.{}f} {:s}", svA * pow(2.0, svB * val + svC),
@@ -813,6 +821,22 @@ inline std::optional<std::string> ParamMetaData::valueToString(float val,
             }
         }
         break;
+    case SCALED_OFFSET_EXP:
+    {
+        auto dval = (std::exp(svA + val * (svB - svA)) + svC) / svD;
+        if (alternateScaleWhen == NO_ALTERNATE ||
+            (alternateScaleWhen == SCALE_BELOW && dval > alternateScaleCutoff) ||
+            (alternateScaleWhen == SCALE_ABOVE && dval < alternateScaleCutoff))
+        {
+            return fmt::format("{:.{}f} {:s}", dval,
+                               (fs.isHighPrecision ? (decimalPlaces + 4) : decimalPlaces), unit);
+        }
+        // We must be in an alternate case
+        return fmt::format("{:.{}f} {:s}", dval * alternateScaleRescaling,
+                           (fs.isHighPrecision ? (decimalPlaces + 4) : decimalPlaces),
+                           alternateScaleUnits);
+    }
+    break;
     case CUBED_AS_DECIBEL:
     {
         if (val <= 0)
@@ -969,6 +993,39 @@ inline std::optional<float> ParamMetaData::valueFromString(std::string_view v, s
         }
     }
     break;
+    case SCALED_OFFSET_EXP:
+    {
+        try
+        {
+            auto r = std::stof(std::string(v));
+
+            if (alternateScaleWhen != NO_ALTERNATE)
+            {
+                auto ps = v.find(alternateScaleUnits);
+                if (ps != std::string::npos && alternateScaleRescaling != 0.f)
+                {
+                    // We have a string containing the alterante units
+                    r = r / alternateScaleRescaling;
+                }
+            }
+
+            // OK so its R = exp(A + X (B-A)) - C)/D
+            // D R + C = exp(A + X (B-a))
+            // log(DR + C) = A + X (B-A)
+            // (log (DR + C) - A) / (B - A) = X
+            auto drc = std::max(svD * r + svC, 0.00000001f);
+            auto xv = (std::log(drc) - svA) / (svB - svA);
+
+            return xv;
+        }
+        catch (const std::exception &)
+        {
+            errMsg = rangeMsg();
+            return std::nullopt;
+        }
+        return 0.f;
+    }
+    break;
     case CUBED_AS_DECIBEL:
     {
         try
@@ -1111,6 +1168,66 @@ ParamMetaData::modulationNaturalToString(float naturalBaseVal, float modulationN
 
         return result;
     }
+    case SCALED_OFFSET_EXP:
+    {
+    }
+    break;
+    case CUBED_AS_DECIBEL:
+    {
+        auto nvu = std::max(naturalBaseVal + modulationNatural, 0.f);
+        auto nvd = std::max(naturalBaseVal - modulationNatural, 0.f);
+        auto v = std::max(naturalBaseVal, 0.f);
+
+        nvu = nvu * nvu * nvu;
+        nvd = nvd * nvd * nvd;
+
+        auto db = 20 * std::log10(v);
+        auto dbu = 20 * std::log10(nvu);
+        auto dbd = 20 * std::log10(nvd);
+
+        auto deltUp = dbu - db;
+        auto deltDn = dbd - db;
+
+        auto dp = (fs.isHighPrecision ? (decimalPlaces + 4) : decimalPlaces);
+        result.value = fmt::format("{:.{}f} {}", deltUp, dp, unit);
+        if (isBipolar)
+        {
+            if (deltDn > 0)
+            {
+                result.summary = fmt::format("+/- {:.{}f} {}", deltUp, dp, unit);
+            }
+            else
+            {
+                result.summary = fmt::format("-/+ {:.{}f} {}", -deltUp, dp, unit);
+            }
+        }
+        else
+        {
+            result.summary = fmt::format("{:.{}f} {}", deltUp, dp, unit);
+        }
+        result.changeUp = fmt::format("{:.{}f}", deltUp, dp);
+        if (isBipolar)
+            result.changeDown = fmt::format("{:.{}f}", deltDn, dp);
+        result.valUp = fmt::format("{:.{}f}", dbu, dp);
+
+        if (isBipolar)
+            result.valDown = fmt::format("{:.{}f}", dbd, dp);
+        auto v2s = valueToString(naturalBaseVal, fs);
+        if (v2s.has_value())
+            result.baseValue = *v2s;
+        else
+            result.baseValue = "-ERROR-";
+
+        if (isBipolar)
+            result.singleLineModulationSummary = fmt::format(
+                "{} {} < {} > {} {}", result.valDown, unit, result.baseValue, result.valUp, unit);
+        else
+            result.singleLineModulationSummary =
+                fmt::format("{} > {} {}", result.baseValue, result.valUp, unit);
+
+        return result;
+    }
+    break;
     default:
         break;
     }
