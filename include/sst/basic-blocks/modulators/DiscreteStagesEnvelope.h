@@ -70,9 +70,6 @@ struct TwentyFiveSecondExp
 
 template <int BLOCK_SIZE, typename RangeProvider> struct DiscreteStagesEnvelope
 {
-    static constexpr float etMin{RangeProvider::etMin}, etMax{RangeProvider::etMax},
-        etScale{etMax - etMin};
-
     static_assert((BLOCK_SIZE >= 8) & !(BLOCK_SIZE & (BLOCK_SIZE - 1)),
                   "Block size must be power of 2 8 or above.");
     static constexpr float BLOCK_SIZE_INV{1.f / BLOCK_SIZE};
@@ -224,21 +221,36 @@ template <int BLOCK_SIZE, typename RangeProvider> struct DiscreteStagesEnvelope
         if constexpr (RangeProvider::phaseStrategy == DPhaseStrategies::ENVTIME_EXP)
             return r01;
         else
+        {
+            static constexpr float etMin{RangeProvider::etMin}, etMax{RangeProvider::etMax},
+                etScale{etMax - etMin};
+
             return r01 * etScale + etMin;
+        }
     }
     float rateTo01(float r)
     {
         if constexpr (RangeProvider::phaseStrategy == DPhaseStrategies::ENVTIME_EXP)
             return r;
         else
+        {
+            static constexpr float etMin{RangeProvider::etMin}, etMax{RangeProvider::etMax},
+                etScale{etMax - etMin};
+
             return (r - etMin) / etScale;
+        }
     }
     float deltaTo01(float d)
     {
         if constexpr (RangeProvider::phaseStrategy == DPhaseStrategies::ENVTIME_EXP)
             return d;
         else
+        {
+            static constexpr float etMin{RangeProvider::etMin}, etMax{RangeProvider::etMax},
+                etScale{etMax - etMin};
+         
             return d / etScale;
+        }
     }
 };
 } // namespace sst::basic_blocks::modulators
