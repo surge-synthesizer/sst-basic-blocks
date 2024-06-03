@@ -66,6 +66,26 @@ struct DAREnvelope : DiscreteStagesEnvelope<BLOCK_SIZE, RangeProvider>
         base_t::resetCurrent();
     }
 
+    // The value here is in natural units by now
+    inline float dPhase(float x)
+    {
+        if constexpr (RangeProvider::phaseStrategy == DPhaseStrategies::ENVTIME_2TWOX)
+        {
+            return srProvider->envelope_rate_linear_nowrap(x);
+        }
+
+        if constexpr (RangeProvider::phaseStrategy == ENVTIME_EXP)
+        {
+            auto timeInSeconds =
+                (std::exp(RangeProvider::A + x * (RangeProvider::B - RangeProvider::A)) -
+                 RangeProvider::C) /
+                RangeProvider::D;
+            auto dPhase = BLOCK_SIZE * srProvider->sampleRateInv / timeInSeconds;
+
+            return dPhase;
+        }
+    }
+
     template <bool gated> inline float stepDigital(const float d, const float a, const float r)
     {
         float target = 0;
@@ -73,7 +93,7 @@ struct DAREnvelope : DiscreteStagesEnvelope<BLOCK_SIZE, RangeProvider>
         {
         case base_t::s_delay:
         {
-            phase += srProvider->envelope_rate_linear_nowrap(d);
+            phase += dPhase(d);
             if (phase >= 1)
             {
                 if constexpr (gated)
@@ -91,7 +111,7 @@ struct DAREnvelope : DiscreteStagesEnvelope<BLOCK_SIZE, RangeProvider>
         break;
         case base_t::s_attack:
         {
-            phase += srProvider->envelope_rate_linear_nowrap(a);
+            phase += dPhase(a);
             if (phase >= 1)
             {
                 phase = 1;
@@ -123,7 +143,7 @@ struct DAREnvelope : DiscreteStagesEnvelope<BLOCK_SIZE, RangeProvider>
         break;
         case base_t::s_release:
         {
-            phase -= srProvider->envelope_rate_linear_nowrap(r);
+            phase -= dPhase(r);
             if (phase <= 0)
             {
                 phase = 0;

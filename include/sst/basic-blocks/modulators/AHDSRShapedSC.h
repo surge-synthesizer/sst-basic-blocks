@@ -66,7 +66,21 @@ struct AHDSRShapedSC : DiscreteStagesEnvelope<BLOCK_SIZE, RangeProvider>
 
     inline float dPhase(float x)
     {
-        return srProvider->envelope_rate_linear_nowrap(x * base_t::etScale + base_t::etMin);
+        if constexpr (RangeProvider::phaseStrategy == DPhaseStrategies::ENVTIME_2TWOX)
+        {
+            return srProvider->envelope_rate_linear_nowrap(x * base_t::etScale + base_t::etMin);
+        }
+
+        if constexpr (RangeProvider::phaseStrategy == ENVTIME_EXP)
+        {
+            auto timeInSeconds =
+                (std::exp(RangeProvider::A + x * (RangeProvider::B - RangeProvider::A)) -
+                 RangeProvider::C) /
+                RangeProvider::D;
+            auto dPhase = BLOCK_SIZE * srProvider->sampleRateInv / timeInSeconds;
+
+            return dPhase;
+        }
     }
 
     // from https://martin.ankerl.com/2012/01/25/optimized-approximative-pow-in-c-and-cpp/
