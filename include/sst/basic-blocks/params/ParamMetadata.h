@@ -1170,6 +1170,55 @@ ParamMetaData::modulationNaturalToString(float naturalBaseVal, float modulationN
     }
     case SCALED_OFFSET_EXP:
     {
+        auto nvu = std::clamp(naturalBaseVal + modulationNatural, 0.f, 1.f);
+        auto nvd = std::clamp(naturalBaseVal - modulationNatural, 0.f, 1.f);
+        auto nv = std::clamp(naturalBaseVal, 0.f, 1.f);
+
+        auto v = (exp(svA + nv * (svB - svA)) - svC) / svD;
+        auto vu = (exp(svA + nvu * (svB - svA)) - svC) / svD;
+        auto vd = (exp(svA + nvd * (svB - svA)) - svC) / svD;
+
+        auto deltUp = vu - v;
+        auto deltDn = vd - v;
+
+        auto dp = (fs.isHighPrecision ? (decimalPlaces + 4) : decimalPlaces);
+        result.value = fmt::format("{:.{}f} {}", deltUp, dp, unit);
+        if (isBipolar)
+        {
+            if (deltDn > 0)
+            {
+                result.summary = fmt::format("+/- {:.{}f} {}", deltUp, dp, unit);
+            }
+            else
+            {
+                result.summary = fmt::format("-/+ {:.{}f} {}", -deltUp, dp, unit);
+            }
+        }
+        else
+        {
+            result.summary = fmt::format("{:.{}f} {}", deltUp, dp, unit);
+        }
+        result.changeUp = fmt::format("{:.{}f}", deltUp, dp);
+        if (isBipolar)
+            result.changeDown = fmt::format("{:.{}f}", deltDn, dp);
+        result.valUp = fmt::format("{:.{}f}", vu, dp);
+
+        if (isBipolar)
+            result.valDown = fmt::format("{:.{}f}", vd, dp);
+        auto v2s = valueToString(naturalBaseVal, fs);
+        if (v2s.has_value())
+            result.baseValue = *v2s;
+        else
+            result.baseValue = "-ERROR-";
+
+        if (isBipolar)
+            result.singleLineModulationSummary = fmt::format(
+                "{} {} < {} > {} {}", result.valDown, unit, result.baseValue, result.valUp, unit);
+        else
+            result.singleLineModulationSummary =
+                fmt::format("{} > {} {}", result.baseValue, result.valUp, unit);
+
+        return result;
     }
     break;
     case CUBED_AS_DECIBEL:
