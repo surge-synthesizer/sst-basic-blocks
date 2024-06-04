@@ -600,20 +600,13 @@ struct ParamMetaData
             .withLinearScaleFormatting("%", 100.f)
             .withDecimalPlaces(2);
     }
-    ParamMetaData asDecibelNarrow()
+    ParamMetaData asDecibelWithRange(float low, float high, float def = 0.f)
     {
-        return withRange(-24.f, 24.f)
-            .withDefault(0.f)
-            .withType(FLOAT)
-            .withLinearScaleFormatting("dB");
+        return withRange(low, high).withDefault(def).withType(FLOAT).withLinearScaleFormatting(
+            "dB");
     }
-    ParamMetaData asDecibel()
-    {
-        return withRange(-48.f, 48.f)
-            .withDefault(0.f)
-            .withType(FLOAT)
-            .withLinearScaleFormatting("dB");
-    }
+    ParamMetaData asDecibelNarrow() { return asDecibelWithRange(-24, 24); }
+    ParamMetaData asDecibel() { return asDecibelWithRange(-48, 48); }
     ParamMetaData asMIDIPitch()
     {
         return withType(FLOAT)
