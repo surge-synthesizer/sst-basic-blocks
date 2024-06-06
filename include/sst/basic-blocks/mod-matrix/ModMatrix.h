@@ -36,6 +36,7 @@
 
 #include <iostream>
 #include "ModMatrixDetails.h"
+#include <cstdlib>
 
 /*
  * This is an implementation of a relatively genericised mod matrix which
