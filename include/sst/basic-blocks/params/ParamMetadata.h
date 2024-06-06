@@ -667,11 +667,22 @@ struct ParamMetaData
     {
         return withType(FLOAT).withRange(-60, 70).withDefault(0).withSemitoneZeroAt400Formatting();
     }
-    ParamMetaData asCubicDecibelAttenuation()
+    ParamMetaData asCubicDecibelAttenuation() { return asCubicDecibelUpTo(0.f); }
+
+    ParamMetaData asCubicDecibelUpTo(float maxDb)
     {
         auto res = withType(FLOAT).withRange(0.f, 1.f).withDefault(1.f);
         res.displayScale = CUBED_AS_DECIBEL;
         res.supportsStringConversion = true;
+        res.svA = pow(10.f, maxDb / 20.0);
+
+        // find the 0db point
+        // v * v * v * svA is the amp
+        // db = 20 log10(amp)
+        // 0 = 20 log10(v*v*v*svA)
+        // v * v * v * svA = 1
+        // v = cbrt(1/svA)
+        res = res.withDefault(std::cbrt(1.f / res.svA));
         return res;
     }
     ParamMetaData asLinearDecibel(float lower = -96, float upper = 12)
@@ -837,7 +848,7 @@ inline std::optional<std::string> ParamMetaData::valueToString(float val,
             return "-inf";
         }
 
-        auto v3 = val * val * val;
+        auto v3 = val * val * val * svA;
         auto db = 20 * std::log10(v3);
         return fmt::format("{:.{}f} dB", db,
                            (fs.isHighPrecision ? (decimalPlaces + 4) : decimalPlaces));
@@ -1028,7 +1039,7 @@ inline std::optional<float> ParamMetaData::valueFromString(std::string_view v, s
 
             auto r = std::stof(std::string(v));
             auto db = pow(10.f, r / 20);
-            auto lv = std::cbrt(db);
+            auto lv = std::cbrt(db / svA);
             if (lv < minVal || lv > maxVal)
             {
                 errMsg = rangeMsg();
@@ -1220,8 +1231,9 @@ ParamMetaData::modulationNaturalToString(float naturalBaseVal, float modulationN
         auto nvd = std::max(naturalBaseVal - modulationNatural, 0.f);
         auto v = std::max(naturalBaseVal, 0.f);
 
-        nvu = nvu * nvu * nvu;
-        nvd = nvd * nvd * nvd;
+        nvu = nvu * nvu * nvu * svA;
+        nvd = nvd * nvd * nvd * svA;
+        v = v * v * v * svA;
 
         auto db = 20 * std::log10(v);
         auto dbu = 20 * std::log10(nvu);
