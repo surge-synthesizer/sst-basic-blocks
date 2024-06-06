@@ -33,10 +33,11 @@
 #include <unordered_map>
 #include <unordered_set>
 #include <functional>
+#include <cstdlib>
+#include <cmath>
 
 #include <iostream>
 #include "ModMatrixDetails.h"
-#include <cstdlib>
 
 /*
  * This is an implementation of a relatively genericised mod matrix which
