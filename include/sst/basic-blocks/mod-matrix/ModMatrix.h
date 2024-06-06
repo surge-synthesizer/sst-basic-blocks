@@ -33,6 +33,8 @@
 #include <unordered_map>
 #include <unordered_set>
 #include <functional>
+#include <cstdlib>
+#include <cmath>
 
 #include <iostream>
 #include "ModMatrixDetails.h"
@@ -101,6 +103,7 @@ struct ModMatrix : details::CheckModMatrixConstraints<ModMatrixTraits>
     }
 
     static constexpr bool supportsCurves{details::has_getCurveOperator<TR>::value};
+    static constexpr bool supportsMultiplicative{details::has_getIsMultiplicative<TR>::value};
 };
 
 template <typename ModMatrixTraits> struct FixedLengthRoutingTable : RoutingTable<ModMatrixTraits>
@@ -161,6 +164,11 @@ template <typename ModMatrixTraits> struct FixedMatrix : ModMatrix<ModMatrixTrai
         float *source{nullptr}, *sourceVia{nullptr}, *depth{nullptr}, *target{nullptr};
         float depthScale{1.f};
         std::function<float(float)> curveFn;
+        enum ApplicationMode
+        {
+            ADDITIVE,
+            MULTIPLICATIVE
+        } applicationMode{ADDITIVE};
     };
     std::array<RoutingValuePointers, TR::FixedMatrixSize> routingValuePointers{};
 
@@ -239,6 +247,15 @@ template <typename ModMatrixTraits> struct FixedMatrix : ModMatrix<ModMatrixTrai
                     rv.curveFn = nullptr;
             }
 
+            rv.applicationMode = RoutingValuePointers::ADDITIVE;
+            if constexpr (ModMatrix<TR>::supportsMultiplicative)
+            {
+                if (TR::getIsMultiplicative(*(r.target)))
+                {
+                    rv.applicationMode = RoutingValuePointers::MULTIPLICATIVE;
+                }
+            }
+
             rv.target = &matrixOutputs[targetToOutputIndex.at(*r.target)];
         }
 
@@ -274,17 +291,38 @@ template <typename ModMatrixTraits> struct FixedMatrix : ModMatrix<ModMatrixTrai
             if (r.sourceVia)
                 sourceViaVal = *r.sourceVia;
 
+            auto offs = *(r.source) * sourceViaVal;
+
             if constexpr (ModMatrix<TR>::supportsCurves)
             {
-                auto offs = *(r.source) * sourceViaVal;
                 if (r.curveFn)
-                    *(r.target) += *(r.depth) * r.depthScale * r.curveFn(offs);
-                else
-                    *(r.target) += *(r.depth) * r.depthScale * offs;
+                {
+                    offs = r.curveFn(offs);
+                }
             }
-            else
+            switch (r.applicationMode)
             {
-                *(r.target) += *(r.source) * *(r.depth) * r.depthScale * sourceViaVal;
+            case RoutingValuePointers::ApplicationMode::ADDITIVE:
+                *(r.target) += *(r.depth) * r.depthScale * offs;
+                break;
+            case RoutingValuePointers::ApplicationMode::MULTIPLICATIVE:
+            {
+                // TODO - a bit more thoughtful about this clamp I bet
+                offs = std::clamp(std::fabs(offs), 0.f, 1.f);
+                auto dep = *r.depth;
+                auto mulfac = 0.f;
+                if (dep > 0)
+                {
+                    mulfac = dep * offs + (1 - dep);
+                }
+                else
+                {
+                    mulfac = 1 + dep * offs;
+                }
+                assert(mulfac >= 0 && mulfac <= 1.f);
+                *(r.target) *= mulfac;
+            }
+            break;
             }
         }
     }
