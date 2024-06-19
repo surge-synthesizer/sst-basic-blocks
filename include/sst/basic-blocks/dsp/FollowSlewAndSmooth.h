@@ -146,9 +146,9 @@ struct RunningAverage
 
     void setStorage(float *s, size_t np)
     {
+        reset();
         storage = s;
         nPoints = np;
-        reset();
         oneOverN = 1.0 / (nPoints - 1);
     }
     
