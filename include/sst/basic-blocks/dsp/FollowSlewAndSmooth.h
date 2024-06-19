@@ -142,13 +142,16 @@ struct RunningAverage
     size_t nPoints{0};
     size_t head{0}, tail{0};
     float avg{0}, oneOverN{1};
-    RunningAverage(float *ontoStorage, size_t np) : storage{ontoStorage}, nPoints{np}
+    RunningAverage() {}
+
+    void setStorage(float *s, size_t np)
     {
         reset();
+        storage = s;
+        nPoints = np;
         oneOverN = 1.0 / (nPoints - 1);
     }
-    RunningAverage() = delete;
-
+    
     void reset()
     {
         std::fill(storage, storage + nPoints, 0.f);
