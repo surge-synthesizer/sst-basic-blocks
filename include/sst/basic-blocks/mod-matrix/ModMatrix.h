@@ -83,10 +83,17 @@ struct ModMatrix : details::CheckModMatrixConstraints<ModMatrixTraits>
     }
 
     std::unordered_map<typename TR::SourceIdentifier, float &> sourceValues;
+    std::unordered_map<typename TR::SourceIdentifier, float> constantPlaceholders;
     void bindSourceValue(const typename TR::SourceIdentifier &s, float &f)
     {
         sourceValues.erase(s);
         sourceValues.insert_or_assign(s, f);
+    }
+
+    void bindSourceConstantValue(const typename TR::SourceIdentifier &c, float value)
+    {
+        constantPlaceholders[c] = value;
+        bindSourceValue(c, constantPlaceholders[c]);
     }
 
     static constexpr bool canSelfModulate{details::has_isTargetModMatrixDepth<TR>::value};

@@ -612,77 +612,74 @@ TEST_CASE("SoftClip Block", "[dsp]")
     }
 }
 
-TEST_CASE("Sinc Delay Line", "[dsp]")
-{ // This requires SurgeStorate to initialize its tables.
-    // Easiest way to do that is to just make a surge
-    SECTION("Test Constants")
+TEST_CASE("Sinc Delay Line", "[dsp]"){// This requires SurgeStorate to initialize its tables.
+                                      // Easiest way to do that is to just make a surge
+                                      SECTION("Test Constants"){float val = 1.324;
+sst::basic_blocks::tables::SurgeSincTableProvider st;
+sst::basic_blocks::dsp::SSESincDelayLine<4096> dl4096(st.sinctable);
+
+for (int i = 0; i < 10000; ++i)
+{
+    dl4096.write(val);
+}
+for (int i = 0; i < 20000; ++i)
+{
+    INFO("Iteration " << i);
+    float a = dl4096.read(174.3);
+    float b = dl4096.read(1732.4);
+    float c = dl4096.read(3987.2);
+    float d = dl4096.read(256.0);
+
+    REQUIRE(a == Approx(val).margin(1e-3));
+    REQUIRE(b == Approx(val).margin(1e-3));
+    REQUIRE(c == Approx(val).margin(1e-3));
+    REQUIRE(d == Approx(val).margin(1e-3));
+
+    dl4096.write(val);
+}
+}
+
+SECTION("Test Ramp")
+{
+    float val = 0;
+    float dRamp = 0.01;
+    sst::basic_blocks::tables::SurgeSincTableProvider st;
+    sst::basic_blocks::dsp::SSESincDelayLine<4096> dl4096(st.sinctable);
+
+    for (int i = 0; i < 10000; ++i)
     {
-        float val = 1.324;
-        sst::basic_blocks::tables::SurgeSincTableProvider st;
-        sst::basic_blocks::dsp::SSESincDelayLine<4096> dl4096(st.sinctable);
-
-        for (int i = 0; i < 10000; ++i)
-        {
-            dl4096.write(val);
-        }
-        for (int i = 0; i < 20000; ++i)
-        {
-            INFO("Iteration " << i);
-            float a = dl4096.read(174.3);
-            float b = dl4096.read(1732.4);
-            float c = dl4096.read(3987.2);
-            float d = dl4096.read(256.0);
-
-            REQUIRE(a == Approx(val).margin(1e-3));
-            REQUIRE(b == Approx(val).margin(1e-3));
-            REQUIRE(c == Approx(val).margin(1e-3));
-            REQUIRE(d == Approx(val).margin(1e-3));
-
-            dl4096.write(val);
-        }
+        dl4096.write(val);
+        val += dRamp;
     }
-
-    SECTION("Test Ramp")
+    for (int i = 0; i < 20000; ++i)
     {
-        float val = 0;
-        float dRamp = 0.01;
-        sst::basic_blocks::tables::SurgeSincTableProvider st;
-        sst::basic_blocks::dsp::SSESincDelayLine<4096> dl4096(st.sinctable);
+        INFO("Iteration " << i);
+        float a = dl4096.read(174.3);
+        float b = dl4096.read(1732.4);
+        float c = dl4096.read(3987.2);
+        float d = dl4096.read(256.0);
 
-        for (int i = 0; i < 10000; ++i)
-        {
-            dl4096.write(val);
-            val += dRamp;
-        }
-        for (int i = 0; i < 20000; ++i)
-        {
-            INFO("Iteration " << i);
-            float a = dl4096.read(174.3);
-            float b = dl4096.read(1732.4);
-            float c = dl4096.read(3987.2);
-            float d = dl4096.read(256.0);
+        auto cval = val - dRamp;
 
-            auto cval = val - dRamp;
+        REQUIRE(a == Approx(cval - 174.3 * dRamp).epsilon(1e-3));
+        REQUIRE(b == Approx(cval - 1732.4 * dRamp).epsilon(1e-3));
+        REQUIRE(c == Approx(cval - 3987.2 * dRamp).epsilon(1e-3));
+        REQUIRE(d == Approx(cval - 256.0 * dRamp).epsilon(1e-3));
 
-            REQUIRE(a == Approx(cval - 174.3 * dRamp).epsilon(1e-3));
-            REQUIRE(b == Approx(cval - 1732.4 * dRamp).epsilon(1e-3));
-            REQUIRE(c == Approx(cval - 3987.2 * dRamp).epsilon(1e-3));
-            REQUIRE(d == Approx(cval - 256.0 * dRamp).epsilon(1e-3));
+        float aL = dl4096.readLinear(174.3);
+        float bL = dl4096.readLinear(1732.4);
+        float cL = dl4096.readLinear(3987.2);
+        float dL = dl4096.readLinear(256.0);
 
-            float aL = dl4096.readLinear(174.3);
-            float bL = dl4096.readLinear(1732.4);
-            float cL = dl4096.readLinear(3987.2);
-            float dL = dl4096.readLinear(256.0);
+        REQUIRE(aL == Approx(cval - 174.3 * dRamp).epsilon(1e-3));
+        REQUIRE(bL == Approx(cval - 1732.4 * dRamp).epsilon(1e-3));
+        REQUIRE(cL == Approx(cval - 3987.2 * dRamp).epsilon(1e-3));
+        REQUIRE(dL == Approx(cval - 256.0 * dRamp).epsilon(1e-3));
 
-            REQUIRE(aL == Approx(cval - 174.3 * dRamp).epsilon(1e-3));
-            REQUIRE(bL == Approx(cval - 1732.4 * dRamp).epsilon(1e-3));
-            REQUIRE(cL == Approx(cval - 3987.2 * dRamp).epsilon(1e-3));
-            REQUIRE(dL == Approx(cval - 256.0 * dRamp).epsilon(1e-3));
-
-            dl4096.write(val);
-            val += dRamp;
-        }
+        dl4096.write(val);
+        val += dRamp;
     }
+}
 
 #if 0
 // This prints output I used for debugging
@@ -1117,7 +1114,8 @@ TEST_CASE("Running Avg", "[dsp]")
     SECTION("Constants")
     {
         std::array<float, 1000> data{};
-        auto ra = sst::basic_blocks::dsp::RunningAverage(data.data(), data.size());
+        auto ra = sst::basic_blocks::dsp::RunningAverage();
+        ra.setStorage(data.data(), data.size());
         for (int i = 0; i < data.size() - 1; ++i)
         {
             auto val = ra.step(3.2);
@@ -1128,7 +1126,8 @@ TEST_CASE("Running Avg", "[dsp]")
     SECTION("RAMP")
     {
         std::array<float, 101> data{};
-        auto ra = sst::basic_blocks::dsp::RunningAverage(data.data(), data.size());
+        auto ra = sst::basic_blocks::dsp::RunningAverage();
+        ra.setStorage(data.data(), data.size());
         for (int i = 0; i < 500; ++i)
         {
             auto val = ra.step(i * 0.1);
