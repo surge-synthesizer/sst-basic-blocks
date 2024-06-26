@@ -129,6 +129,70 @@ struct ParamMetaData
     }
 
     /*
+     * Parameters have an optional quantization which clients can use to
+     * have jogs, quantized drags, and so forth. Right now we support three
+     * baseic forms. None, a custom interval (so each drag is the interval in
+     * natural units) or a custom step (so the space is divided into that many
+     * steps). Standard with() functions to set it up are below.
+     */
+    enum struct Quantization
+    {
+        NO_QUANTIZATION,
+        CUSTOM_INTERVAL,  // Quantize to interval
+        CUSTOM_STEP_COUNT // this manyu steps. Basically interval = max-min/step
+    } quantization{Quantization::NO_QUANTIZATION};
+    float quantizationParam{0.f};
+
+    bool supportsQuantization() const { return quantization != Quantization::NO_QUANTIZATION; }
+    float quantize(float f) const
+    {
+        if (quantization == Quantization::CUSTOM_INTERVAL ||
+            quantization == Quantization::CUSTOM_STEP_COUNT)
+        {
+            switch (displayScale)
+            {
+            case CUBED_AS_DECIBEL:
+            {
+                assert(quantization == Quantization::CUSTOM_INTERVAL);
+                // so we have the db = 20 log10(val^3 * svA);
+                auto v3 = f * f * f * svA;
+                auto db = 20 * std::log10(v3);
+                auto quantdb = quantizationParam * std::round(db / quantizationParam);
+                auto quantv3 = pow(10.f, quantdb / 20);
+                auto lv = std::cbrt(quantv3 / svA);
+                return lv;
+            }
+            break;
+            default:
+            {
+                auto dI = quantization == Quantization::CUSTOM_INTERVAL
+                              ? quantizationParam
+                              : ((maxVal - minVal) / quantizationParam);
+                return dI * std::round(f / dI);
+            }
+            }
+        }
+
+        return f;
+    }
+    ParamMetaData withIntegerQuantization() const { return withQuantizedInterval(1.f); }
+    ParamMetaData withQuantizedInterval(float interval) const
+    {
+        auto res = *this;
+        res.quantization = Quantization::CUSTOM_INTERVAL;
+        res.quantizationParam = interval;
+        return res;
+    }
+
+    ParamMetaData withQuantizedStepCount(int steps) const
+    {
+        auto res = *this;
+        res.quantization = Quantization::CUSTOM_STEP_COUNT;
+        res.quantizationParam = steps;
+        return res;
+    }
+
+    /*
      * To String and From String conversion functions require information about the
      * parameter to execute. The primary driver is the value so the API takes the form
      * `valueToString(float)` but for optional features like extension, deform,
@@ -203,7 +267,8 @@ struct ParamMetaData
         // Summary is a brief description suitable for a menu like "+/- 13.2%"
         std::string summary;
 
-        // baseValue, valUp/Dn and changeUp/Dn are no unit indications of change in each direction.
+        // baseValue, valUp/Dn and changeUp/Dn are no unit indications of change in each
+        // direction.
         std::string baseValue, valUp, valDown, changeUp, changeDown;
 
         // modulationSummary is a longer-than-menu display suitable for single line infowindows
@@ -484,8 +549,8 @@ struct ParamMetaData
         res.midiNoteOctaveOffset = octave;
         return res;
     }
-    // Scan defaults to false because it needs to iterate through the map to find the value range
-    // and client code could already know the appropriate min and max anyway
+    // Scan defaults to false because it needs to iterate through the map to find the value
+    // range and client code could already know the appropriate min and max anyway
     ParamMetaData withUnorderedMapFormatting(const std::unordered_map<int, std::string> &map,
                                              bool scanAndInitParamRange = false)
     {
@@ -584,6 +649,7 @@ struct ParamMetaData
             .withDefault(0.f)
             .withType(FLOAT)
             .withLinearScaleFormatting("%", 100.f)
+            .withQuantizedInterval(0.1f)
             .withDecimalPlaces(2);
     }
 
@@ -598,6 +664,7 @@ struct ParamMetaData
             .withDefault(0.f)
             .withType(FLOAT)
             .withLinearScaleFormatting("%", 100.f)
+            .withQuantizedInterval(0.1f)
             .withDecimalPlaces(2);
     }
     ParamMetaData asDecibelWithRange(float low, float high, float def = 0.f)
@@ -613,6 +680,7 @@ struct ParamMetaData
             .withRange(0.f, 127.f)
             .withDefault(60.f)
             .withLinearScaleFormatting("semitones")
+            .withIntegerQuantization()
             .withDecimalPlaces(0);
     }
     ParamMetaData asMIDINote(int octave = 1000)
@@ -624,6 +692,7 @@ struct ParamMetaData
             .withRange(0, 127)
             .withDefault(60)
             .withMidiNoteFormatting(octave)
+            .withIntegerQuantization()
             .withDecimalPlaces(0);
     }
     ParamMetaData asLfoRate()
@@ -632,6 +701,7 @@ struct ParamMetaData
             .withRange(-7, 9)
             .temposyncable()
             .withTemposyncMultiplier(-1)
+            .withIntegerQuantization()
             .withATwoToTheBFormatting(1, 1, "Hz");
     }
     ParamMetaData asSemitoneRange(float lower = -96, float upper = 96)
@@ -639,6 +709,7 @@ struct ParamMetaData
         return withType(FLOAT)
             .withRange(lower, upper)
             .withDefault(0)
+            .withIntegerQuantization()
             .withLinearScaleFormatting("semitones");
     }
     ParamMetaData asLog2SecondsRange(float lower, float upper, float defVal = 0)
@@ -681,7 +752,7 @@ struct ParamMetaData
         // 0 = 20 log10(v*v*v*svA)
         // v * v * v * svA = 1
         // v = cbrt(1/svA)
-        res = res.withDefault(std::cbrt(1.f / res.svA));
+        res = res.withDefault(std::cbrt(1.f / res.svA)).withQuantizedInterval(3.f);
         return res;
     }
     ParamMetaData asLinearDecibel(float lower = -96, float upper = 12)
@@ -689,6 +760,7 @@ struct ParamMetaData
         return withType(FLOAT)
             .withRange(lower, upper)
             .withDefault(0)
+            .withIntegerQuantization()
             .withLinearScaleFormatting("dB");
     }
 
