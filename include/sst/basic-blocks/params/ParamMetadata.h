@@ -764,7 +764,9 @@ struct ParamMetaData
             .withLinearScaleFormatting("dB");
     }
 
+    // For now, his is the temposync notation assuming a 2^x and temposync ratio based on 120bpm
     std::string temposyncNotation(float f) const;
+    float snapToTemposync(float f) const;
 
     /*
      * OK so I'm doing something a bit tricky here. I want to be able to project
@@ -1419,6 +1421,8 @@ ParamMetaData::modulationNaturalFromString(std::string_view deltaNatural, float 
 
 inline std::string ParamMetaData::temposyncNotation(float f) const
 {
+    assert(type == FLOAT);
+    assert(displayScale == A_TWO_TO_THE_B);
     float a, b = modff(f, &a);
 
     if (b >= 0)
@@ -1511,6 +1515,35 @@ inline std::string ParamMetaData::temposyncNotation(float f) const
     std::string res = nn + " " + t;
 
     return res;
+}
+
+inline float ParamMetaData::snapToTemposync(float f) const
+{
+    assert(canTemposync);
+    assert(type == FLOAT);
+    assert(displayScale == A_TWO_TO_THE_B);
+    float a, b = modff(f, &a);
+    if (b < 0)
+    {
+        b += 1.f;
+        a -= 1.f;
+    }
+    b = powf(2.0f, b);
+
+    if (b > 1.41f)
+    {
+        b = log2(1.5f);
+    }
+    else if (b > 1.167f)
+    {
+        b = log2(1.3333333333f);
+    }
+    else
+    {
+        b = 0.f;
+    }
+
+    return a + b;
 }
 
 } // namespace sst::basic_blocks::params
