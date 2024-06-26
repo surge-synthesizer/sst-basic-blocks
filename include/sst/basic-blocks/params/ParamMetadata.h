@@ -658,7 +658,6 @@ struct ParamMetaData
         return withType(FLOAT)
             .withRange(0, 1)
             .withDefault(0.1)
-            .temposyncable()
             .withScaledOffsetExpFormatting(0.6931471824646, 10.1267113685608, -2.0, 1000.0, "s")
             .withMilisecondsBelowOneSecond();
     }
