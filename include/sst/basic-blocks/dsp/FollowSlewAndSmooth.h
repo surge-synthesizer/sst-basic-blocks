@@ -151,7 +151,7 @@ struct RunningAverage
         nPoints = np;
         oneOverN = 1.0 / (nPoints - 1);
     }
-    
+
     void reset()
     {
         std::fill(storage, storage + nPoints, 0.f);
