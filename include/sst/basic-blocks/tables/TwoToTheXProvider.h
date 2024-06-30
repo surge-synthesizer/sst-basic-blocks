@@ -34,6 +34,7 @@ namespace sst::basic_blocks::tables
 {
 struct TwoToTheXProvider
 {
+    bool isInit{false};
     static constexpr int intBase{-15};
     static constexpr int providerRange{32};
 
@@ -44,6 +45,9 @@ struct TwoToTheXProvider
 
     void init()
     {
+        if (isInit)
+            return;
+
         for (int i = 0; i < providerRange; i++)
         {
             baseValue[i] = pow(2.0, i + intBase);
@@ -54,6 +58,8 @@ struct TwoToTheXProvider
             double frac = i * 1.0 / (nInterp - 1);
             table_two_to_the[i] = pow(2.0, frac);
         }
+
+        isInit = true;
     }
 
     float twoToThe(float x) const
