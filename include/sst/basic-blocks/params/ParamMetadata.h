@@ -695,10 +695,10 @@ struct ParamMetaData
             .withIntegerQuantization()
             .withDecimalPlaces(0);
     }
-    ParamMetaData asLfoRate()
+    ParamMetaData asLfoRate(float from = -7.f, float to = 9.f)
     {
         return withType(FLOAT)
-            .withRange(-7, 9)
+            .withRange(from, to)
             .temposyncable()
             .withTemposyncMultiplier(-1)
             .withIntegerQuantization()
