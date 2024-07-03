@@ -41,6 +41,7 @@
 #include "sst/basic-blocks/tables/SincTableProvider.h"
 #include "sst/basic-blocks/dsp/SSESincDelayLine.h"
 #include "sst/basic-blocks/dsp/FollowSlewAndSmooth.h"
+#include "sst/basic-blocks/dsp/OscillatorDriftUnisonCharacter.h"
 
 TEST_CASE("lipol_sse basic", "[dsp]")
 {
@@ -1141,5 +1142,29 @@ TEST_CASE("Running Avg", "[dsp]")
                 REQUIRE(val == Approx(avg).margin(0.005));
             }
         }
+    }
+}
+
+TEST_CASE("OscillatorSupportFunctions", "[dsp]")
+{
+    SECTION("Drift LFO")
+    {
+        auto dfo = sst::basic_blocks::dsp::DriftLFO();
+        dfo.init(true);
+        REQUIRE(dfo.val() == 0.f);
+
+        REQUIRE(dfo.next() != 0.f);
+    }
+
+    SECTION("Unison")
+    {
+        auto us = sst::basic_blocks::dsp::UnisonSetup<float>(3);
+        float L, R;
+        us.panLaw(0, L, R);
+        REQUIRE(L < R);
+        us.panLaw(1, L, R);
+        REQUIRE(L == Approx(R));
+        us.panLaw(2, L, R);
+        REQUIRE(L > R);
     }
 }
