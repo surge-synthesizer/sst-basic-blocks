@@ -37,7 +37,7 @@ struct RNG
 {
     RNG()
         : g(std::chrono::system_clock::now().time_since_epoch().count()), pm1(-1.f, 1.f),
-          z1(0.f, 1.f), gauss(0.5f, .33333f), u32(0, 0xFFFFFFFF)
+          z1(0.f, 1.f), gauss(0.f, .33333f), u32(0, 0xFFFFFFFF)
     {
     }
 
@@ -48,6 +48,9 @@ struct RNG
     {
         return min + uniformZeroToOne() * (max - min);
     }
+    
+    inline float halfNormalZeroToOne() { return fabsf(gauss(g)); }
+    inline float normalPlusMinusOne() { return gauss(g); }
 
     inline float halfNormalInRange(const float min, const float max)
     {
@@ -55,7 +58,7 @@ struct RNG
     }
     inline float normalInRange(const float min, const float max)
     {
-        return min + gauss(g)  * (max - min);
+        return min + (gauss(g) * 0.5f + 0.5f) * (max - min);
     }
     
     inline uint32_t uniformU32() { return u32(g); }
