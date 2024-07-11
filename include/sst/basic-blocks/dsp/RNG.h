@@ -1,28 +1,27 @@
 /*
- * Shortcircuit XT - a Surge Synth Team product
+ * sst-basic-blocks - an open source library of core audio utilities
+ * built by Surge Synth Team.
  *
- * A fully featured creative sampler, available as a standalone
- * and plugin for multiple platforms.
+ * Provides a collection of tools useful on the audio thread for blocks,
+ * modulation, etc... or useful for adapting code to multiple environments.
  *
- * Copyright 2019 - 2024, Various authors, as described in the github
- * transaction log.
+ * Copyright 2023, various authors, as described in the GitHub
+ * transaction log. Parts of this code are derived from similar
+ * functions original in Surge or ShortCircuit.
  *
- * ShortcircuitXT is released under the Gnu General Public Licence
- * V3 or later (GPL-3.0-or-later). The license is found in the file
- * "LICENSE" in the root of this repository or at
- * https://www.gnu.org/licenses/gpl-3.0.en.html
+ * sst-basic-blocks is released under the GNU General Public Licence v3
+ * or later (GPL-3.0-or-later). The license is found in the "LICENSE"
+ * file in the root of this repository, or at
+ * https://www.gnu.org/licenses/gpl-3.0.en.html.
  *
- * Individual sections of code which comprises ShortcircuitXT in this
- * repository may also be used under an MIT license. Please see the
- * section  "Licensing" in "README.md" for details.
+ * A very small number of explicitly chosen header files can also be
+ * used in an MIT/BSD context. Please see the README.md file in this
+ * repo or the comments in the individual files. Only headers with an
+ * explicit mention that they are dual licensed may be copied and reused
+ * outside the GPL3 terms.
  *
- * ShortcircuitXT is inspired by, and shares code with, the
- * commercial product Shortcircuit 1 and 2, released by VemberTech
- * in the mid 2000s. The code for Shortcircuit 2 was opensourced in
- * 2020 at the outset of this project.
- *
- * All source for ShortcircuitXT is available at
- * https://github.com/surge-synthesizer/shortcircuit-xt
+ * All source in sst-basic-blocks available at
+ * https://github.com/surge-synthesizer/sst-basic-blocks
  */
 
 #include <random>
@@ -41,29 +40,28 @@ struct RNG
     {
     }
 
-    inline float uniformZeroToOne() { return z1(g); }
-    inline float uniformPlusMinusOne() { return pm1(g); }
+    inline float unif01() { return z1(g); }
+    inline float unifPM1() { return pm1(g); }
     
-    inline float uniformInRange(const float min, const float max)
+    inline float unif(const float min, const float max)
     {
         return min + uniformZeroToOne() * (max - min);
     }
-    
-    inline float halfNormalZeroToOne() { return fabsf(gauss(g)); }
-    inline float normalPlusMinusOne() { return gauss(g); }
+    inline float half01() { return fabsf(gauss(g)); }
+    inline float normPM1() { return gauss(g); }
 
-    inline float halfNormalInRange(const float min, const float max)
+    inline float half(const float min, const float max)
     {
         return min + fabsf(gauss(g)) * (max - min);
     }
-    inline float normalInRange(const float min, const float max)
+    inline float norm(const float min, const float max)
     {
         return min + (gauss(g) * 0.5f + 0.5f) * (max - min);
     }
     
-    inline uint32_t uniformU32() { return u32(g); }
+    inline uint32_t unifU32() { return u32(g); }
     
-    inline int uniformIntInRange(const int min, const int max)
+    inline int unifInt(const int min, const int max)
     {
         std::uniform_int_distribution<int> intdist(min, max);
         return intdist(g);
