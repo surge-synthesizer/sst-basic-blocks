@@ -28,25 +28,43 @@
 #include <random>
 #include <chrono>
 
-#ifndef INCLUDE_SST_BASIC_BLOCKS_DSP_RNGGEN_H
-#define INCLUDE_SST_BASIC_BLOCKS_DSP_RNGGEN_H
+#ifndef INCLUDE_SST_BASIC_BLOCKS_DSP_RNG_H
+#define INCLUDE_SST_BASIC_BLOCKS_DSP_RNG_H
 
 namespace sst::basic_blocks::dsp
 {
-struct RNGGen
+struct RNG
 {
-    RNGGen()
+    RNG()
         : g(std::chrono::system_clock::now().time_since_epoch().count()), pm1(-1.f, 1.f),
-          z1(0.f, 1.f), gauss(0.f, .33333f), u32(0, 0xFFFFFFFF)
+          z1(0.f, 1.f), gauss(0.5f, .33333f), u32(0, 0xFFFFFFFF)
     {
     }
 
-    inline float rand01() { return z1(g); }
-    inline float randPM1() { return pm1(g); }
-    inline uint32_t randU32() { return u32(g); }
+    inline float uniformZeroToOne() { return z1(g); }
+    inline float uniformPlusMinusOne() { return pm1(g); }
+    
+    inline float uniformInRange(const float min, const float max)
+    {
+        return min + uniformZeroToOne() * (max - min);
+    }
 
-    inline float gauss01() { return gauss(g); }
-    inline float gaussPM1() { return fabsf(gauss(g)); }
+    inline float halfNormalInRange(const float min, const float max)
+    {
+        return min + fabsf(gauss(g)) * (max - min);
+    }
+    inline float normalInRange(const float min, const float max)
+    {
+        return min + gauss(g)  * (max - min);
+    }
+    
+    inline uint32_t uniformU32() { return u32(g); }
+    
+    inline int uniformIntInRange(const int min, const int max)
+    {
+        std::uniform_int_distribution<int> intdist(min, max);
+        return intdist(g);
+    }
 
   private:
     std::minstd_rand g;
@@ -56,4 +74,4 @@ struct RNGGen
 };
 } // sst::basic_blocks::dsp
 
-#endif // SST_RNG_GEN_H
+#endif // SST_RNG_H
