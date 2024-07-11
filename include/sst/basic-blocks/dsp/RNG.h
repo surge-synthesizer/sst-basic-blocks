@@ -45,7 +45,7 @@ struct RNG
     
     inline float unif(const float min, const float max)
     {
-        return min + uniformZeroToOne() * (max - min);
+        return min + unif01() * (max - min);
     }
     inline float half01() { return fabsf(gauss(g)); }
     inline float normPM1() { return gauss(g); }
