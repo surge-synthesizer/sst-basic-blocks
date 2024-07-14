@@ -35,21 +35,17 @@ namespace sst::basic_blocks::dsp
 struct RNG
 {
     RNG()
-        : g(std::chrono::system_clock::now().time_since_epoch().count()), pm1(-1.f, 1.f),
-          z1(0.f, 1.f), gauss(0.f, .33333f), u32(0, 0xFFFFFFFF)
+        : g(std::chrono::system_clock::now().time_since_epoch().count()), dg(525600 + 8675309),
+          pm1(-1.f, 1.f), z1(0.f, 1.f), gauss(0.f, .33333f), u32(0, 0xFFFFFFFF)
     {
     }
 
     inline float unif01() { return z1(g); }
     inline float unifPM1() { return pm1(g); }
-    
-    inline float unif(const float min, const float max)
-    {
-        return min + unif01() * (max - min);
-    }
+    inline float unif(const float min, const float max) { return min + unif01() * (max - min); }
+
     inline float half01() { return fabsf(gauss(g)); }
     inline float normPM1() { return gauss(g); }
-
     inline float half(const float min, const float max)
     {
         return min + fabsf(gauss(g)) * (max - min);
@@ -58,21 +54,24 @@ struct RNG
     {
         return min + (gauss(g) * 0.5f + 0.5f) * (max - min);
     }
-    
+
     inline uint32_t unifU32() { return u32(g); }
-    
+
     inline int unifInt(const int min, const int max)
     {
         std::uniform_int_distribution<int> intdist(min, max);
         return intdist(g);
     }
 
+    inline float forDisplay() { return pm1(sg); }
+
   private:
-    std::minstd_rand g;
+    std::minstd_rand g;  // clock-seeded audio-thread generator
+    std::minstd_rand dg; // fixed-seed ui-thread generator (used by SimpleLFO)
     std::uniform_real_distribution<float> pm1, z1;
     std::normal_distribution<float> gauss;
     std::uniform_int_distribution<uint32_t> u32;
 };
-} // sst::basic_blocks::dsp
+} // namespace sst::basic_blocks::dsp
 
 #endif // SST_RNG_H

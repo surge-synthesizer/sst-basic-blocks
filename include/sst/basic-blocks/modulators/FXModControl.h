@@ -31,6 +31,7 @@
 #include <utility>
 
 #include "sst/basic-blocks/dsp/BlockInterpolators.h"
+#include "sst/basic-blocks/dsp/RNG.h"
 
 namespace sst::basic_blocks::modulators
 {
@@ -48,6 +49,8 @@ template <int blockSize> struct FXModControl
             sin_lfo_table[i] = sin(2.0 * M_PI * i / LFO_TABLE_SIZE);
     }
     FXModControl() : FXModControl(0, 0) {}
+
+    sst::basic_blocks::dsp::RNG rng;
 
     void setSampleRate(double sr)
     {
@@ -189,7 +192,7 @@ template <int blockSize> struct FXModControl
         {
             if (lforeset)
             {
-                lfosandhtarget = (rand() / (float)RAND_MAX) - 1.f;
+                lfosandhtarget = rng.unifPM1();
             }
 
             if (mwave == mod_noise)

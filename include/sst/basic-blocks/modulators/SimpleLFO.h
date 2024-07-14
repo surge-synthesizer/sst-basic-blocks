@@ -29,8 +29,8 @@
 
 #include "sst/basic-blocks/dsp/CorrelatedNoise.h"
 #include "sst/basic-blocks/dsp/Interpolators.h"
+#include "sst/basic-blocks/dsp/RNG.h"
 
-#include <random>
 #include <cmath>
 #include <cassert>
 
@@ -41,8 +41,8 @@ namespace sst::basic_blocks::modulators
 template <typename SRProvider, int BLOCK_SIZE> struct SimpleLFO
 {
     SRProvider *srProvider{nullptr};
-    std::default_random_engine gen;
-    std::uniform_real_distribution<float> distro;
+
+    sst::basic_blocks::dsp::RNG rng;
     std::function<float()> urng = []() { return 0; };
 
     static_assert((BLOCK_SIZE >= 8) & !(BLOCK_SIZE & (BLOCK_SIZE - 1)),
@@ -54,12 +54,9 @@ template <typename SRProvider, int BLOCK_SIZE> struct SimpleLFO
 
     float rngCurrent{0};
 
-    SimpleLFO(SRProvider *s, uint32_t seed = rand()) : srProvider(s)
+    SimpleLFO(SRProvider *s) : srProvider(s)
     {
-        gen = std::default_random_engine();
-        gen.seed(seed);
-        distro = std::uniform_real_distribution<float>(-1.f, 1.f);
-        urng = [this]() -> float { return distro(gen); };
+        urng = [this]() -> float { return rng.unifPM1(); };
 
         for (int i = 0; i < BLOCK_SIZE; ++i)
             outputBlock[i] = 0;
@@ -101,10 +98,7 @@ template <typename SRProvider, int BLOCK_SIZE> struct SimpleLFO
     {
         attack(lshape);
 
-        gen = std::default_random_engine();
-        gen.seed(525600 + 8675309);
-        distro = std::uniform_real_distribution<float>(-1.f, 1.f);
-        urng = [this]() -> float { return distro(gen); };
+        urng = [this]() -> float { return rng.forDisplay(); };
 
         for (int i = 0; i < BLOCK_SIZE; ++i)
             outputBlock[i] = 0;
