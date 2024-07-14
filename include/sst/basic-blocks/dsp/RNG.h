@@ -59,7 +59,7 @@ struct RNG
 
     inline int unifInt(const int min, const int max)
     {
-        std::uniform_int_distribution<int> intdist(min, max);
+        std::uniform_int_distribution<int> intdist(min, max - 1);
         return intdist(g);
     }
 
