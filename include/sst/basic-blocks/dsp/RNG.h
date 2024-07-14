@@ -63,7 +63,7 @@ struct RNG
         return intdist(g);
     }
 
-    inline float forDisplay() { return pm1(sg); }
+    inline float forDisplay() { return pm1(dg); }
 
   private:
     std::minstd_rand g;  // clock-seeded audio-thread generator
