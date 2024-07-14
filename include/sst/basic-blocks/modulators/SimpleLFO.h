@@ -54,6 +54,23 @@ template <typename SRProvider, int BLOCK_SIZE> struct SimpleLFO
 
     float rngCurrent{0};
 
+    SimpleLFO(SRProvider *s, sst::basic_blocks::dsp::RNG &extRng) : srProvider(s)
+    {
+        rng = &extRng;
+        urng = [this]() -> float { return rng.unifPM1(); };
+
+        for (int i = 0; i < BLOCK_SIZE; ++i)
+            outputBlock[i] = 0;
+
+        rngState[0] = urng();
+        rngState[1] = urng();
+        for (int i = 0; i < 4; ++i)
+        {
+            rngCurrent = dsp::correlated_noise_o2mk2_suppliedrng(rngState[0], rngState[1], 0, urng);
+            rngHistory[3 - i] = rngCurrent;
+        }
+    }
+
     SimpleLFO(SRProvider *s) : srProvider(s)
     {
         urng = [this]() -> float { return rng.unifPM1(); };
