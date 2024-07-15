@@ -40,6 +40,16 @@ struct RNG
     {
     }
 
+    RNG(uint32_t seed)
+        : g(seed), dg(525600 + 8675309), pm1(-1.f, 1.f), z1(0.f, 1.f), gauss(0.f, .33333f),
+          u32(0, 0xFFFFFFFF)
+    {
+    }
+
+    void reseedWithClock() { g.seed(std::chrono::system_clock::now().time_since_epoch().count()); }
+
+    void reseed(uint32_t seed) { g.seed(seed); }
+
     inline float unif01() { return z1(g); }
     inline float unifPM1() { return pm1(g); }
     inline float unif(const float min, const float max) { return min + unif01() * (max - min); }
@@ -66,8 +76,8 @@ struct RNG
     inline float forDisplay() { return pm1(dg); }
 
   private:
-    std::minstd_rand g;  // clock-seeded audio-thread generator
-    std::minstd_rand dg; // fixed-seed ui-thread generator (used by SimpleLFO)
+    std::minstd_rand g;  // clock-seeded audio-thread gen
+    std::minstd_rand dg; // fixed-seed ui-thread gen (used by SimpleLFO)
     std::uniform_real_distribution<float> pm1, z1;
     std::normal_distribution<float> gauss;
     std::uniform_int_distribution<uint32_t> u32;
