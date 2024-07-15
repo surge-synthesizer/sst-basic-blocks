@@ -46,6 +46,10 @@ struct RNG
     {
     }
 
+    void reseedWithClock() { g.seed(std::chrono::system_clock::now().time_since_epoch().count()); }
+
+    void reseed(uint32_t seed) { g.seed(seed); }
+
     inline float unif01() { return z1(g); }
     inline float unifPM1() { return pm1(g); }
     inline float unif(const float min, const float max) { return min + unif01() * (max - min); }

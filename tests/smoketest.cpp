@@ -43,6 +43,8 @@
 #include "sst/basic-blocks/modulators/AHDSRShapedSC.h"
 #include "sst/basic-blocks/modulators/SimpleLFO.h"
 
+#include "sst/basic-blocks/dsp/RNG.h"
+
 #include <memory>
 #include "sst/basic-blocks/mechanics/block-ops.h"
 #include "sst/basic-blocks/mechanics/endian-ops.h"
@@ -69,6 +71,10 @@ int main(int argc, char **argv)
     ad.processScaledAD(0, 0, 0, 0, false);
     auto lf = sst::basic_blocks::modulators::SimpleLFO<SampleSRProvider, 16>(srp.get());
     lf.process_block(0, 0, 0);
+
+    sst::basic_blocks::dsp::RNG rngA, rngB(2112);
+    auto lfer = sst::basic_blocks::modulators::SimpleLFO<SampleSRProvider, 16>(srp.get(), rngB);
+    lfer.process_block(0, 0, 0);
 
     float f[8], g[8];
     sst::basic_blocks::mechanics::accumulate_from_to<8>(f, g);

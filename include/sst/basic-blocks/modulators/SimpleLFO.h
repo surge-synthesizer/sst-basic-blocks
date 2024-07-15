@@ -42,7 +42,8 @@ template <typename SRProvider, int BLOCK_SIZE> struct SimpleLFO
 {
     SRProvider *srProvider{nullptr};
 
-    sst::basic_blocks::dsp::RNG rng;
+    sst::basic_blocks::dsp::RNG &objrngRef;
+    sst::basic_blocks::dsp::RNG objrng{0}; // this is unused in ext ref so seed only if used
     std::function<float()> urng = []() { return 0; };
 
     static_assert((BLOCK_SIZE >= 8) & !(BLOCK_SIZE & (BLOCK_SIZE - 1)),
@@ -54,10 +55,9 @@ template <typename SRProvider, int BLOCK_SIZE> struct SimpleLFO
 
     float rngCurrent{0};
 
-    SimpleLFO(SRProvider *s, sst::basic_blocks::dsp::RNG &extRng) : srProvider(s)
+    SimpleLFO(SRProvider *s, sst::basic_blocks::dsp::RNG &extRng) : srProvider(s), objrngRef(extRng)
     {
-        rng = &extRng;
-        urng = [this]() -> float { return rng.unifPM1(); };
+        urng = [this]() -> float { return objrngRef.unifPM1(); };
 
         for (int i = 0; i < BLOCK_SIZE; ++i)
             outputBlock[i] = 0;
@@ -71,9 +71,10 @@ template <typename SRProvider, int BLOCK_SIZE> struct SimpleLFO
         }
     }
 
-    SimpleLFO(SRProvider *s) : srProvider(s)
+    SimpleLFO(SRProvider *s) : srProvider(s), objrngRef(objrng)
     {
-        urng = [this]() -> float { return rng.unifPM1(); };
+        objrng.reseedWithClock();
+        urng = [this]() -> float { return objrng.unifPM1(); };
 
         for (int i = 0; i < BLOCK_SIZE; ++i)
             outputBlock[i] = 0;
@@ -115,7 +116,7 @@ template <typename SRProvider, int BLOCK_SIZE> struct SimpleLFO
     {
         attack(lshape);
 
-        urng = [this]() -> float { return rng.forDisplay(); };
+        urng = [this]() -> float { return objrngRef.forDisplay(); };
 
         for (int i = 0; i < BLOCK_SIZE; ++i)
             outputBlock[i] = 0;
