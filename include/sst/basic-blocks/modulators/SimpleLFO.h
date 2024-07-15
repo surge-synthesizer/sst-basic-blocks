@@ -71,6 +71,7 @@ template <typename SRProvider, int BLOCK_SIZE> struct SimpleLFO
         }
     }
 
+    [[deprecated("Use the two-arg constructor with an external RNG")]] 
     SimpleLFO(SRProvider *s) : srProvider(s), objrngRef(objrng)
     {
         objrng.reseedWithClock();
