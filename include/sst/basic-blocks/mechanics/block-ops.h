@@ -166,24 +166,12 @@ inline void scale_by(const float scale, float *__restrict targetL, float *__rest
 
 template <size_t blockSize> inline float blockAbsMax(const float *__restrict d)
 {
-#if 0
-    // Note there used to be a SIMD version of this
+    // Note there used to be a SIMD version of this before hash fc9ab6258c93e
+    // which was slower with modern compilers
     auto r = 0.f;
-    for (auto i=0U; i<blockSize; ++i)
+    for (auto i = 0U; i < blockSize; ++i)
         r = std::max(r, std::fabs(d[i]));
-#else
-    __m128 mx = _mm_setzero_ps();
-
-    for (unsigned int i = 0; i < blockSize >> 2; i++)
-    {
-        mx = _mm_max_ps(mx, _mm_and_ps(((__m128 *)d)[i], m128_mask_absval));
-    }
-
-    float r alignas(16)[4];
-    _mm_store_ps(r, mx);
-
-    return std::max({r[0], r[1], r[2], r[3]});
-#endif
+    return r;
 }
 } // namespace sst::basic_blocks::mechanics
 
