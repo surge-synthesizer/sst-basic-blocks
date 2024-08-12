@@ -27,6 +27,7 @@
 #define INCLUDE_SST_BASIC_BLOCKS_MECHANICS_ENDIAN_OPS_H
 
 #include <cstring>
+#include <cstdint>
 
 namespace sst::basic_blocks::mechanics
 {
