@@ -64,9 +64,21 @@ struct RoutingTable : details::CheckModMatrixConstraints<ModMatrixTraits>
         std::optional<typename TR::TargetIdentifier> target{std::nullopt};
         std::optional<typename TR::CurveIdentifier> curve{std::nullopt};
 
-        float depth{0};
+        float depth{0.f};
 
-        std::optional<typename TR::RoutingExtraPayload> extraPayload;
+        std::optional<typename TR::RoutingExtraPayload> extraPayload{std::nullopt};
+
+        bool hasDefaultValues() const
+        {
+            auto res = active;
+            res = res && (depth == 0.f);
+            res = res && (!source.has_value());
+            res = res && (!sourceVia.has_value());
+            res = res && (!target.has_value());
+            res = res && (!curve.has_value());
+            res = res && (!extraPayload.has_value());
+            return res;
+        }
     };
 };
 

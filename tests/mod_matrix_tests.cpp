@@ -110,6 +110,47 @@ template <> struct std::hash<Config::TargetIdentifier>
     }
 };
 
+TEST_CASE("Default Values Check Works", "[mod-matrix]")
+{
+    FixedMatrix<Config> m;
+    FixedMatrix<Config>::RoutingTable rt;
+    for (const auto &r : rt.routes)
+    {
+        assert(r.hasDefaultValues());
+    }
+
+    auto barS = Config::SourceIdentifier{Config::SourceIdentifier::SI::BAR, 2, 3};
+    auto fooS = Config::SourceIdentifier{Config::SourceIdentifier::SI::FOO};
+
+    auto tg3T = Config::TargetIdentifier{3};
+    auto tg3PT = Config::TargetIdentifier{3, 'facd'};
+
+    float barSVal{1.1}, fooSVal{2.3};
+    m.bindSourceValue(barS, barSVal);
+    m.bindSourceValue(fooS, fooSVal);
+
+    float t3V{0.2}, t3PV{0.3};
+    m.bindTargetBaseValue(tg3T, t3V);
+    m.bindTargetBaseValue(tg3PT, t3PV);
+
+    rt.updateRoutingAt(3, barS, tg3T, 0.5);
+    rt.updateRoutingAt(1, fooS, tg3PT, -0.5);
+
+    int idx{0};
+    for (const auto &r : rt.routes)
+    {
+        if (idx == 3 || idx == 1)
+        {
+            assert(!r.hasDefaultValues());
+        }
+        else
+        {
+            assert(r.hasDefaultValues());
+        }
+        idx++;
+    }
+}
+
 TEST_CASE("Configure and Bind", "[mod-matrix]")
 {
     FixedMatrix<Config> m;
