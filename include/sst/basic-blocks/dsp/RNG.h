@@ -72,7 +72,7 @@ struct RNG
         std::uniform_int_distribution<int> intdist(min, max - 1);
         return intdist(g);
     }
-    
+
     inline bool boolean() { return b(g); }
 
     inline float forDisplay() { return pm1(dg); }
