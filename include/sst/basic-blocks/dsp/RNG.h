@@ -36,13 +36,13 @@ struct RNG
 {
     RNG()
         : g(std::chrono::system_clock::now().time_since_epoch().count()), dg(525600 + 8675309),
-          pm1(-1.f, 1.f), z1(0.f, 1.f), gauss(0.f, .33333f), u32(0, 0xFFFFFFFF)
+          pm1(-1.f, 1.f), z1(0.f, 1.f), gauss(0.f, .33333f), u32(0, 0xFFFFFFFF), b(.5)
     {
     }
 
     RNG(uint32_t seed)
         : g(seed), dg(525600 + 8675309), pm1(-1.f, 1.f), z1(0.f, 1.f), gauss(0.f, .33333f),
-          u32(0, 0xFFFFFFFF)
+          u32(0, 0xFFFFFFFF), b(.5)
     {
     }
 
@@ -71,7 +71,9 @@ struct RNG
     {
         std::uniform_int_distribution<int> intdist(min, max - 1);
         return intdist(g);
-    }
+    } // clang-format problem? Why?
+
+    inline bool boolean() { return b(g); }
 
     inline float forDisplay() { return pm1(dg); }
 
@@ -81,6 +83,7 @@ struct RNG
     std::uniform_real_distribution<float> pm1, z1;
     std::normal_distribution<float> gauss;
     std::uniform_int_distribution<uint32_t> u32;
+    std::bernoulli_distribution b;
 };
 } // namespace sst::basic_blocks::dsp
 
