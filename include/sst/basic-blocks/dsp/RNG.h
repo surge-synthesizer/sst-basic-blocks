@@ -71,7 +71,7 @@ struct RNG
     {
         std::uniform_int_distribution<int> intdist(min, max - 1);
         return intdist(g);
-    }
+    } // clang-format problem? Why?
 
     inline bool boolean() { return b(g); }
 
