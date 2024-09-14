@@ -298,12 +298,12 @@ template <typename ModMatrixTraits> struct FixedMatrix : ModMatrix<ModMatrixTrai
         {
             matrixOutputs[outIdx] = this->baseValues.at(tgt);
         }
-        for (auto r : routingValuePointers)
+        for (const auto &r : routingValuePointers)
         {
-            if (r.active && !(*r.active))
+            if (!r.source || !r.target)
                 continue;
 
-            if (!r.source || !r.target)
+            if (r.active && !(*r.active))
                 continue;
 
             float sourceViaVal{1.f};
