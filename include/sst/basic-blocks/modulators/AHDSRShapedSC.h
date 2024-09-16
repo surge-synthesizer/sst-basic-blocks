@@ -78,11 +78,21 @@ struct AHDSRShapedSC : DiscreteStagesEnvelope<BLOCK_SIZE, RangeProvider>
         lutsInitialized = true;
     }
 
-    inline void attackFrom(float fv)
+    inline void attackFrom(float fv, bool skipAttack = false)
     {
-        phase = 0;
-        attackStartValue = fv;
-        this->stage = base_t::s_attack;
+        if (skipAttack)
+        {
+            phase = 0;
+            attackStartValue = fv;
+            this->outBlock0 = 1.0;
+            this->stage = base_t::s_hold;
+        }
+        else
+        {
+            phase = 0;
+            attackStartValue = fv;
+            this->stage = base_t::s_attack;
+        }
     }
 
     inline float dPhase(float x)
