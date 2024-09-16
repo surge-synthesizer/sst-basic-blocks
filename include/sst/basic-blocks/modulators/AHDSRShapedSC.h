@@ -61,7 +61,7 @@ struct AHDSRShapedSC : DiscreteStagesEnvelope<BLOCK_SIZE, RangeProvider>
         if (lutsInitialized)
             return;
 
-        if (RangeProvider::phaseStrategy == ENVTIME_EXP)
+        if constexpr (RangeProvider::phaseStrategy == ENVTIME_EXP)
         {
             for (int i = 0; i < expLutSize; ++i)
             {
