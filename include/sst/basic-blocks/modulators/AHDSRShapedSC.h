@@ -28,7 +28,10 @@
 #define INCLUDE_SST_BASIC_BLOCKS_MODULATORS_AHDSRSHAPEDSC_H
 
 #include "DiscreteStagesEnvelope.h"
+#include "../tables/TwoToTheXProvider.h"
 #include <cassert>
+#include <iostream>
+#include <memory>
 
 namespace sst::basic_blocks::modulators
 {
@@ -39,20 +42,38 @@ struct AHDSRShapedSC : DiscreteStagesEnvelope<BLOCK_SIZE, RangeProvider>
 
     static constexpr int nTables{64};
     static constexpr int nLUTPoints{256};
-    static inline float lut[nTables][nLUTPoints];
-    static inline bool lutsInitialized{false};
+    static thread_local inline float lut[nTables][nLUTPoints];
+    static thread_local inline bool lutsInitialized{false};
+
+    static constexpr size_t expLutSize{1024};
+    static thread_local inline float expLut[expLutSize];
 
     SRProvider *srProvider{nullptr};
     AHDSRShapedSC(SRProvider *s)
         : DiscreteStagesEnvelope<BLOCK_SIZE, RangeProvider>(), srProvider(s)
     {
         assert(srProvider);
+        initializeLuts();
     }
 
     static void initializeLuts()
     {
         if (lutsInitialized)
             return;
+
+        if constexpr (RangeProvider::phaseStrategy == ENVTIME_EXP)
+        {
+            for (int i = 0; i < expLutSize; ++i)
+            {
+                double x = 1.0 * i / (expLutSize - 1);
+                auto timeInSeconds =
+                    (std::exp(RangeProvider::A + x * (RangeProvider::B - RangeProvider::A)) -
+                     RangeProvider::C) /
+                    RangeProvider::D;
+                auto invTime = 1.0 / timeInSeconds;
+                expLut[i] = std::log2(invTime);
+            }
+        }
 
         lutsInitialized = true;
     }
@@ -73,16 +94,37 @@ struct AHDSRShapedSC : DiscreteStagesEnvelope<BLOCK_SIZE, RangeProvider>
 
         if constexpr (RangeProvider::phaseStrategy == ENVTIME_EXP)
         {
+            static thread_local tables::TwoToTheXProvider twoToX;
+            if (!twoToX.isInit)
+                twoToX.init();
+
+#if CHECK_VS_LUT
             auto timeInSeconds =
                 (std::exp(RangeProvider::A + x * (RangeProvider::B - RangeProvider::A)) -
                  RangeProvider::C) /
                 RangeProvider::D;
-            auto dPhase = BLOCK_SIZE * srProvider->sampleRateInv / timeInSeconds;
 
+            auto checkV = 1.0 / timeInSeconds;
+#endif
+            auto xp = std::clamp((double)x, 0., 0.9999999999) * (expLutSize - 1);
+            int xpi = (int)xp;
+            auto xpf = xp - xpi;
+            auto interp = (1 - xpf) * expLut[xpi] + xpf * expLut[xpi + 1];
+            auto res = twoToX.twoToThe(interp);
+
+#if CHECK_VS_LUT
+            static float lastX = -23;
+            if (x != lastX)
+            {
+                std::cout << "Checkint at " << x << " " << checkV << " " << res << std::endl;
+                lastX = x;
+            }
+#endif
+
+            auto dPhase = BLOCK_SIZE * srProvider->sampleRateInv * res;
             return dPhase;
         }
     }
-
     // from https://martin.ankerl.com/2012/01/25/optimized-approximative-pow-in-c-and-cpp/
     // also check out https://www.hxa.name/articles/content/fast-pow-adjustable_hxa7241_2007.html
     inline double fastPow(double a, double b)
@@ -122,7 +164,7 @@ struct AHDSRShapedSC : DiscreteStagesEnvelope<BLOCK_SIZE, RangeProvider>
 
     inline void processCore(const float a, const float h, const float d, const float s,
                             const float r, const float ashape, const float dshape,
-                            const float rshape, const bool gateActive)
+                            const float rshape, const bool gateActive, bool needsCurve)
     {
         float target = 0;
 
@@ -212,7 +254,15 @@ struct AHDSRShapedSC : DiscreteStagesEnvelope<BLOCK_SIZE, RangeProvider>
             break;
         }
 
-        base_t::updateBlockTo(target);
+        if (needsCurve)
+        {
+            base_t::updateBlockToNoCube(target);
+        }
+        else
+        {
+            this->outBlock0 = target;
+            this->current = 0;
+        }
     }
 
     inline void process(const float a, const float h, const float d, const float s, const float r,
@@ -225,7 +275,7 @@ struct AHDSRShapedSC : DiscreteStagesEnvelope<BLOCK_SIZE, RangeProvider>
 
         if (this->current == BLOCK_SIZE)
         {
-            processCore(a, h, d, s, r, ashape, rshape, dshape, gateActive);
+            processCore(a, h, d, s, r, ashape, rshape, dshape, gateActive, true);
         }
 
         base_t::step();
@@ -233,9 +283,9 @@ struct AHDSRShapedSC : DiscreteStagesEnvelope<BLOCK_SIZE, RangeProvider>
 
     inline void processBlock(const float a, const float h, const float d, const float s,
                              const float r, const float ashape, const float dshape,
-                             const float rshape, const bool gateActive)
+                             const float rshape, const bool gateActive, bool needsCurve)
     {
-        processCore(a, h, d, s, r, ashape, dshape, rshape, gateActive);
+        processCore(a, h, d, s, r, ashape, dshape, rshape, gateActive, needsCurve);
     }
 
     float phase{0.f}, attackStartValue{0.f}, releaseStartValue{0.f};

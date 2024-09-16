@@ -219,6 +219,17 @@ template <int BLOCK_SIZE, typename RangeProvider> struct DiscreteStagesEnvelope
         current = 0;
     }
 
+    void updateBlockToNoCube(float target)
+    {
+        float dO = (target - outBlock0) * BLOCK_SIZE_INV;
+        for (int i = 0; i < BLOCK_SIZE; ++i)
+        {
+            outputCache[i] = outBlock0 + dO * i;
+        }
+        outBlock0 = target;
+        current = 0;
+    }
+
     void step()
     {
         output = outputCache[current];

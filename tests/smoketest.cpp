@@ -66,7 +66,7 @@ int main(int argc, char **argv)
     auto dahd = sst::basic_blocks::modulators::DAHDEnvelope<SampleSRProvider, 16>(srp.get());
     adsr.process(0, 0, 0, 0, 0, 0, 0, 0);
     auto ahsc = sst::basic_blocks::modulators::AHDSRShapedSC<SampleSRProvider, 16>(srp.get());
-    ahsc.processBlock(0, 0, 0, 0, 0, 0, 0, 0, false);
+    ahsc.processBlock(0, 0, 0, 0, 0, 0, 0, 0, false, true);
     auto ad = sst::basic_blocks::modulators::ADAREnvelope<SampleSRProvider, 16>(srp.get());
     ad.processScaledAD(0, 0, 0, 0, false);
     auto lf = sst::basic_blocks::modulators::SimpleLFO<SampleSRProvider, 16>(srp.get());

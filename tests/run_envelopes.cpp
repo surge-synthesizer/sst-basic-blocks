@@ -66,12 +66,12 @@ std::vector<float> runEnv(T &mod, int gsteps, int rsteps, Args... a)
     mod.attackFrom(0.f);
     for (int i = 0; i < gsteps; ++i)
     {
-        mod.processBlock(a..., true);
+        mod.processBlock(a..., true, true);
         res.push_back(mod.outBlock0);
     }
     for (int i = 0; i < rsteps; ++i)
     {
-        mod.processBlock(a..., false);
+        mod.processBlock(a..., false, true);
         res.push_back(mod.outBlock0);
     }
 
