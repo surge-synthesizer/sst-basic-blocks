@@ -67,7 +67,7 @@ struct AHDSRShapedSC : DiscreteStagesEnvelope<BLOCK_SIZE, RangeProvider>
             {
                 double x = 1.0 * i / (expLutSize - 1);
                 auto timeInSeconds =
-                    (std::exp(RangeProvider::A + x * (RangeProvider::B - RangeProvider::A)) -
+                    (std::exp(RangeProvider::A + x * (RangeProvider::B - RangeProvider::A)) +
                      RangeProvider::C) /
                     RangeProvider::D;
                 auto invTime = 1.0 / timeInSeconds;
