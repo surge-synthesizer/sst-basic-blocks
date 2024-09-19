@@ -1086,11 +1086,11 @@ inline std::optional<float> ParamMetaData::valueFromString(std::string_view v, s
                 }
             }
 
-            // OK so its R = exp(A + X (B-A)) - C)/D
-            // D R + C = exp(A + X (B-a))
-            // log(DR + C) = A + X (B-A)
-            // (log (DR + C) - A) / (B - A) = X
-            auto drc = std::max(svD * r + svC, 0.00000001f);
+            // OK so its R = exp(A + X (B-A)) + C)/D
+            // D R - C = exp(A + X (B-a))
+            // log(DR - C) = A + X (B-A)
+            // (log (DR - C) - A) / (B - A) = X
+            auto drc = std::max(svD * r - svC, 0.00000001f);
             auto xv = (std::log(drc) - svA) / (svB - svA);
 
             return xv;
