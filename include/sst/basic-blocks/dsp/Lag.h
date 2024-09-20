@@ -91,7 +91,8 @@ template <class T, bool first_run_checks> struct OnePoleLag
 /**
  * OnePoleLag is a better name for SurgeLag
  */
-template <typename T, bool first_run_checks = true> struct SurgeLag : OnePoleLag<T, first_run_checks>
+template <typename T, bool first_run_checks = true>
+struct SurgeLag : OnePoleLag<T, first_run_checks>
 {
     SurgeLag() : OnePoleLag<T, first_run_checks>() {}
     SurgeLag(T lp) : OnePoleLag<T, first_run_checks>(lp) {}
