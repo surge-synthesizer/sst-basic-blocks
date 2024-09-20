@@ -76,6 +76,7 @@ struct Config
     using CurveIdentifier = int;
 
     static bool isTargetModMatrixDepth(const TargetIdentifier &t) { return t.depthPosition >= 0; }
+    static bool supportsLag(const SourceIdentifier &s) { return true; }
     static size_t getTargetModMatrixElement(const TargetIdentifier &t)
     {
         assert(isTargetModMatrixDepth(t));
@@ -170,7 +171,7 @@ TEST_CASE("Configure and Bind", "[mod-matrix]")
     m.bindTargetBaseValue(tg3T, t3V);
     m.bindTargetBaseValue(tg3PT, t3PV);
 
-    m.prepare(rt);
+    m.prepare(rt, 48000, 16);
 
     m.process();
 
@@ -209,7 +210,7 @@ TEST_CASE("Configure Bind and Route", "[mod-matrix]")
     rt.updateRoutingAt(0, barS, tg3T, 0.5);
     rt.updateRoutingAt(1, fooS, tg3PT, -0.5);
 
-    m.prepare(rt);
+    m.prepare(rt, 48000, 16);
 
     m.process();
 
@@ -248,7 +249,7 @@ TEST_CASE("Configure Bind and Route Pointer Get API", "[mod-matrix]")
     rt.updateRoutingAt(0, barS, tg3T, 0.5);
     rt.updateRoutingAt(1, fooS, tg3PT, -0.5);
 
-    m.prepare(rt);
+    m.prepare(rt, 48000, 16);
 
     m.process();
 
@@ -291,7 +292,7 @@ TEST_CASE("Modulate Depth", "[mod-matrix]")
     rt.updateRoutingAt(0, depS, tgDepth, 0.2);
     rt.updateRoutingAt(1, barS, tg3T, 0.5);
 
-    m.prepare(rt);
+    m.prepare(rt, 48000, 16);
 
     m.process();
 
@@ -330,7 +331,7 @@ TEST_CASE("Routing Activation", "[mod-matrix]")
     rt.updateRoutingAt(0, barS, tg3T, 0.5);
     rt.updateRoutingAt(1, fooS, tg3PT, -0.5);
 
-    m.prepare(rt);
+    m.prepare(rt, 48000, 16);
 
     m.process();
 
@@ -370,7 +371,7 @@ TEST_CASE("Routing Via", "[mod-matrix]")
     // bind with a 'via'
     rt.updateRoutingAt(0, barS, fooS, {}, tg3T, 0.5);
 
-    m.prepare(rt);
+    m.prepare(rt, 48000, 16);
 
     m.process();
 
@@ -387,6 +388,108 @@ TEST_CASE("Routing Via", "[mod-matrix]")
     barSVal = 0.298;
     m.process();
     REQUIRE(*t3P == Approx(t3V + 0.5 * barSVal * fooSVal).margin(1e-5));
+}
+
+TEST_CASE("Source Lags", "[mod-matrix]")
+{
+    FixedMatrix<Config> m;
+    FixedMatrix<Config>::RoutingTable rt;
+
+    auto srcS = Config::SourceIdentifier{Config::SourceIdentifier::SI::BAR, 2, 3};
+    auto viaS = Config::SourceIdentifier{Config::SourceIdentifier::SI::FOO};
+
+    auto tg3T = Config::TargetIdentifier{3};
+
+    float srcSVal{0.0}, viaSVal{1.0};
+    m.bindSourceValue(srcS, srcSVal);
+    m.bindSourceValue(viaS, viaSVal);
+
+    float t3V{0.2};
+    m.bindTargetBaseValue(tg3T, t3V);
+
+    // bind with a 'via'
+    int lagms{250};
+    double sr{48000}, bs{16};
+    rt.updateRoutingAt(0, srcS, viaS, {}, tg3T, 0.5);
+    rt.setSourceLagAt(0, lagms);
+
+    m.prepare(rt, sr, bs);
+    m.process();
+
+    auto t3P = m.getTargetValuePointer(tg3T);
+
+    INFO("At outset we should snap values and not lag them")
+    REQUIRE(t3P);
+    REQUIRE(*t3P == Approx(t3V + 0.5 * srcSVal * viaSVal).margin(1e-5));
+
+    for (int i = 0; i < 10; ++i)
+    {
+        INFO("Constant values shouldn't lag so should stay constant " << i);
+        m.process();
+        REQUIRE(*t3P == Approx(t3V + 0.5 * srcSVal * viaSVal).margin(1e-5));
+    }
+
+    {
+        INFO("Lag means source changes arent immediate");
+        auto priorVal{*t3P};
+        auto priorEndpoint{t3V + 0.5 * srcSVal * viaSVal};
+        srcSVal = 1.0;
+        m.process();
+        auto newVal{*t3P};
+        auto newEndpoint{t3V + 0.5 * srcSVal * viaSVal};
+
+        REQUIRE(newVal > priorEndpoint);
+        REQUIRE(newVal < newEndpoint);
+        REQUIRE(std::fabs(newVal - priorEndpoint) < std::fabs(newVal - newEndpoint));
+
+        auto requiredIts = (lagms / 1000.0) * sr / bs;
+        for (int i = 0; i < requiredIts; ++i)
+        {
+            m.process();
+        }
+        REQUIRE(std::fabs(*t3P - newEndpoint) < 5e-3);
+    }
+    {
+        INFO("Setting source lag back to zero and re-preparing should make it instant");
+        rt.setSourceLagAt(0, 0);
+        m.prepare(rt, sr, bs);
+        for (int i = 0; i < 10; ++i)
+        {
+            srcSVal = (rand() % 1000) / 1000.f;
+            m.process();
+            REQUIRE(*t3P == Approx(t3V + 0.5 * srcSVal * viaSVal).margin(1e-5));
+        }
+    }
+    {
+        srcSVal = 0.5;
+        viaSVal = 0.0;
+        INFO("Test again with via lag");
+        rt.setSourceViaLagAt(0, lagms);
+        m.prepare(rt, sr, bs);
+        m.process();
+
+        INFO("At outset two we should snap values and not lag them")
+        REQUIRE(*t3P == Approx(t3V + 0.5 * srcSVal * viaSVal).margin(1e-5));
+
+        INFO("Lag means source changes arent immediate");
+        auto priorVal{*t3P};
+        auto priorEndpoint{t3V + 0.5 * srcSVal * viaSVal};
+        viaSVal = 1.0;
+        m.process();
+        auto newVal{*t3P};
+        auto newEndpoint{t3V + 0.5 * srcSVal * viaSVal};
+
+        REQUIRE(newVal > priorEndpoint);
+        REQUIRE(newVal < newEndpoint);
+        REQUIRE(std::fabs(newVal - priorEndpoint) < std::fabs(newVal - newEndpoint));
+
+        auto requiredIts = (lagms / 1000.0) * sr / bs;
+        for (int i = 0; i < requiredIts; ++i)
+        {
+            m.process();
+        }
+        REQUIRE(std::fabs(*t3P - newEndpoint) < 5e-3);
+    }
 }
 
 struct CurveConfig
@@ -432,7 +535,7 @@ TEST_CASE("WithCurves", "[mod-matrix]")
     rt.updateRoutingAt(0, barS, tg3T, 0.5);
     rt.routes[0].curve = 0;
 
-    m.prepare(rt);
+    m.prepare(rt, 48000, 16);
     m.process();
 
     auto t3P = m.getTargetValuePointer(tg3T);
@@ -441,14 +544,14 @@ TEST_CASE("WithCurves", "[mod-matrix]")
     REQUIRE(*t3P == Approx(t3V + 0.5 * barSVal).margin(1e-5));
 
     rt.routes[0].curve = 1;
-    m.prepare(rt);
+    m.prepare(rt, 48000, 16);
     m.process();
 
     REQUIRE(t3P);
     REQUIRE(*t3P == Approx(t3V + 0.5 * barSVal * barSVal * barSVal).margin(1e-5));
 
     rt.routes[0].curve = 2;
-    m.prepare(rt);
+    m.prepare(rt, 48000, 16);
     m.process();
 
     REQUIRE(t3P);

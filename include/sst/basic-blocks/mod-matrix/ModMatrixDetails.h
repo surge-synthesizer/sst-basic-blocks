@@ -51,6 +51,7 @@ namespace sst::basic_blocks::mod_matrix::details
     };
 
 HAS_MEMBER(isTargetModMatrixDepth)
+HAS_MEMBER(supportsLag)
 HAS_MEMBER(getTargetModMatrixElement)
 HAS_MEMBER(getCurveOperator)
 HAS_MEMBER(getIsMultiplicative)

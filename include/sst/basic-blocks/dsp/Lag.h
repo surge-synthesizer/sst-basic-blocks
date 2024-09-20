@@ -38,12 +38,11 @@ namespace sst::basic_blocks::dsp
  * @tparam first_run_checks check for initialization or the client sets up with instant value at
  * outset
  */
-template <class T, bool first_run_checks = true> struct SurgeLag
+template <class T, bool first_run_checks> struct OnePoleLag
 {
   public:
-    SurgeLag(T lp) { setRate(lp); }
-
-    SurgeLag() { setRate(0.004); }
+    OnePoleLag() { setRate(0.004); }
+    OnePoleLag(T rate) { setRate(rate); }
 
     void setRate(T lp)
     {
@@ -56,7 +55,8 @@ template <class T, bool first_run_checks = true> struct SurgeLag
         setRate(1.0 - exp(-2.0 * M_PI / (miliSeconds * 0.001f * sampleRate * blockSizeInv)));
     }
 
-    inline void newValue(T f)
+    // Some better names
+    inline void setTarget(T f)
     {
         target_v = f;
 
@@ -66,22 +66,16 @@ template <class T, bool first_run_checks = true> struct SurgeLag
             first_run = false;
         }
     }
-
-    inline void startValue(T f)
+    inline void snapTo(T f)
     {
         target_v = f;
         v = f;
 
-        if (first_run_checks && first_run)
-        {
-            first_run = false;
-        }
+        first_run = false;
     }
-
-    inline void instantize() { v = target_v; }
-
-    inline T getTargetValue() { return target_v; }
-    inline T getValue() { return v; }
+    inline void snapToTarget() { snapTo(target_v); }
+    inline T getTargetValue() const { return target_v; }
+    inline T getValue() const { return v; }
 
     inline void process() { v = v * lpinv + target_v * lp; }
 
@@ -90,14 +84,89 @@ template <class T, bool first_run_checks = true> struct SurgeLag
 
     bool first_run{true};
 
-  private:
+  protected:
     T lp{0}, lpinv{0};
 };
 
 /**
  * OnePoleLag is a better name for SurgeLag
  */
-template <typename T, bool first_run> using OnePoleLag = SurgeLag<T, first_run>;
+template <typename T, bool first_run_checks = true> struct SurgeLag : OnePoleLag<T, first_run_checks>
+{
+    SurgeLag() : OnePoleLag<T, first_run_checks>() {}
+    SurgeLag(T lp) : OnePoleLag<T, first_run_checks>(lp) {}
+
+    /**
+     * Legacy names
+     */
+    inline void newValue(T f) { this->setTarget(f); }
+
+    inline void startValue(T f) { this->snapTo(f); }
+
+    inline void instantize() { this->snapToTarget(); }
+};
+
+template <typename T, bool first_run> struct LinearLag
+{
+    LinearLag() {}
+
+    void setRateInMilliseconds(double miliSeconds, double sampleRate, double blockSizeInv)
+    {
+        processCalls = 0.001 * miliSeconds * sampleRate * blockSizeInv;
+        processCallsInv = 1.0 / processCalls;
+    }
+
+    // Some better names
+    inline void setTarget(T f)
+    {
+        if (target_v != f)
+        {
+            target_v = f;
+            dTarget = (target_v - v) * processCallsInv;
+            active = true;
+        }
+
+        if (first_run && first_time)
+        {
+            snapToTarget();
+            first_time = false;
+        }
+    }
+    inline void snapTo(T f)
+    {
+        target_v = f;
+        v = f;
+        dTarget = 0;
+        active = false;
+        first_time = false;
+    }
+    inline void snapToTarget() { snapTo(target_v); }
+    inline T getTargetValue() const { return target_v; }
+    inline T getValue() const { return v; }
+
+    inline void process()
+    {
+        if (active)
+        {
+            if (std::fabs(v - target_v) < std::fabs(dTarget))
+            {
+                v = target_v;
+                active = false;
+                dTarget = 0;
+            }
+            else
+            {
+                v += dTarget;
+            }
+        }
+    }
+
+    T v{0}, target_v{0};
+
+  private:
+    T dTarget{0}, processCalls{1}, processCallsInv{1};
+    bool active{false}, first_time{true};
+};
 
 /**
  * Linearly lag a float value onto a destination. Takes a pointer to the destination
