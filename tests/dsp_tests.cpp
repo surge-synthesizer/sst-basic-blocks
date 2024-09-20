@@ -1001,6 +1001,49 @@ TEST_CASE("SurgeLag", "[dsp]")
         l1.instantize();
         REQUIRE(l1.v == 0.7f);
     }
+
+    SECTION("Name Alias in place")
+    {
+        auto l1 = sst::basic_blocks::dsp::OnePoleLag<float, true>(0.05);
+        l1.startValue(1.f);
+        REQUIRE(l1.v == 1.f);
+    }
+
+    SECTION("Time in miliseconds is basicaly OK")
+    {
+        for (auto time : {20, 50, 100, 500})
+        {
+            for (auto sr : {44100, 48000, 88200, 96000})
+            {
+                for (auto bs : {8, 16, 32})
+                {
+                    INFO("Lag Test " << time << " ms " << sr << " sr " << bs << " block");
+                    auto l1 = sst::basic_blocks::dsp::OnePoleLag<float, true>();
+
+                    l1.setRateInMilliseconds(time, sr, 1.0 / bs);
+                    l1.startValue(0.f);
+                    l1.newValue(1.f);
+
+                    auto requiredIts = (time / 1000.0) * sr / bs;
+                    // So 100ms at 48k with 16 block size is .1 * 48k / 16 = 300
+                    for (int i = 0; i < requiredIts / 2; ++i)
+                    {
+                        l1.process();
+                        REQUIRE(l1.v > 0);
+                        REQUIRE(l1.v < 1.);
+                    }
+                    REQUIRE(l1.v < 0.96);
+                    for (int i = 0; i < requiredIts / 2; ++i)
+                    {
+                        l1.process();
+                        REQUIRE(l1.v > 0);
+                        REQUIRE(l1.v < 1.);
+                    }
+                    REQUIRE(l1.v == Approx(1.f).margin(5e-3));
+                }
+            }
+        }
+    }
 }
 
 TEST_CASE("UIComponentLagHandler", "[dsp]")

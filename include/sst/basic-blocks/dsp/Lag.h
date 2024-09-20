@@ -31,6 +31,13 @@
 
 namespace sst::basic_blocks::dsp
 {
+/**
+ * SurgeLag is a one simple pole LPF smoother.
+ *
+ * @tparam T The underlying data type
+ * @tparam first_run_checks check for initialization or the client sets up with instant value at
+ * outset
+ */
 template <class T, bool first_run_checks = true> struct SurgeLag
 {
   public:
@@ -42,6 +49,11 @@ template <class T, bool first_run_checks = true> struct SurgeLag
     {
         this->lp = lp;
         lpinv = 1 - lp;
+    }
+
+    void setRateInMilliseconds(double miliSeconds, double sampleRate, double blockSizeInv)
+    {
+        setRate(1.0 - exp(-2.0 * M_PI / (miliSeconds * 0.001f * sampleRate * blockSizeInv)));
     }
 
     inline void newValue(T f)
@@ -82,7 +94,12 @@ template <class T, bool first_run_checks = true> struct SurgeLag
     T lp{0}, lpinv{0};
 };
 
-/*
+/**
+ * OnePoleLag is a better name for SurgeLag
+ */
+template <typename T, bool first_run> using OnePoleLag = SurgeLag<T, first_run>;
+
+/**
  * Linearly lag a float value onto a destination. Takes a pointer to the destination
  * and the target. Handles restatements properly etc...
  *
