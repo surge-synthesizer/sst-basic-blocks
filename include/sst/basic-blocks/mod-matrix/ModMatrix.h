@@ -38,6 +38,7 @@
 
 #include <iostream>
 #include "ModMatrixDetails.h"
+#include "../dsp/Lag.h"
 
 /*
  * This is an implementation of a relatively genericised mod matrix which
@@ -63,6 +64,10 @@ struct RoutingTable : details::CheckModMatrixConstraints<ModMatrixTraits>
         std::optional<typename TR::SourceIdentifier> sourceVia{std::nullopt};
         std::optional<typename TR::TargetIdentifier> target{std::nullopt};
         std::optional<typename TR::CurveIdentifier> curve{std::nullopt};
+
+        // We use integers as milisecond lag values so we can compare with 0
+        int16_t sourceLagMS{0}, sourceViaLagMS{0};
+        bool sourceLagExp{true}, sourceViaLagExp{true};
 
         float depth{0.f};
 
@@ -121,6 +126,19 @@ struct ModMatrix : details::CheckModMatrixConstraints<ModMatrixTraits>
         }
     }
 
+    static constexpr bool canSupportsLag{details::has_supportsLag<TR>::value};
+    bool supportsLag(typename TR::SourceIdentifier &s)
+    {
+        if constexpr (canSupportsLag)
+        {
+            return TR::supportsLag(s);
+        }
+        else
+        {
+            return false;
+        }
+    }
+
     static constexpr bool supportsCurves{details::has_getCurveOperator<TR>::value};
     static constexpr bool supportsMultiplicative{details::has_getIsMultiplicative<TR>::value};
 };
@@ -151,6 +169,10 @@ template <typename ModMatrixTraits> struct FixedLengthRoutingTable : RoutingTabl
     {
         assert(position < TR::FixedMatrixSize);
         routes[position].source = source;
+        routes[position].sourceLagMS = 0;
+        routes[position].sourceVia = std::nullopt;
+        routes[position].sourceViaLagMS = 0;
+        routes[position].curve = std::nullopt;
         routes[position].target = target;
         routes[position].depth = depth;
     }
@@ -161,10 +183,36 @@ template <typename ModMatrixTraits> struct FixedLengthRoutingTable : RoutingTabl
     {
         assert(position < TR::FixedMatrixSize);
         routes[position].source = source;
+        routes[position].sourceLagMS = 0;
         routes[position].sourceVia = sourceVia;
+        routes[position].sourceViaLagMS = 0;
         routes[position].curve = curve;
         routes[position].target = target;
         routes[position].depth = depth;
+    }
+
+    /**
+     * Set the lag for the source. This gets snapped as static when
+     * you call prepare.
+     *
+     * @param position The route index to update
+     */
+    void setSourceLagAt(size_t position, int16_t lagInMS, bool isExp = true)
+    {
+        routes[position].sourceLagMS = lagInMS;
+        routes[position].sourceLagExp = isExp;
+    }
+
+    /**
+     * Set the lag for the sourceVia. This gets snapped as static when
+     * you call prepare.
+     *
+     * @param position The route index to update
+     */
+    void setSourceViaLagAt(size_t position, int16_t lagInMS, bool isExp = true)
+    {
+        routes[position].sourceViaLagMS = lagInMS;
+        routes[position].sourceViaLagExp = isExp;
     }
 };
 
@@ -188,6 +236,17 @@ template <typename ModMatrixTraits> struct FixedMatrix : ModMatrix<ModMatrixTrai
             ADDITIVE,
             MULTIPLICATIVE
         } applicationMode{ADDITIVE};
+
+        // We can handle the 'first time' by setting in prepare
+        dsp::OnePoleLag<float, false> sourceLagExp, sourceViaLagExp;
+        dsp::LinearLag<float, false> sourceLagLin, sourceViaLagLin;
+        enum LagStyle
+        {
+            NONE = 0,
+            EXPLAG = 1,
+            LINLAG = 2
+        };
+        LagStyle sourceLagStyle{NONE}, sourceViaLagStyle{NONE};
     };
     std::array<RoutingValuePointers, TR::FixedMatrixSize> routingValuePointers{};
 
@@ -219,7 +278,7 @@ template <typename ModMatrixTraits> struct FixedMatrix : ModMatrix<ModMatrixTrai
         }
     }
 
-    void prepare(RT &rt)
+    void prepare(RT &rt, double sampleRate, int blockSize)
     {
         updateRoutingState(rt);
 
@@ -243,8 +302,52 @@ template <typename ModMatrixTraits> struct FixedMatrix : ModMatrix<ModMatrixTrai
             }
 
             rv.source = &this->sourceValues.at(*r.source);
+            if (ModMatrix<TR>::supportsLag(*r.source) && r.sourceLagMS > 0)
+            {
+                if (r.sourceLagExp)
+                {
+                    rv.sourceLagExp.setRateInMilliseconds(r.sourceLagMS, sampleRate,
+                                                          1.0 / blockSize);
+                    rv.sourceLagExp.snapTo(*(rv.source));
+                    rv.sourceLagStyle = RoutingValuePointers::EXPLAG;
+                }
+                else
+                {
+                    rv.sourceLagLin.setRateInMilliseconds(r.sourceLagMS, sampleRate,
+                                                          1.0 / blockSize);
+                    rv.sourceLagLin.snapTo(*(rv.source));
+                    rv.sourceLagStyle = RoutingValuePointers::LINLAG;
+                }
+            }
+            else
+            {
+                rv.sourceLagStyle = RoutingValuePointers::NONE;
+            }
             if (r.sourceVia.has_value())
+            {
                 rv.sourceVia = &this->sourceValues.at(*(r.sourceVia));
+                if (ModMatrix<TR>::supportsLag(*r.sourceVia) && r.sourceViaLagMS > 0)
+                {
+                    if (r.sourceViaLagExp)
+                    {
+                        rv.sourceViaLagExp.setRateInMilliseconds(r.sourceViaLagMS, sampleRate,
+                                                                 1.0 / blockSize);
+                        rv.sourceViaLagExp.snapTo(*(rv.sourceVia));
+                        rv.sourceViaLagStyle = RoutingValuePointers::EXPLAG;
+                    }
+                    else
+                    {
+                        rv.sourceViaLagLin.setRateInMilliseconds(r.sourceViaLagMS, sampleRate,
+                                                                 1.0 / blockSize);
+                        rv.sourceViaLagLin.snapTo(*(rv.sourceVia));
+                        rv.sourceViaLagStyle = RoutingValuePointers::LINLAG;
+                    }
+                }
+                else
+                {
+                    rv.sourceViaLagStyle = RoutingValuePointers::NONE;
+                }
+            }
 
             if constexpr (ModMatrix<TR>::canSelfModulate)
             {
@@ -298,7 +401,7 @@ template <typename ModMatrixTraits> struct FixedMatrix : ModMatrix<ModMatrixTrai
         {
             matrixOutputs[outIdx] = this->baseValues.at(tgt);
         }
-        for (const auto &r : routingValuePointers)
+        for (auto &r : routingValuePointers)
         {
             if (!r.source || !r.target)
                 continue;
@@ -306,11 +409,54 @@ template <typename ModMatrixTraits> struct FixedMatrix : ModMatrix<ModMatrixTrai
             if (r.active && !(*r.active))
                 continue;
 
+            auto sourceVal = *(r.source);
+            switch (r.sourceLagStyle)
+            {
+            case RoutingValuePointers::EXPLAG:
+            {
+
+                r.sourceLagExp.setTarget(sourceVal);
+                r.sourceLagExp.process();
+                sourceVal = r.sourceLagExp.v;
+            }
+            break;
+            case RoutingValuePointers::LINLAG:
+            {
+                r.sourceLagLin.setTarget(sourceVal);
+                r.sourceLagLin.process();
+                sourceVal = r.sourceLagLin.v;
+            }
+            break;
+            default:
+                break;
+            }
+
             float sourceViaVal{1.f};
             if (r.sourceVia)
+            {
                 sourceViaVal = *r.sourceVia;
+                switch (r.sourceViaLagStyle)
+                {
+                case RoutingValuePointers::EXPLAG:
+                {
+                    r.sourceViaLagExp.setTarget(sourceViaVal);
+                    r.sourceViaLagExp.process();
+                    sourceViaVal = r.sourceViaLagExp.v;
+                }
+                break;
+                case RoutingValuePointers::LINLAG:
+                {
+                    r.sourceViaLagLin.setTarget(sourceViaVal);
+                    r.sourceViaLagLin.process();
+                    sourceViaVal = r.sourceViaLagLin.v;
+                }
+                break;
+                default:
+                    break;
+                }
+            }
 
-            auto offs = *(r.source) * sourceViaVal;
+            auto offs = sourceVal * sourceViaVal;
 
             if constexpr (ModMatrix<TR>::supportsCurves)
             {
