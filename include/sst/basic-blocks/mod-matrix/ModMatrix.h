@@ -52,6 +52,13 @@
  */
 namespace sst::basic_blocks::mod_matrix
 {
+
+enum ApplicationMode
+{
+    ADDITIVE = 0,
+    MULTIPLICATIVE = 1
+};
+
 template <typename ModMatrixTraits>
 struct RoutingTable : details::CheckModMatrixConstraints<ModMatrixTraits>
 {
@@ -68,6 +75,8 @@ struct RoutingTable : details::CheckModMatrixConstraints<ModMatrixTraits>
         // We use integers as milisecond lag values so we can compare with 0
         int16_t sourceLagMS{0}, sourceViaLagMS{0};
         bool sourceLagExp{true}, sourceViaLagExp{true};
+
+        int16_t applicationMode{ADDITIVE};
 
         float depth{0.f};
 
@@ -140,7 +149,6 @@ struct ModMatrix : details::CheckModMatrixConstraints<ModMatrixTraits>
     }
 
     static constexpr bool supportsCurves{details::has_getCurveOperator<TR>::value};
-    static constexpr bool supportsMultiplicative{details::has_getIsMultiplicative<TR>::value};
 };
 
 template <typename ModMatrixTraits> struct FixedLengthRoutingTable : RoutingTable<ModMatrixTraits>
@@ -231,11 +239,8 @@ template <typename ModMatrixTraits> struct FixedMatrix : ModMatrix<ModMatrixTrai
         float *source{nullptr}, *sourceVia{nullptr}, *depth{nullptr}, *target{nullptr};
         float depthScale{1.f};
         std::function<float(float)> curveFn;
-        enum ApplicationMode
-        {
-            ADDITIVE,
-            MULTIPLICATIVE
-        } applicationMode{ADDITIVE};
+
+        ApplicationMode applicationMode;
 
         // We can handle the 'first time' by setting in prepare
         dsp::OnePoleLag<float, false> sourceLagExp, sourceViaLagExp;
@@ -369,15 +374,7 @@ template <typename ModMatrixTraits> struct FixedMatrix : ModMatrix<ModMatrixTrai
                     rv.curveFn = nullptr;
             }
 
-            rv.applicationMode = RoutingValuePointers::ADDITIVE;
-            if constexpr (ModMatrix<TR>::supportsMultiplicative)
-            {
-                if (TR::getIsMultiplicative(*(r.target)))
-                {
-                    rv.applicationMode = RoutingValuePointers::MULTIPLICATIVE;
-                }
-            }
-
+            rv.applicationMode = static_cast<ApplicationMode>(r.applicationMode);
             rv.target = &matrixOutputs[targetToOutputIndex.at(*r.target)];
         }
 
@@ -467,10 +464,10 @@ template <typename ModMatrixTraits> struct FixedMatrix : ModMatrix<ModMatrixTrai
             }
             switch (r.applicationMode)
             {
-            case RoutingValuePointers::ApplicationMode::ADDITIVE:
+            case ApplicationMode::ADDITIVE:
                 *(r.target) += *(r.depth) * r.depthScale * offs;
                 break;
-            case RoutingValuePointers::ApplicationMode::MULTIPLICATIVE:
+            case ApplicationMode::MULTIPLICATIVE:
             {
                 // TODO - a bit more thoughtful about this clamp I bet
                 offs = std::clamp(std::fabs(offs), 0.f, 1.f);
@@ -485,6 +482,7 @@ template <typename ModMatrixTraits> struct FixedMatrix : ModMatrix<ModMatrixTrai
                     mulfac = 1 + dep * offs;
                 }
                 assert(mulfac >= 0 && mulfac <= 1.f);
+
                 *(r.target) *= mulfac;
             }
             break;

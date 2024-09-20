@@ -390,6 +390,36 @@ TEST_CASE("Routing Via", "[mod-matrix]")
     REQUIRE(*t3P == Approx(t3V + 0.5 * barSVal * fooSVal).margin(1e-5));
 }
 
+TEST_CASE("Multiplicative vs Additive", "[mod-matrix]")
+{
+    FixedMatrix<Config> m;
+    FixedMatrix<Config>::RoutingTable rt;
+
+    auto srcS = Config::SourceIdentifier{Config::SourceIdentifier::SI::BAR, 2, 3};
+
+    auto tg3T = Config::TargetIdentifier{3};
+
+    float srcSVal{0.2};
+    m.bindSourceValue(srcS, srcSVal);
+
+    float t3V{0.2};
+    m.bindTargetBaseValue(tg3T, t3V);
+
+    rt.updateRoutingAt(0, srcS, tg3T, 0.3);
+
+    m.prepare(rt, 48000, 16);
+    m.process();
+    auto t3P = m.getTargetValuePointer(tg3T);
+    REQUIRE(t3P);
+    REQUIRE(*t3P == Approx(t3V + 0.3 * srcSVal).margin(1e-5));
+
+    rt.routes[0].applicationMode = ApplicationMode::MULTIPLICATIVE;
+    m.prepare(rt, 48000, 16);
+    m.process();
+    REQUIRE(t3P);
+    REQUIRE(*t3P == Approx(t3V * (0.3 * srcSVal + (1 - 0.3))).margin(1e-5));
+}
+
 TEST_CASE("Source Lags", "[mod-matrix]")
 {
     FixedMatrix<Config> m;
