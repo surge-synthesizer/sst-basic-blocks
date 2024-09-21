@@ -95,7 +95,8 @@ inline void add_block(float *__restrict srcdst, const float *__restrict src2)
 }
 
 template <size_t blockSize>
-inline void mul_block(float *__restrict src1, float *src2, float *__restrict dst)
+inline void mul_block(const float *__restrict const src1, const float *const src2,
+                      float *__restrict dst)
 {
     for (auto i = 0U; i < blockSize; ++i)
     {

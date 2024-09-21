@@ -30,7 +30,8 @@
 namespace sst::basic_blocks::dsp
 {
 template <size_t blocksize>
-void encodeMS(float *__restrict L, float *__restrict R, float *__restrict M, float *__restrict S)
+void encodeMS(const float *__restrict const L, const float *__restrict const R, float *__restrict M,
+              float *__restrict S)
 {
     for (auto i = 0U; i < blocksize; ++i)
     {
@@ -40,7 +41,8 @@ void encodeMS(float *__restrict L, float *__restrict R, float *__restrict M, flo
 }
 
 template <size_t blocksize>
-void decodeMS(float *__restrict M, float *__restrict S, float *__restrict L, float *__restrict R)
+void decodeMS(const float *__restrict const M, const float *__restrict const S, float *__restrict L,
+              float *__restrict R)
 {
     for (auto i = 0U; i < blocksize; ++i)
     {
