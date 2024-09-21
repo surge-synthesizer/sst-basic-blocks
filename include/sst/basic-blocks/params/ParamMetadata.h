@@ -193,6 +193,34 @@ struct ParamMetaData
     }
 
     /*
+     * Parameters have an extensible optional set of features stored in a single
+     * uint64_t which you can flag on and off. This allows us to add things we want
+     * as binaries on params without adding a squillion little bools for lesser importance
+     * information only toggles. These features are not stream-at-rest stable just
+     * stream-in-session stable by integer.
+     */
+    enum struct Features : uint64_t
+    {
+        SUPPORTS_MULTIPLICATIVE_MODULATION = 1 << 0
+    };
+    uint64_t features{0};
+    ParamMetaData withFeature(Features f) const
+    {
+        auto res = *this;
+        res.features |= (uint64_t)f;
+        return res;
+    }
+    bool hasFeature(Features f) const { return features & (uint64_t)f; }
+    ParamMetaData withSupportsMultiplicativeModulation() const
+    {
+        return withFeature(Features::SUPPORTS_MULTIPLICATIVE_MODULATION);
+    }
+    bool hasSupportsMultiplicativeModulation() const
+    {
+        return hasFeature(Features::SUPPORTS_MULTIPLICATIVE_MODULATION);
+    }
+
+    /*
      * To String and From String conversion functions require information about the
      * parameter to execute. The primary driver is the value so the API takes the form
      * `valueToString(float)` but for optional features like extension, deform,
@@ -753,6 +781,8 @@ struct ParamMetaData
         // v * v * v * svA = 1
         // v = cbrt(1/svA)
         res = res.withDefault(std::cbrt(1.f / res.svA)).withQuantizedInterval(3.f);
+
+        res = res.withSupportsMultiplicativeModulation();
         return res;
     }
     ParamMetaData asLinearDecibel(float lower = -96, float upper = 12)
