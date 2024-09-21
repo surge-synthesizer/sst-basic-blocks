@@ -146,7 +146,8 @@ template <int maxBlockSize, bool first_run_checks = true> struct alignas(16) lip
      * that the port is correct so for now we add a block size quad argument to these
      * and assert that they are correct.
      */
-    void multiply_block_to(float *__restrict in, float *__restrict out, int bsQuad = -1) const
+    void multiply_block_to(const float *__restrict const in, float *__restrict out,
+                           int bsQuad = -1) const
     {
         assert(bsQuad == -1 || bsQuad == numRegisters);
         for (int i = 0; i < numRegisters; ++i)
@@ -174,8 +175,8 @@ template <int maxBlockSize, bool first_run_checks = true> struct alignas(16) lip
         multiply_block(in2, bsQuad);
     }
 
-    void multiply_2_blocks_to(float *__restrict inL, float *__restrict inR, float *__restrict outL,
-                              float *__restrict outR, int bsQuad = -1) const
+    void multiply_2_blocks_to(const float *__restrict const inL, const float *__restrict const inR,
+                              float *__restrict outL, float *__restrict outR, int bsQuad = -1) const
     {
         multiply_block_to(inL, outL, bsQuad);
         multiply_block_to(inR, outR, bsQuad);
