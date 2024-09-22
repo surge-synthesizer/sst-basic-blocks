@@ -791,6 +791,7 @@ struct ParamMetaData
             .withRange(lower, upper)
             .withDefault(0)
             .withIntegerQuantization()
+            .withSupportsMultiplicativeModulation()
             .withLinearScaleFormatting("dB");
     }
 
