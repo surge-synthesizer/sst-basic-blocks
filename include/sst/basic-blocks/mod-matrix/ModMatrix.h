@@ -148,6 +148,8 @@ struct ModMatrix : details::CheckModMatrixConstraints<ModMatrixTraits>
         }
     }
 
+    static constexpr bool hasProvidesTargetRanges{details::has_providesTargetRanges<TR>::value};
+
     static constexpr bool supportsCurves{details::has_getCurveOperator<TR>::value};
 };
 
@@ -238,6 +240,7 @@ template <typename ModMatrixTraits> struct FixedMatrix : ModMatrix<ModMatrixTrai
         bool *active{nullptr};
         float *source{nullptr}, *sourceVia{nullptr}, *depth{nullptr}, *target{nullptr};
         float depthScale{1.f};
+        float maxVal{std::numeric_limits<float>::max()}, minVal{std::numeric_limits<float>::min()};
         std::function<float(float)> curveFn;
 
         ApplicationMode applicationMode;
@@ -486,6 +489,10 @@ template <typename ModMatrixTraits> struct FixedMatrix : ModMatrix<ModMatrixTrai
                 *(r.target) *= mulfac;
             }
             break;
+            }
+            if constexpr (ModMatrix<ModMatrixTraits>::hasProvidesTargetRanges)
+            {
+                *(r.target) = std::clamp(*(r.target), r.minVal, r.maxVal);
             }
         }
     }
