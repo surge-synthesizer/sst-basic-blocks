@@ -195,7 +195,6 @@ struct AHDSRShapedSC : DiscreteStagesEnvelope<BLOCK_SIZE, RangeProvider>
         case base_t::s_attack:
         {
             phase += dPhase(a);
-            
             if (phase > 1)
             {
                 if (h > 0)
@@ -224,27 +223,34 @@ struct AHDSRShapedSC : DiscreteStagesEnvelope<BLOCK_SIZE, RangeProvider>
             else
             {
                 phase += dPhase(h);
+                target = 1;
+
                 if (phase > 1)
                 {
                     stage = base_t::s_decay;
                     phase -= 1.f;
                 }
             }
-            target = 1;
         }
         break;
         case base_t::s_decay:
         {
-            phase += dPhase(d);
-            
-            if (phase > 1)
+            if (d == 0)
             {
                 stage = base_t::s_sustain;
-                target = s;
             }
             else
             {
-                target = (1.0 - kernel(phase, dshape)) * (1.0 - s) + s;
+                phase += dPhase(d);
+                if (phase > 1)
+                {
+                    stage = base_t::s_sustain;
+                    target = s;
+                }
+                else
+                {
+                    target = (1.0 - kernel(phase, dshape)) * (1.0 - s) + s;
+                }
             }
         }
         break;
