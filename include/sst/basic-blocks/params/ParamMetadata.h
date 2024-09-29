@@ -765,8 +765,33 @@ struct ParamMetaData
     {
         return withType(FLOAT).withRange(-60, 70).withDefault(0).withSemitoneZeroAt400Formatting();
     }
+
+    /**
+     * A 0...1 value where the amplitude is the value cubed and the display is in
+     * decibels
+     */
     ParamMetaData asCubicDecibelAttenuation() { return asCubicDecibelUpTo(0.f); }
 
+    /**
+     * This creates a param with a max val different from 1, such that the value of
+     * 1 is still 0db and the max val is the dbs provided
+     * @param maxDB Decibels for the top of range
+     */
+    ParamMetaData asCubicDecibelAttenuationWithUpperDBBound(float maxDB)
+    {
+        auto res = asCubicDecibelAttenuation();
+        auto ampmax = pow(10, maxDB / 20);
+        auto mx = std::cbrt(ampmax);
+        res.maxVal = mx;
+        return res.withDefault(1.0);
+    }
+
+    /**
+     * This assumes you have a 0...1 underlyer and want it to represent a
+     * scaled range up to some decibels.
+     *
+     * @param maxDb the decibels represented by the '1' extram
+     */
     ParamMetaData asCubicDecibelUpTo(float maxDb)
     {
         auto res = withType(FLOAT).withRange(0.f, 1.f).withDefault(1.f);
