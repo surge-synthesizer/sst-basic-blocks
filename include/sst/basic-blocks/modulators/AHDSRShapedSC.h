@@ -104,6 +104,9 @@ struct AHDSRShapedSC : DiscreteStagesEnvelope<BLOCK_SIZE, RangeProvider>
 
         if constexpr (RangeProvider::phaseStrategy == ENVTIME_EXP)
         {
+            if (x == 0.0)
+                return 1.0;
+
             static thread_local tables::TwoToTheXProvider twoToX;
             if (!twoToX.isInit)
                 twoToX.init();
@@ -126,9 +129,19 @@ struct AHDSRShapedSC : DiscreteStagesEnvelope<BLOCK_SIZE, RangeProvider>
             static float lastX = -23;
             if (x != lastX)
             {
-                std::cout << "Checkint at " << x << " " << checkV << " " << res << std::endl;
+                std::cout << "Checkint at x=" << x << "\n  calc=" << checkV << " lut=" << res
+                          << "\n  time=" << timeInSeconds << "\n  sr=" << srProvider->sampleRate
+                          << " sri=" << srProvider->sampleRateInv
+                          << " 1/sri=" << 1.0 / srProvider->sampleRateInv << " bs=" << BLOCK_SIZE
+                          << "\n  dPhaseLUT=" << BLOCK_SIZE * srProvider->sampleRateInv * res
+                          << "\n  dPhaseCAL=" << BLOCK_SIZE * srProvider->sampleRateInv * checkV
+                          << "\n  1/dPhaseLUT="
+                          << 1 / (BLOCK_SIZE * srProvider->sampleRateInv * res)
+                          << "\n  1/dPhaseCAL="
+                          << 1 / (BLOCK_SIZE * srProvider->sampleRateInv * checkV) << std::endl;
                 lastX = x;
             }
+
 #endif
 
             auto dPhase = BLOCK_SIZE * srProvider->sampleRateInv * res;
@@ -182,9 +195,33 @@ struct AHDSRShapedSC : DiscreteStagesEnvelope<BLOCK_SIZE, RangeProvider>
 
         if (!gateActive && stage < base_t::s_release)
         {
-            stage = base_t::s_release;
-            releaseStartValue = this->outputCache[0];
+            if (r == 0)
+            {
+                stage = base_t::s_complete;
+            }
+            else
+            {
+                stage = base_t::s_release;
+                releaseStartValue = this->outputCache[0];
+                phase = 0;
+            }
+        }
+
+        // Accelerate traversal through the state machien for the 0 case
+        if (a == 0.f && stage == base_t::s_attack)
+        {
             phase = 0;
+            stage = base_t::s_hold;
+        }
+        if (h == 0.f && stage == base_t::s_hold)
+        {
+            phase = 0.f;
+            stage = base_t::s_decay;
+        }
+        if (d == 0.f && stage == base_t::s_decay)
+        {
+            phase = 0.f;
+            stage = base_t::s_sustain;
         }
 
         /*
