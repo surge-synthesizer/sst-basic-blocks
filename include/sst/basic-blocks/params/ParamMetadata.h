@@ -820,6 +820,16 @@ struct ParamMetaData
             .withLinearScaleFormatting("dB");
     }
 
+    ParamMetaData asPan()
+    {
+        return asPercentBipolar()
+            .withDefault(0)
+            .withDecimalPlaces(0)
+            .withCustomDefaultDisplay("C")
+            .withCustomMaxDisplay("R")
+            .withCustomMinDisplay("L");
+    }
+
     // For now, his is the temposync notation assuming a 2^x and temposync ratio based on 120bpm
     std::string temposyncNotation(float f) const;
     float snapToTemposync(float f) const;
