@@ -50,6 +50,7 @@
 #include <utility>
 #include <cmath>
 #include <cstring>
+#include "sst/basic-blocks/simd/setup.h"
 #include "sst/basic-blocks/mechanics/simd-ops.h"
 
 namespace sst::basic_blocks::dsp

@@ -29,6 +29,7 @@
 
 #include <functional>
 #include <cmath>
+#include "sst/basic-blocks/simd/setup.h"
 
 namespace sst::basic_blocks::dsp
 {

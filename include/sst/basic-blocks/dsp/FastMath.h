@@ -28,6 +28,7 @@
 #define INCLUDE_SST_BASIC_BLOCKS_DSP_FASTMATH_H
 
 #include <cmath>
+#include "sst/basic-blocks/simd/setup.h"
 
 /*
 ** Fast Math Approximations to various Functions

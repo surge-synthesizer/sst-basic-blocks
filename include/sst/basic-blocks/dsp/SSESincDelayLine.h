@@ -27,6 +27,7 @@
 #ifndef INCLUDE_SST_BASIC_BLOCKS_DSP_SSESINCDELAYLINE_H
 #define INCLUDE_SST_BASIC_BLOCKS_DSP_SSESINCDELAYLINE_H
 
+#include "sst/basic-blocks/simd/setup.h"
 #include "sst/basic-blocks/mechanics/simd-ops.h"
 #include "sst/basic-blocks/tables/SincTableProvider.h"
 

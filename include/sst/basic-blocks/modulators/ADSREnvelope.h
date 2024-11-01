@@ -30,6 +30,7 @@
 #include <cmath>
 #include <cassert>
 #include <algorithm>
+#include "sst/basic-blocks/simd/setup.h"
 #include "DiscreteStagesEnvelope.h"
 
 namespace sst::basic_blocks::modulators

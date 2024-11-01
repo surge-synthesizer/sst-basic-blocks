@@ -16,9 +16,24 @@ jobs:
           - os: ubuntu-latest
             name: linux
             testExe: build/sst-basic-blocks-test
+            cmakeArgs:
+
           - os: macos-latest
-            name: mac
+            name: mac-x86
             testExe: build/sst-basic-blocks-test
+            cmakeArgs: -DCMAKE_OSX_ARCHITECTURES=x86_64
+
+
+          - os: macos-latest
+            name: mac-arm
+            testExe: echo "unrunnable"
+            cmakeArgs: -DCMAKE_OSX_ARCHITECTURES=arm64
+
+          - os: macos-latest
+            name: mac-arm-nonative
+            testExe: echo "unrunnable"
+            cmakeArgs: -DCMAKE_OSX_ARCHITECTURES=x86_64 -D
+
           - os: windows-latest
             name: win
             testExe: build/Release/sst-basic-blocks-test.exe
@@ -32,7 +47,7 @@ jobs:
 
       - name: Build Smoke test
         run: |
-          cmake -S . -B ./build -DCMAKE_BUILD_TYPE=Release -DSST_BASIC_BLOCKS_BUILD_TESTS=TRUE -DCMAKE_OSX_ARCHITECTURES="arm64;x86_64"
+          cmake -S . -B ./build -DCMAKE_BUILD_TYPE=Release ${{ matrix.cmakeArgs }} -DSST_BASIC_BLOCKS_BUILD_TESTS=TRUE 
           cmake --build ./build --config Release
 
       - name: Run Smoke Test

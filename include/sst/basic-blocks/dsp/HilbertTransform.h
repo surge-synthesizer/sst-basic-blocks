@@ -59,6 +59,8 @@
 #include <utility>
 #include <complex>
 
+#include "sst/basic-blocks/simd/setup.h"
+
 namespace sst::basic_blocks::dsp
 {
 struct HilbertTransformMonoFloat

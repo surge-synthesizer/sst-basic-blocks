@@ -27,6 +27,8 @@
 #ifndef INCLUDE_SST_BASIC_BLOCKS_DSP_CLIPPERS_H
 #define INCLUDE_SST_BASIC_BLOCKS_DSP_CLIPPERS_H
 
+#include "sst/basic-blocks/simd/setup.h"
+
 namespace sst::basic_blocks::dsp
 {
 

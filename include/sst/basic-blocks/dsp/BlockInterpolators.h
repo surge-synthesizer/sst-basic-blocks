@@ -28,6 +28,7 @@
 #define INCLUDE_SST_BASIC_BLOCKS_DSP_BLOCKINTERPOLATORS_H
 
 #include <cassert>
+#include "sst/basic-blocks/simd/setup.h"
 
 namespace sst::basic_blocks::dsp
 {

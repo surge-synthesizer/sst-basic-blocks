@@ -23,8 +23,11 @@
  * All source in sst-basic-blocks available at
  * https://github.com/surge-synthesizer/sst-basic-blocks
  */
+
 #ifndef INCLUDE_SST_BASIC_BLOCKS_MECHANICS_SIMD_OPS_H
 #define INCLUDE_SST_BASIC_BLOCKS_MECHANICS_SIMD_OPS_H
+
+#include "sst/basic-blocks/simd/setup.h"
 
 namespace sst::basic_blocks::mechanics
 {
