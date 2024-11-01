@@ -13,6 +13,10 @@ if (${SST_BASIC_BLOCKS_SIMD_OMIT_NATIVE_ALIASES})
     target_compile_definitions(${PROJECT_NAME} INTERFACE SST_SIMD_OMIT_NATIVE_ALIASES=1)
 endif()
 
+if (MSVC)
+    target_compile_definitions(${PROJECT_NAME} INTERFACE NOMINMAX)
+endif()
+
 if (${SST_BASIC_BLOCKS_BUILD_TESTS})
     include(cmake/CPM.cmake)
 
