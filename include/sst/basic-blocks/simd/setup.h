@@ -98,10 +98,12 @@
 #if defined(SST_SIMD_NATIVE_X86) || defined(SIMDE_UNAVAILABLE)
 #define SIMD_MM(x) _mm_##x
 #define SIMD_M128 __m128
+#define SIMD_M128I __m128i
 #define SIMD_MM_SHUFFLE _MM_SHUFFLE
 #else
 #define SIMD_MM(x) simde_mm_##x
 #define SIMD_M128 simde__m128
+#define SIMD_M128I simde__m128i
 #define SIMD_MM_SHUFFLE SIMDE_MM_SHUFFLE
 #endif
 

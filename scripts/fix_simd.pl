@@ -32,7 +32,8 @@ sub findfiles
             s/__m128 (\S+) =/auto $1 =/g;
 
             # Replacement two. Any other __m128 goes to SIMD_M128
-            s/__m128 /SIMD_M128 /g;
+            s/__m128([, ])/SIMD_M128$1/g;
+            s/__m128i([, ])/SIMD_M128I$1/g;
 
             # Replacement three. Any _mm_foo_bar goes to SIMD_MM(foo_bar)
             s/_mm_([^\(]+)\(/SIMD_MM($1)(/g;
