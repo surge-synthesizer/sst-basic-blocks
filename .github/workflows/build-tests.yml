@@ -29,7 +29,7 @@ jobs:
 
           - os: macos-latest
             name: mac-arm-nonative
-            cmakeArgs: -DCMAKE_OSX_ARCHITECTURES=x86_64 -DSST_BASIC_BLOCKS_SIMD_OMIT_NATIVE_ALIASES=TRUE
+            cmakeArgs: -DCMAKE_OSX_ARCHITECTURES=arm64 -DSST_BASIC_BLOCKS_SIMD_OMIT_NATIVE_ALIASES=TRUE
 
           - os: windows-latest
             name: win-x86
