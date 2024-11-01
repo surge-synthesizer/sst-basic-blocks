@@ -77,6 +77,8 @@
 #ifndef SST_SIMD_NATIVE_X86
 #ifndef SST_SIMD_OMIT_NATIVE_ALIASES
 #define SIMDE_ENABLE_NATIVE_ALIASES
+#else
+#errir FOOBAZ
 #endif
 #endif
 
