@@ -74,7 +74,7 @@
 #include <cmath>
 #endif
 
-#ifdef SST_SIMD_ARM64
+#ifndef SST_SIMD_NATIVE_X86
 #ifndef SST_SIMD_OMIT_NATIVE_ALIASES
 #define SIMDE_ENABLE_NATIVE_ALIASES
 #endif
@@ -83,7 +83,7 @@
 #include "simde/x86/sse2.h"
 #endif
 
-#if SST_SIMD_NATIVE_X86 || SIMDE_UNAVAILABLE
+#if defined(SST_SIMD_NATIVE_X86) || defined(SIMDE_UNAVAILABLE)
 #define SIMD_MM(x) _mm_##x
 #define SIMD_M128 __m128
 #else
