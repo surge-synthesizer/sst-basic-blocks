@@ -10,6 +10,7 @@ jobs:
     name: Test ${{ matrix.name }}
     runs-on: ${{ matrix.os }}
     strategy:
+      fast-fail: false
       matrix:
         include:
           - os: ubuntu-latest
