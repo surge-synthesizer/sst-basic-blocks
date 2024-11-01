@@ -81,20 +81,20 @@ struct SSESincDelayLine
         int readPtr = (wp - iDelay - (stp::FIRipol_N >> 1)) & (COMB_SIZE - 1);
 
         // And so now do what we do in COMBSSE2Quad
-        __m128 a = _mm_loadu_ps(&buffer[readPtr]);
-        __m128 b = _mm_loadu_ps(&sinctable[sincTableOffset]);
-        __m128 o = _mm_mul_ps(a, b);
+        auto a = SIMD_MM(loadu_ps)(&buffer[readPtr]);
+        auto b = SIMD_MM(loadu_ps)(&sinctable[sincTableOffset]);
+        auto o = SIMD_MM(mul_ps)(a, b);
 
-        a = _mm_loadu_ps(&buffer[readPtr + 4]);
-        b = _mm_loadu_ps(&sinctable[sincTableOffset + 4]);
-        o = _mm_add_ps(o, _mm_mul_ps(a, b));
+        a = SIMD_MM(loadu_ps)(&buffer[readPtr + 4]);
+        b = SIMD_MM(loadu_ps)(&sinctable[sincTableOffset + 4]);
+        o = SIMD_MM(add_ps)(o, SIMD_MM(mul_ps)(a, b));
 
-        a = _mm_loadu_ps(&buffer[readPtr + 8]);
-        b = _mm_loadu_ps(&sinctable[sincTableOffset + 8]);
-        o = _mm_add_ps(o, _mm_mul_ps(a, b));
+        a = SIMD_MM(loadu_ps)(&buffer[readPtr + 8]);
+        b = SIMD_MM(loadu_ps)(&sinctable[sincTableOffset + 8]);
+        o = SIMD_MM(add_ps)(o, SIMD_MM(mul_ps)(a, b));
 
         float res;
-        _mm_store_ss(&res, sst::basic_blocks::mechanics::sum_ps_to_ss(o));
+        SIMD_MM(store_ss)(&res, sst::basic_blocks::mechanics::sum_ps_to_ss(o));
 
         return res;
     }

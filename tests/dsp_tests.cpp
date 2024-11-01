@@ -431,13 +431,13 @@ TEST_CASE("Check FastMath Functions", "[dsp]")
         for (float x = -4.9; x < 4.9; x += 0.02)
         {
             INFO("Testing unclamped at " << x);
-            auto q = _mm_set_ps1(x);
+            auto q = SIMD_MM(set_ps1)(x);
             auto r = sst::basic_blocks::dsp::fasttanhSSE(q);
             auto rn = tanh(x);
             auto rd = sst::basic_blocks::dsp::fasttanh(x);
             union
             {
-                __m128 v;
+                SIMD_M128 v;
                 float a[4];
             } U;
             U.v = r;
@@ -448,12 +448,12 @@ TEST_CASE("Check FastMath Functions", "[dsp]")
         for (float x = -10; x < 10; x += 0.02)
         {
             INFO("Testing clamped at " << x);
-            auto q = _mm_set_ps1(x);
+            auto q = SIMD_MM(set_ps1)(x);
             auto r = sst::basic_blocks::dsp::fasttanhSSEclamped(q);
             auto cn = tanh(x);
             union
             {
-                __m128 v;
+                SIMD_M128 v;
                 float a[4];
             } U;
             U.v = r;
@@ -478,13 +478,13 @@ TEST_CASE("Check FastMath Functions", "[dsp]")
         for (float x = -3.9; x < 2.9; x += 0.02)
         {
             INFO("Testing fastexp at " << x);
-            auto q = _mm_set_ps1(x);
+            auto q = SIMD_MM(set_ps1)(x);
             auto r = sst::basic_blocks::dsp::fastexpSSE(q);
             auto rn = exp(x);
             auto rd = sst::basic_blocks::dsp::fastexp(x);
             union
             {
-                __m128 v;
+                SIMD_M128 v;
                 float a[4];
             } U;
             U.v = r;
@@ -507,13 +507,13 @@ TEST_CASE("Check FastMath Functions", "[dsp]")
         for (float x = -3.14; x < 3.14; x += 0.02)
         {
             INFO("Testing unclamped at " << x);
-            auto q = _mm_set_ps1(x);
+            auto q = SIMD_MM(set_ps1)(x);
             auto r = sst::basic_blocks::dsp::fastsinSSE(q);
             auto rn = sin(x);
             auto rd = sst::basic_blocks::dsp::fastsin(x);
             union
             {
-                __m128 v;
+                SIMD_M128 v;
                 float a[4];
             } U;
             U.v = r;
@@ -528,13 +528,13 @@ TEST_CASE("Check FastMath Functions", "[dsp]")
         for (float x = -3.14; x < 3.14; x += 0.02)
         {
             INFO("Testing unclamped at " << x);
-            auto q = _mm_set_ps1(x);
+            auto q = SIMD_MM(set_ps1)(x);
             auto r = sst::basic_blocks::dsp::fastcosSSE(q);
             auto rn = cos(x);
             auto rd = sst::basic_blocks::dsp::fastcos(x);
             union
             {
-                __m128 v;
+                SIMD_M128 v;
                 float a[4];
             } U;
             U.v = r;
@@ -548,12 +548,12 @@ TEST_CASE("Check FastMath Functions", "[dsp]")
     {
         for (float f = -800.7; f < 816.4; f += 0.245)
         {
-            auto fs = _mm_set_ps1(f);
+            auto fs = SIMD_MM(set_ps1)(f);
 
             auto q = sst::basic_blocks::dsp::clampToPiRangeSSE(fs);
             union
             {
-                __m128 v;
+                SIMD_M128 v;
                 float a[4];
             } U;
             U.v = q;
@@ -573,9 +573,9 @@ TEST_CASE("SoftClip", "[dsp]")
     r[2] = 0.6;
     r[3] = 1.7;
 
-    auto v = _mm_load_ps(r);
+    auto v = SIMD_MM(load_ps)(r);
     auto c = sst::basic_blocks::dsp::softclip_ps(v);
-    _mm_store_ps(r, c);
+    SIMD_MM(store_ps)(r, c);
     REQUIRE(r[0] == Approx(-1.0).margin(0.0001));
     REQUIRE(r[1] == Approx(-0.8 - 4.f / 27.f * pow(-0.8, 3)).margin(0.0001));
     REQUIRE(r[2] == Approx(0.6 - 4.f / 27.f * pow(0.6, 3)).margin(0.0001));

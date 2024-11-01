@@ -38,7 +38,19 @@
  * This header is controlled by a few important macros
  * SST_SIMD_OMIT_NATIVE_ALIASES - on ARM etc platforms do not eject native aliases
  *
- * This header also defines a few important macros
+ * This header also defines a few important macros you can use
+ *
+ * Programming macros:
+ * SIMD_M128  -> can be used as an alias for SIMD_M128 in all code in all settings
+ * SIMD_MM(x) -> creates the appropriate function. Replace SIMD_MM(set1_ps)(2.f) with
+ * SIMD_MM(set1_ps)(2.f)
+ *
+ * from pre-existing _mm code youc an use scripts/fix_simd.pl on a directory
+ *
+ * Conditions:
+ * SST_SIMD_NATIVE_X86  - you are on an x86 / sse2 hardware platform
+ * SST_SIMD_ARM64EC - you are in microsoft arm64 emulation compatible mode
+ * SST_SIMD_ARM64 - you are on an arm64 platform without emulation
  */
 
 #if (defined(__SSE2__) || defined(_M_AMD64) || defined(_M_X64) ||                                  \
@@ -86,9 +98,11 @@
 #if defined(SST_SIMD_NATIVE_X86) || defined(SIMDE_UNAVAILABLE)
 #define SIMD_MM(x) _mm_##x
 #define SIMD_M128 __m128
+#define SIMD_MM_SHUFFLE _MM_SHUFFLE
 #else
 #define SIMD_MM(x) simde_mm_##x
 #define SIMD_M128 simde__m128
+#define SIMD_MM_SHUFFLE SIMDE_MM_SHUFFLE
 #endif
 
 #endif // SETUP_H

@@ -49,8 +49,8 @@ inline float correlated_noise_o2mk2_supplied_value(float &lastval, float &lastva
         wf = -wfabs;
     float m = 1.f - wfabs;
     // float m = 1.f/sqrt(1.f-wfabs);
-    auto m1 = _mm_rsqrt_ss(_mm_load_ss(&m));
-    _mm_store_ss(&m, m1);
+    auto m1 = SIMD_MM(rsqrt_ss)(SIMD_MM(load_ss)(&m));
+    SIMD_MM(store_ss)(&m, m1);
     // if (wf>0.f) m *= 1 + wf*8;
 
     float rand11 = bipolarUniformRandValue;
