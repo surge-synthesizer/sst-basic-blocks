@@ -6,7 +6,16 @@ set(CMAKE_CXX_STANDARD 17)
 
 add_library(${PROJECT_NAME} INTERFACE)
 target_include_directories(${PROJECT_NAME} INTERFACE include)
-target_compile_definitions(${PROJECT_NAME} INTERFACE _USE_MATH_DEFINES=1)
+
+if (${SST_BASIC_BLOCKS_SIMD_OMIT_NATIVE_ALIASES})
+    message(STATUS "CMake Omitting Native Aliases")
+    target_compile_definitions(${PROJECT_NAME} INTERFACE SST_SIMD_OMIT_NATIVE_ALIASES=1)
+endif()
+
+if (WIN32)
+    target_compile_definitions(${PROJECT_NAME} INTERFACE _USE_MATH_DEFINES=1)
+    target_compile_definitions(${PROJECT_NAME} INTERFACE NOMINMAX)
+endif()
 
 if (${SST_BASIC_BLOCKS_BUILD_TESTS})
     include(cmake/CPM.cmake)
@@ -52,4 +61,10 @@ if (${SST_BASIC_BLOCKS_BUILD_TESTS})
         message(STATUS "Keeping Catch exception handling on for more modern macOS")
     endif()
 
+else()
+    if (NOT TARGET simde)
+        message(WARNING "SST Basic Blocks requires access to the 'simde' target from "
+                "https://github.com/simde-everywhere/simde. This build will only work on x86_64 architecture.")
+        target_compile_definitions(${PROJECT_NAME} SIMDE_UNAVAILABLE=1)
+    endif()
 endif ()

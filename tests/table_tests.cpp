@@ -25,7 +25,7 @@
  */
 
 #include "catch2.hpp"
-#include "smoke_test_sse.h"
+#include "sst/basic-blocks/simd/setup.h"
 
 #include "sst/basic-blocks/tables/DbToLinearProvider.h"
 #include "sst/basic-blocks/tables/EqualTuningProvider.h"

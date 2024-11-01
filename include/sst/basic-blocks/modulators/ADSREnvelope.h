@@ -30,6 +30,7 @@
 #include <cmath>
 #include <cassert>
 #include <algorithm>
+#include "sst/basic-blocks/simd/setup.h"
 #include "DiscreteStagesEnvelope.h"
 
 namespace sst::basic_blocks::modulators
@@ -209,8 +210,8 @@ struct ADSREnvelope : DiscreteStagesEnvelope<BLOCK_SIZE, RangeProvider>
         const float v_cc = 1.01f;
         float v_gate = gateActive ? v_cc : 0.f;
 
-        // discharge = _mm_and_ps(_mm_or_ps(_mm_cmpgt_ss(v_c1_delayed, one), discharge),
-        // v_gate);
+        // discharge = SIMD_MM(and_ps)(SIMD_MM(or_ps)(SIMD_MM(cmpgt_ss)(v_c1_delayed, one),
+        // discharge), v_gate);
         discharge = ((v_c1_delayed >= 1) || discharge) && gateActive;
         v_c1_delayed = v_c1;
 

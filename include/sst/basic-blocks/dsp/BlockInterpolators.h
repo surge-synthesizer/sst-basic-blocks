@@ -28,6 +28,7 @@
 #define INCLUDE_SST_BASIC_BLOCKS_DSP_BLOCKINTERPOLATORS_H
 
 #include <cassert>
+#include "sst/basic-blocks/simd/setup.h"
 
 namespace sst::basic_blocks::dsp
 {
@@ -79,9 +80,9 @@ template <int maxBlockSize, bool first_run_checks = true> struct alignas(16) lip
 {
   private:
     // put these at the top to preserve alignment
-    __m128 line[maxBlockSize >> 2];
-    __m128 zeroUpByQuarters;
-    __m128 one, zero;
+    SIMD_M128 line[maxBlockSize >> 2];
+    SIMD_M128 zeroUpByQuarters;
+    SIMD_M128 one, zero;
 
   public:
     static constexpr int maxRegisters{maxBlockSize >> 2};
@@ -99,9 +100,9 @@ template <int maxBlockSize, bool first_run_checks = true> struct alignas(16) lip
     lipol_sse()
     {
         float zbq alignas(16)[4]{0.25f, 0.5f, 0.75f, 1.00f};
-        zeroUpByQuarters = _mm_load_ps(zbq);
-        one = _mm_set1_ps(1.f);
-        zero = _mm_setzero_ps();
+        zeroUpByQuarters = SIMD_MM(load_ps)(zbq);
+        one = SIMD_MM(set1_ps)(1.f);
+        zero = SIMD_MM(setzero_ps)();
     }
     void set_target(float f)
     {
@@ -152,9 +153,9 @@ template <int maxBlockSize, bool first_run_checks = true> struct alignas(16) lip
         assert(bsQuad == -1 || bsQuad == numRegisters);
         for (int i = 0; i < numRegisters; ++i)
         {
-            auto iv = _mm_load_ps(in + (i << 2));
-            auto ov = _mm_mul_ps(iv, line[i]);
-            _mm_store_ps(out + (i << 2), ov);
+            auto iv = SIMD_MM(load_ps)(in + (i << 2));
+            auto ov = SIMD_MM(mul_ps)(iv, line[i]);
+            SIMD_MM(store_ps)(out + (i << 2), ov);
         }
     }
 
@@ -163,9 +164,9 @@ template <int maxBlockSize, bool first_run_checks = true> struct alignas(16) lip
         assert(bsQuad == -1 || bsQuad == numRegisters);
         for (int i = 0; i < numRegisters; ++i)
         {
-            auto iv = _mm_load_ps(in + (i << 2));
-            auto ov = _mm_mul_ps(iv, line[i]);
-            _mm_store_ps(in + (i << 2), ov);
+            auto iv = SIMD_MM(load_ps)(in + (i << 2));
+            auto ov = SIMD_MM(mul_ps)(iv, line[i]);
+            SIMD_MM(store_ps)(in + (i << 2), ov);
         }
     }
 
@@ -190,11 +191,11 @@ template <int maxBlockSize, bool first_run_checks = true> struct alignas(16) lip
         assert(bsQuad == -1 || bsQuad == numRegisters);
         for (int i = 0; i < numRegisters; ++i)
         {
-            auto iv = _mm_load_ps(src + (i << 2));
-            auto dv = _mm_load_ps(dst + (i << 2));
-            auto ov = _mm_mul_ps(iv, line[i]);
-            auto mv = _mm_add_ps(ov, dv);
-            _mm_store_ps(dst + (i << 2), mv);
+            auto iv = SIMD_MM(load_ps)(src + (i << 2));
+            auto dv = SIMD_MM(load_ps)(dst + (i << 2));
+            auto ov = SIMD_MM(mul_ps)(iv, line[i]);
+            auto mv = SIMD_MM(add_ps)(ov, dv);
+            SIMD_MM(store_ps)(dst + (i << 2), mv);
         }
     }
     void MAC_2_blocks_to(float *__restrict src1, float *__restrict src2, float *__restrict dst1,
@@ -211,12 +212,12 @@ template <int maxBlockSize, bool first_run_checks = true> struct alignas(16) lip
     {
         for (int i = 0; i < numRegisters; ++i)
         {
-            auto a = _mm_load_ps(inA + (i << 2));
-            auto b = _mm_load_ps(inB + (i << 2));
-            auto sa = _mm_mul_ps(a, _mm_sub_ps(one, line[i]));
-            auto sb = _mm_mul_ps(b, line[i]);
-            auto r = _mm_add_ps(sa, sb);
-            _mm_store_ps(out + (i << 2), r);
+            auto a = SIMD_MM(load_ps)(inA + (i << 2));
+            auto b = SIMD_MM(load_ps)(inB + (i << 2));
+            auto sa = SIMD_MM(mul_ps)(a, SIMD_MM(sub_ps)(one, line[i]));
+            auto sb = SIMD_MM(mul_ps)(b, line[i]);
+            auto r = SIMD_MM(add_ps)(sa, sb);
+            SIMD_MM(store_ps)(out + (i << 2), r);
         }
     }
 
@@ -238,12 +239,12 @@ template <int maxBlockSize, bool first_run_checks = true> struct alignas(16) lip
     {
         for (int i = 0; i < numRegisters; ++i)
         {
-            auto a = _mm_load_ps(inAOut + (i << 2));
-            auto b = _mm_load_ps(inB + (i << 2));
-            auto sa = _mm_mul_ps(a, _mm_sub_ps(one, line[i]));
-            auto sb = _mm_mul_ps(b, line[i]);
-            auto r = _mm_add_ps(sa, sb);
-            _mm_store_ps(inAOut + (i << 2), r);
+            auto a = SIMD_MM(load_ps)(inAOut + (i << 2));
+            auto b = SIMD_MM(load_ps)(inB + (i << 2));
+            auto sa = SIMD_MM(mul_ps)(a, SIMD_MM(sub_ps)(one, line[i]));
+            auto sb = SIMD_MM(mul_ps)(b, line[i]);
+            auto r = SIMD_MM(add_ps)(sa, sb);
+            SIMD_MM(store_ps)(inAOut + (i << 2), r);
         }
     }
 
@@ -261,7 +262,7 @@ template <int maxBlockSize, bool first_run_checks = true> struct alignas(16) lip
         assert(bsQuad == -1 || bsQuad == numRegisters);
         for (int i = 0; i < numRegisters; ++i)
         {
-            _mm_store_ps(out + (i << 2), line[i]);
+            SIMD_MM(store_ps)(out + (i << 2), line[i]);
         }
     }
 
@@ -279,14 +280,16 @@ template <int maxBlockSize, bool first_run_checks = true> struct alignas(16) lip
 
         for (int i = 0; i < numRegisters; ++i)
         {
-            auto a = _mm_max_ps(zero, line[i]);
-            auto b = _mm_min_ps(zero, line[i]);
-            auto l = _mm_load_ps(L + (i << 2));
-            auto r = _mm_load_ps(R + (i << 2));
-            auto tl = _mm_sub_ps(_mm_mul_ps(_mm_sub_ps(one, a), l), _mm_mul_ps(b, r));
-            auto tr = _mm_add_ps(_mm_mul_ps(a, l), _mm_mul_ps(_mm_add_ps(one, b), r));
-            _mm_store_ps(dL + (i << 2), tl);
-            _mm_store_ps(dR + (i << 2), tr);
+            auto a = SIMD_MM(max_ps)(zero, line[i]);
+            auto b = SIMD_MM(min_ps)(zero, line[i]);
+            auto l = SIMD_MM(load_ps)(L + (i << 2));
+            auto r = SIMD_MM(load_ps)(R + (i << 2));
+            auto tl =
+                SIMD_MM(sub_ps)(SIMD_MM(mul_ps)(SIMD_MM(sub_ps)(one, a), l), SIMD_MM(mul_ps)(b, r));
+            auto tr =
+                SIMD_MM(add_ps)(SIMD_MM(mul_ps)(a, l), SIMD_MM(mul_ps)(SIMD_MM(add_ps)(one, b), r));
+            SIMD_MM(store_ps)(dL + (i << 2), tl);
+            SIMD_MM(store_ps)(dR + (i << 2), tr);
         }
     }
 
@@ -304,13 +307,13 @@ template <int maxBlockSize, bool first_run_checks = true> struct alignas(16) lip
   private:
     void updateLine()
     {
-        auto cs = _mm_set1_ps(current);
-        auto dy0 = _mm_set1_ps((target - current) * registerSizeInv);
-        auto dy = _mm_mul_ps(dy0, zeroUpByQuarters);
+        auto cs = SIMD_MM(set1_ps)(current);
+        auto dy0 = SIMD_MM(set1_ps)((target - current) * registerSizeInv);
+        auto dy = SIMD_MM(mul_ps)(dy0, zeroUpByQuarters);
         for (int i = 0; i < numRegisters; ++i)
         {
-            line[i] = _mm_add_ps(cs, dy);
-            dy = _mm_add_ps(dy, dy0);
+            line[i] = SIMD_MM(add_ps)(cs, dy);
+            dy = SIMD_MM(add_ps)(dy, dy0);
         }
         current = target;
     }

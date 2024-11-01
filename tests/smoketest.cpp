@@ -30,8 +30,7 @@
 #include "catch2.hpp"
 
 #include <iostream>
-#include "smoke_test_sse.h"
-
+#include "sst/basic-blocks/simd/setup.h"
 #include "sst/basic-blocks/dsp/CorrelatedNoise.h"
 #include "sst/basic-blocks/dsp/Interpolators.h"
 #include "sst/basic-blocks/dsp/BlockInterpolators.h"

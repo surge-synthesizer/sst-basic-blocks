@@ -50,6 +50,7 @@
 #include <utility>
 #include <cmath>
 #include <cstring>
+#include "sst/basic-blocks/simd/setup.h"
 #include "sst/basic-blocks/mechanics/simd-ops.h"
 
 namespace sst::basic_blocks::dsp
@@ -168,24 +169,24 @@ template <int blockSize> struct LanczosResampler
         int tidx = (int)(off0byto);
         double fidx = (off0byto - tidx);
 
-        auto fl = _mm_set1_ps((float)fidx);
-        auto f0 = _mm_load_ps(&lanczosTable[tidx][0]);
-        auto df0 = _mm_load_ps(&lanczosTableDX[tidx][0]);
+        auto fl = SIMD_MM(set1_ps)((float)fidx);
+        auto f0 = SIMD_MM(load_ps)(&lanczosTable[tidx][0]);
+        auto df0 = SIMD_MM(load_ps)(&lanczosTableDX[tidx][0]);
 
-        f0 = _mm_add_ps(f0, _mm_mul_ps(df0, fl));
+        f0 = SIMD_MM(add_ps)(f0, SIMD_MM(mul_ps)(df0, fl));
 
-        auto f1 = _mm_load_ps(&lanczosTable[tidx][4]);
-        auto df1 = _mm_load_ps(&lanczosTableDX[tidx][4]);
-        f1 = _mm_add_ps(f1, _mm_mul_ps(df1, fl));
+        auto f1 = SIMD_MM(load_ps)(&lanczosTable[tidx][4]);
+        auto df1 = SIMD_MM(load_ps)(&lanczosTableDX[tidx][4]);
+        f1 = SIMD_MM(add_ps)(f1, SIMD_MM(mul_ps)(df1, fl));
 
-        auto d0 = _mm_loadu_ps(&input[0][idx0 - A]);
-        auto d1 = _mm_loadu_ps(&input[0][idx0]);
-        auto rv = _mm_add_ps(_mm_mul_ps(f0, d0), _mm_mul_ps(f1, d1));
+        auto d0 = SIMD_MM(loadu_ps)(&input[0][idx0 - A]);
+        auto d1 = SIMD_MM(loadu_ps)(&input[0][idx0]);
+        auto rv = SIMD_MM(add_ps)(SIMD_MM(mul_ps)(f0, d0), SIMD_MM(mul_ps)(f1, d1));
         L = mechanics::sum_ps_to_float(rv);
 
-        d0 = _mm_loadu_ps(&input[1][idx0 - A]);
-        d1 = _mm_loadu_ps(&input[1][idx0]);
-        rv = _mm_add_ps(_mm_mul_ps(f0, d0), _mm_mul_ps(f1, d1));
+        d0 = SIMD_MM(loadu_ps)(&input[1][idx0 - A]);
+        d1 = SIMD_MM(loadu_ps)(&input[1][idx0]);
+        rv = SIMD_MM(add_ps)(SIMD_MM(mul_ps)(f0, d0), SIMD_MM(mul_ps)(f1, d1));
         R = mechanics::sum_ps_to_float(rv);
     }
 

@@ -23,24 +23,27 @@
  * All source in sst-basic-blocks available at
  * https://github.com/surge-synthesizer/sst-basic-blocks
  */
+
 #ifndef INCLUDE_SST_BASIC_BLOCKS_MECHANICS_SIMD_OPS_H
 #define INCLUDE_SST_BASIC_BLOCKS_MECHANICS_SIMD_OPS_H
 
+#include "sst/basic-blocks/simd/setup.h"
+
 namespace sst::basic_blocks::mechanics
 {
-inline __m128 sum_ps_to_ss(__m128 x)
+inline SIMD_M128 sum_ps_to_ss(SIMD_M128 x)
 {
     // FIXME: With SSE 3 this can be a dual hadd
-    __m128 a = _mm_add_ps(x, _mm_movehl_ps(x, x));
-    return _mm_add_ss(a, _mm_shuffle_ps(a, a, _MM_SHUFFLE(0, 0, 0, 1)));
+    auto a = SIMD_MM(add_ps)(x, SIMD_MM(movehl_ps)(x, x));
+    return SIMD_MM(add_ss)(a, SIMD_MM(shuffle_ps)(a, a, SIMD_MM_SHUFFLE(0, 0, 0, 1)));
 }
 
-inline float sum_ps_to_float(__m128 x)
+inline float sum_ps_to_float(SIMD_M128 x)
 {
     // MSVC can ambiguously resolve this while it still lives in surge vt_dsp alas
-    __m128 r = sst::basic_blocks::mechanics::sum_ps_to_ss(x);
+    auto r = sst::basic_blocks::mechanics::sum_ps_to_ss(x);
     float f;
-    _mm_store_ss(&f, r);
+    SIMD_MM(store_ss)(&f, r);
     return f;
 }
 
@@ -53,14 +56,14 @@ inline float i2f_binary_cast(int i)
 }
 } // namespace detail
 
-const __m128 m128_mask_signbit = _mm_set1_ps(detail::i2f_binary_cast(0x80000000));
-const __m128 m128_mask_absval = _mm_set1_ps(detail::i2f_binary_cast(0x7fffffff));
+const auto m128_mask_signbit = SIMD_MM(set1_ps)(detail::i2f_binary_cast(0x80000000));
+const auto m128_mask_absval = SIMD_MM(set1_ps)(detail::i2f_binary_cast(0x7fffffff));
 
-inline __m128 abs_ps(__m128 x) { return _mm_and_ps(x, m128_mask_absval); }
+inline SIMD_M128 abs_ps(SIMD_M128 x) { return SIMD_MM(and_ps)(x, m128_mask_absval); }
 
 inline float rcp(float x)
 {
-    _mm_store_ss(&x, _mm_rcp_ss(_mm_load_ss(&x)));
+    SIMD_MM(store_ss)(&x, SIMD_MM(rcp_ss)(SIMD_MM(load_ss)(&x)));
     return x;
 }
 

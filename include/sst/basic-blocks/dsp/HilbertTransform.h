@@ -59,6 +59,8 @@
 #include <utility>
 #include <complex>
 
+#include "sst/basic-blocks/simd/setup.h"
+
 namespace sst::basic_blocks::dsp
 {
 struct HilbertTransformMonoFloat
@@ -171,18 +173,18 @@ struct HilbertTransformStereoSSE
      */
     struct BQ
     {
-        __m128 a1{1}, a2{0}, b0{1}, b1{0}, b2{0}, reg0{0}, reg1{0};
+        SIMD_M128 a1{1}, a2{0}, b0{1}, b1{0}, b2{0}, reg0{0}, reg1{0};
         inline void reset()
         {
-            reg0 = _mm_setzero_ps();
-            reg1 = _mm_setzero_ps();
+            reg0 = SIMD_MM(setzero_ps)();
+            reg1 = SIMD_MM(setzero_ps)();
         }
-        inline void setOne(int idx, __m128 &on, float f)
+        inline void setOne(int idx, SIMD_M128 &on, float f)
         {
             float r alignas(16)[4];
-            _mm_store_ps(r, on);
+            SIMD_MM(store_ps)(r, on);
             r[idx] = f;
-            on = _mm_load_ps(r);
+            on = SIMD_MM(load_ps)(r);
         }
         inline void setCoefs(int idx, float _a1, float _a2, float _b0, float _b1, float _b2)
         {
@@ -193,11 +195,12 @@ struct HilbertTransformStereoSSE
             setOne(idx, b2, _b2);
         }
 
-        inline __m128 step(__m128 input)
+        inline SIMD_M128 step(SIMD_M128 input)
         {
-            auto op = _mm_add_ps(_mm_mul_ps(input, b0), reg0);
-            reg0 = _mm_add_ps(_mm_sub_ps(_mm_mul_ps(input, b1), _mm_mul_ps(a1, op)), reg1);
-            reg1 = _mm_sub_ps(_mm_mul_ps(input, b2), _mm_mul_ps(a2, op));
+            auto op = SIMD_MM(add_ps)(SIMD_MM(mul_ps)(input, b0), reg0);
+            reg0 = SIMD_MM(add_ps)(
+                SIMD_MM(sub_ps)(SIMD_MM(mul_ps)(input, b1), SIMD_MM(mul_ps)(a1, op)), reg1);
+            reg1 = SIMD_MM(sub_ps)(SIMD_MM(mul_ps)(input, b2), SIMD_MM(mul_ps)(a2, op));
 
             return op;
         }
@@ -260,10 +263,10 @@ struct HilbertTransformStereoSSE
     }
 
     // Returns reL, imL, reR, imR
-    __m128 stepStereo(float L, float R)
+    SIMD_M128 stepStereo(float L, float R)
     {
         float r alignas(16)[4]{L, L, R, R};
-        auto in = _mm_load_ps(r);
+        auto in = SIMD_MM(load_ps)(r);
         for (int i = 0; i < 3; ++i)
         {
             in = allpassSSE[i].step(in);
@@ -275,7 +278,7 @@ struct HilbertTransformStereoSSE
     {
         auto v = stepStereo(L, R);
         float r alignas(16)[4];
-        _mm_store_ps(r, v);
+        SIMD_MM(store_ps)(r, v);
         return {{r[0], r[1]}, {r[2], r[3]}};
     }
 
@@ -283,7 +286,7 @@ struct HilbertTransformStereoSSE
     {
         auto v = stepStereo(L, R);
         float r alignas(16)[4];
-        _mm_store_ps(r, v);
+        SIMD_MM(store_ps)(r, v);
         return {{r[0], r[1]}, {r[2], r[3]}};
     }
 };

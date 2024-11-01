@@ -28,6 +28,7 @@
 #define INCLUDE_SST_BASIC_BLOCKS_DSP_FASTMATH_H
 
 #include <cmath>
+#include "sst/basic-blocks/simd/setup.h"
 
 /*
 ** Fast Math Approximations to various Functions
@@ -58,13 +59,13 @@ inline float fastsin(float x) noexcept
     return numerator / denominator;
 }
 
-inline __m128 fastsinSSE(__m128 x) noexcept
+inline SIMD_M128 fastsinSSE(SIMD_M128 x) noexcept
 {
-#define M(a, b) _mm_mul_ps(a, b)
-#define A(a, b) _mm_add_ps(a, b)
-#define S(a, b) _mm_sub_ps(a, b)
-#define F(a) _mm_set_ps1(a)
-#define C(x) __m128 m##x = F((float)x)
+#define M(a, b) SIMD_MM(mul_ps)(a, b)
+#define A(a, b) SIMD_MM(add_ps)(a, b)
+#define S(a, b) SIMD_MM(sub_ps)(a, b)
+#define F(a) SIMD_MM(set_ps1)(a)
+#define C(x) auto m##x = F((float)x)
 
     /*
     auto numerator = -x * (-(float)11511339840 +
@@ -92,7 +93,7 @@ inline __m128 fastsinSSE(__m128 x) noexcept
 #undef A
 #undef S
 #undef F
-    return _mm_div_ps(num, den);
+    return SIMD_MM(div_ps)(num, den);
 }
 
 // JUCE6 Pade approximation of cos valid from -PI to PI with max error of 1e-5 and average error of
@@ -105,13 +106,13 @@ inline float fastcos(float x) noexcept
     return numerator / denominator;
 }
 
-inline __m128 fastcosSSE(__m128 x) noexcept
+inline SIMD_M128 fastcosSSE(SIMD_M128 x) noexcept
 {
-#define M(a, b) _mm_mul_ps(a, b)
-#define A(a, b) _mm_add_ps(a, b)
-#define S(a, b) _mm_sub_ps(a, b)
-#define F(a) _mm_set_ps1(a)
-#define C(x) __m128 m##x = F((float)x)
+#define M(a, b) SIMD_MM(mul_ps)(a, b)
+#define A(a, b) SIMD_MM(add_ps)(a, b)
+#define S(a, b) SIMD_MM(sub_ps)(a, b)
+#define F(a) SIMD_MM(set_ps1)(a)
+#define C(x) auto m##x = F((float)x)
 
     // auto x2 = x * x;
     auto x2 = M(x, x);
@@ -134,7 +135,7 @@ inline __m128 fastcosSSE(__m128 x) noexcept
 #undef A
 #undef S
 #undef F
-    return _mm_div_ps(num, den);
+    return SIMD_MM(div_ps)(num, den);
 }
 
 /*
@@ -156,20 +157,20 @@ inline float clampToPiRange(float x)
     return p - M_PI;
 }
 
-inline __m128 clampToPiRangeSSE(__m128 x)
+inline SIMD_M128 clampToPiRangeSSE(SIMD_M128 x)
 {
-    const auto mpi = _mm_set1_ps(M_PI);
-    const auto m2pi = _mm_set1_ps(2.0 * M_PI);
-    const auto oo2p = _mm_set1_ps(1.0 / (2.0 * M_PI));
-    const auto mz = _mm_setzero_ps();
+    const auto mpi = SIMD_MM(set1_ps)(M_PI);
+    const auto m2pi = SIMD_MM(set1_ps)(2.0 * M_PI);
+    const auto oo2p = SIMD_MM(set1_ps)(1.0 / (2.0 * M_PI));
+    const auto mz = SIMD_MM(setzero_ps)();
 
-    auto y = _mm_add_ps(x, mpi);
-    auto yip = _mm_cvtepi32_ps(_mm_cvttps_epi32(_mm_mul_ps(y, oo2p)));
-    auto p = _mm_sub_ps(y, _mm_mul_ps(m2pi, yip));
-    auto off = _mm_and_ps(_mm_cmplt_ps(p, mz), m2pi);
-    p = _mm_add_ps(p, off);
+    auto y = SIMD_MM(add_ps)(x, mpi);
+    auto yip = SIMD_MM(cvtepi32_ps)(SIMD_MM(cvttps_epi32)(SIMD_MM(mul_ps)(y, oo2p)));
+    auto p = SIMD_MM(sub_ps)(y, SIMD_MM(mul_ps)(m2pi, yip));
+    auto off = SIMD_MM(and_ps)(SIMD_MM(cmplt_ps)(p, mz), m2pi);
+    p = SIMD_MM(add_ps)(p, off);
 
-    return _mm_sub_ps(p, mpi);
+    return SIMD_MM(sub_ps)(p, mpi);
 }
 
 /*
@@ -192,14 +193,14 @@ inline float fasttan(float x) noexcept
     return numerator / denominator;
 }
 
-inline __m128 fasttanhSSE(__m128 x)
+inline SIMD_M128 fasttanhSSE(SIMD_M128 x)
 {
-    const __m128 m135135 = _mm_set_ps1(135135), m17325 = _mm_set_ps1(17325),
-                 m378 = _mm_set_ps1(378), m62370 = _mm_set_ps1(62370), m3150 = _mm_set_ps1(3150),
-                 m28 = _mm_set_ps1(28);
+    const auto m135135 = SIMD_MM(set_ps1)(135135), m17325 = SIMD_MM(set_ps1)(17325),
+               m378 = SIMD_MM(set_ps1)(378), m62370 = SIMD_MM(set_ps1)(62370),
+               m3150 = SIMD_MM(set_ps1)(3150), m28 = SIMD_MM(set_ps1)(28);
 
-#define M(a, b) _mm_mul_ps(a, b)
-#define A(a, b) _mm_add_ps(a, b)
+#define M(a, b) SIMD_MM(mul_ps)(a, b)
+#define A(a, b) SIMD_MM(add_ps)(a, b)
 
     auto x2 = M(x, x);
     auto num = M(x, A(m135135, M(x2, A(m17325, M(x2, A(m378, x2))))));
@@ -208,12 +209,12 @@ inline __m128 fasttanhSSE(__m128 x)
 #undef M
 #undef A
 
-    return _mm_div_ps(num, den);
+    return SIMD_MM(div_ps)(num, den);
 }
 
-inline __m128 fasttanhSSEclamped(__m128 x)
+inline SIMD_M128 fasttanhSSEclamped(SIMD_M128 x)
 {
-    auto xc = _mm_min_ps(_mm_set_ps1(5), _mm_max_ps(_mm_set_ps1(-5), x));
+    auto xc = SIMD_MM(min_ps)(SIMD_MM(set_ps1)(5), SIMD_MM(max_ps)(SIMD_MM(set_ps1)(-5), x));
     return fasttanhSSE(xc);
 }
 
@@ -227,19 +228,19 @@ inline float fastexp(float x) noexcept
     return numerator / denominator;
 }
 
-inline __m128 fastexpSSE(__m128 x) noexcept
+inline SIMD_M128 fastexpSSE(SIMD_M128 x) noexcept
 {
-#define M(a, b) _mm_mul_ps(a, b)
-#define A(a, b) _mm_add_ps(a, b)
-#define F(a) _mm_set_ps1(a)
+#define M(a, b) SIMD_MM(mul_ps)(a, b)
+#define A(a, b) SIMD_MM(add_ps)(a, b)
+#define F(a) SIMD_MM(set_ps1)(a)
 
-    const __m128 m1680 = F(1680), m840 = F(840), mneg840 = F(-840), m180 = F(180), m20 = F(20),
-                 mneg20 = F(-20);
+    const auto m1680 = F(1680), m840 = F(840), mneg840 = F(-840), m180 = F(180), m20 = F(20),
+               mneg20 = F(-20);
 
     auto num = A(m1680, M(x, A(m840, M(x, A(m180, M(x, A(m20, x)))))));
     auto den = A(m1680, M(x, A(mneg840, M(x, A(m180, M(x, A(mneg20, x)))))));
 
-    return _mm_div_ps(num, den);
+    return SIMD_MM(div_ps)(num, den);
 
 #undef M
 #undef A
