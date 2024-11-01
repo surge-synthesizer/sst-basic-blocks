@@ -45,6 +45,10 @@ jobs:
             name: win-arm64ec
             cmakeArgs: -G"Visual Studio 17 2022" -A arm64ec -DCMAKE_SYSTEM_VERSION=10
 
+          - os: windows-latest
+            name: win-arm64ec-non-native
+            cmakeArgs: -G"Visual Studio 17 2022" -A arm64ec -DCMAKE_SYSTEM_VERSION=10 -DSST_BASIC_BLOCKS_SIMD_OMIT_NATIVE_ALIASES=TRUE
+
     steps:
 
       - name: Checkout code
