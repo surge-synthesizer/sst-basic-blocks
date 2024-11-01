@@ -92,7 +92,7 @@
 #endif
 #endif
 
-#include "simde/x86/sse2.h"
+#include "simde/x86/sse4.2.h"
 #endif
 
 #if defined(SST_SIMD_NATIVE_X86) || defined(SIMDE_UNAVAILABLE)
