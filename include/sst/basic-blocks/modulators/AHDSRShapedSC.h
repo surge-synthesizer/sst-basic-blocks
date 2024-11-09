@@ -202,7 +202,14 @@ struct AHDSRShapedSC : DiscreteStagesEnvelope<BLOCK_SIZE, RangeProvider>
             else
             {
                 stage = base_t::s_release;
-                releaseStartValue = this->outputCache[0];
+                if (needsCurve)
+                {
+                    releaseStartValue = this->outputCache[0];
+                }
+                else
+                {
+                    releaseStartValue = this->outBlock0;
+                }
                 phase = 0;
             }
         }
