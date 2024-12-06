@@ -255,7 +255,7 @@ template <int bs> void LanczosResampler<bs>::populateNextBlockSize(float *fL, fl
     {
         read(r0 - i * dPhaseO, fL[i], fR[i]);
     }
-    phaseO += (bs << 1) * dPhaseO;
+    phaseO += bs * dPhaseO;
 }
 
 template <int bs> void LanczosResampler<bs>::populateNextBlockSizeOS(float *fL, float *fR)
