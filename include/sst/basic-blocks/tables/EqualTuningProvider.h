@@ -29,6 +29,9 @@
 
 #include <cstddef>
 #include <cstdint>
+#include <cmath>
+#include <math.h>
+#include <algorithm>
 
 namespace sst::basic_blocks::tables
 {
