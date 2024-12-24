@@ -78,6 +78,20 @@ struct AHDSRShapedSC : DiscreteStagesEnvelope<BLOCK_SIZE, RangeProvider>
         lutsInitialized = true;
     }
 
+    inline void attackFromWithDelay(float from, float delay, float attack)
+    {
+        if (delay == 0.f)
+        {
+            attackFrom(from, attack == 0.f);
+        }
+        else
+        {
+            phase = 0;
+            this->outBlock0 = 0.0;
+            this->stage = base_t::s_delay;
+        }
+    }
+
     inline void attackFrom(float fv, bool skipAttack = false)
     {
         if (skipAttack)
@@ -145,6 +159,7 @@ struct AHDSRShapedSC : DiscreteStagesEnvelope<BLOCK_SIZE, RangeProvider>
 #endif
 
             auto dPhase = BLOCK_SIZE * srProvider->sampleRateInv * res;
+
             return dPhase;
         }
     }
@@ -185,8 +200,8 @@ struct AHDSRShapedSC : DiscreteStagesEnvelope<BLOCK_SIZE, RangeProvider>
         return (std::exp(scsh * p) - 1) / (std::exp(scsh) - 1);
     }
 
-    inline void processCore(const float a, const float h, const float d, const float s,
-                            const float r, const float ashape, const float dshape,
+    inline void processCore(const float delay, const float a, const float h, const float d,
+                            const float s, const float r, const float ashape, const float dshape,
                             const float rshape, const bool gateActive, bool needsCurve)
     {
         float target = 0;
@@ -215,6 +230,11 @@ struct AHDSRShapedSC : DiscreteStagesEnvelope<BLOCK_SIZE, RangeProvider>
         }
 
         // Accelerate traversal through the state machien for the 0 case
+        if (delay == 0.f && stage == base_t::s_delay)
+        {
+            phase = 0;
+            stage = base_t::s_attack;
+        }
         if (a == 0.f && stage == base_t::s_attack)
         {
             phase = 0;
@@ -236,6 +256,36 @@ struct AHDSRShapedSC : DiscreteStagesEnvelope<BLOCK_SIZE, RangeProvider>
          */
         switch (stage)
         {
+        case base_t::s_delay:
+        {
+            phase += dPhase(delay);
+            if (phase > 1)
+            {
+                while (phase > 1)
+                {
+                    phase -= 1;
+                }
+                if (a > 0.f)
+                {
+                    stage = base_t::s_attack;
+                }
+                else if (h > 0.f)
+                {
+                    stage = base_t::s_hold;
+                    target = 1.0;
+                }
+                else if (d > 0.f)
+                {
+                    stage = base_t::s_decay;
+                }
+                else
+                {
+                    stage = base_t::s_sustain;
+                    target = s;
+                }
+            }
+        }
+        break;
         case base_t::s_attack:
         {
             phase += dPhase(a);
@@ -329,7 +379,7 @@ struct AHDSRShapedSC : DiscreteStagesEnvelope<BLOCK_SIZE, RangeProvider>
 
         if (this->current == BLOCK_SIZE)
         {
-            processCore(a, h, d, s, r, ashape, rshape, dshape, gateActive, true);
+            processCore(0.f, a, h, d, s, r, ashape, rshape, dshape, gateActive, true);
         }
 
         base_t::step();
@@ -339,7 +389,18 @@ struct AHDSRShapedSC : DiscreteStagesEnvelope<BLOCK_SIZE, RangeProvider>
                              const float r, const float ashape, const float dshape,
                              const float rshape, const bool gateActive, bool needsCurve)
     {
-        processCore(a, h, d, s, r, ashape, dshape, rshape, gateActive, needsCurve);
+        processCore(0.f, a, h, d, s, r, ashape, dshape, rshape, gateActive, needsCurve);
+    }
+
+    inline void processBlockWithDelay(const float delay, const float a, const float h,
+                                      const float d, const float s, const float r,
+                                      const float ashape, const float dshape, const float rshape,
+                                      const bool gateActive, bool needsCurve)
+    {
+        processCore(delay, a, h, d, s, r, ashape, dshape, rshape, gateActive, needsCurve);
+        // std::cout << "pbwd de=" << delay << " at=" << a << " h=" << h << " d=" << d << " s=" << s
+        // << "r= " << r << " ga=" << gateActive << " "; std::cout << " ph=" << phase << " sg=" <<
+        // (int)base_t::stage << " re=" << base_t::outBlock0 << std::endl;
     }
 
     float phase{0.f}, attackStartValue{0.f}, releaseStartValue{0.f};
