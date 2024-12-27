@@ -201,7 +201,8 @@ struct ParamMetaData
      */
     enum struct Features : uint64_t
     {
-        SUPPORTS_MULTIPLICATIVE_MODULATION = 1 << 0
+        SUPPORTS_MULTIPLICATIVE_MODULATION = 1 << 0,
+        BELOW_ONE_IS_INVERSE_FRACTION = 1 << 1
     };
     uint64_t features{0};
     ParamMetaData withFeature(Features f) const
@@ -942,7 +943,15 @@ inline std::optional<std::string> ParamMetaData::valueToString(float val,
     case A_TWO_TO_THE_B:
         if (alternateScaleWhen == NO_ALTERNATE)
         {
-            return fmt::format("{:.{}f} {:s}", svA * pow(2.0, svB * val + svC),
+            auto dval = svA * pow(2.0, svB * val + svC);
+            std::string prefix{};
+            if ((features & (uint64_t)Features::BELOW_ONE_IS_INVERSE_FRACTION) && dval < 1 &&
+                dval > 0)
+            {
+                dval = 1.0 / dval;
+                prefix = "1/";
+            }
+            return fmt::format("{}{:.{}f} {:s}", prefix, dval,
                                (fs.isHighPrecision ? (decimalPlaces + 4) : decimalPlaces), unit);
         }
         else
@@ -1097,7 +1106,23 @@ inline std::optional<float> ParamMetaData::valueFromString(std::string_view v, s
     {
         try
         {
-            auto r = std::stof(std::string(v));
+            auto r = 1.0;
+            auto vs = std::string(v);
+            if ((features & (uint64_t)Features::BELOW_ONE_IS_INVERSE_FRACTION) &&
+                vs.find("1/") != std::string::npos)
+            {
+                auto ps = vs.find("1/");
+                auto ss = vs.substr(ps + 2);
+                auto uv = std::stof(ss);
+                if (uv == 0)
+                    r = 1.;
+                else
+                    r = 1.0 / uv;
+            }
+            else
+            {
+                r = std::stof(std::string(v));
+            }
             assert(svA != 0);
             assert(svB != 0);
 
