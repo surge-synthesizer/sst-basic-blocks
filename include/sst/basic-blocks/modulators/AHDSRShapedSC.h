@@ -78,11 +78,13 @@ struct AHDSRShapedSC : DiscreteStagesEnvelope<BLOCK_SIZE, RangeProvider>
         lutsInitialized = true;
     }
 
+    inline bool isZero(float f) { return f < 1e-6; }
+
     inline void attackFromWithDelay(float from, float delay, float attack)
     {
-        if (delay == 0.f)
+        if (isZero(delay))
         {
-            attackFrom(from, attack == 0.f);
+            attackFrom(from, isZero(attack));
         }
         else
         {
@@ -230,22 +232,22 @@ struct AHDSRShapedSC : DiscreteStagesEnvelope<BLOCK_SIZE, RangeProvider>
         }
 
         // Accelerate traversal through the state machien for the 0 case
-        if (delay == 0.f && stage == base_t::s_delay)
+        if (isZero(delay) && stage == base_t::s_delay)
         {
             phase = 0;
             stage = base_t::s_attack;
         }
-        if (a == 0.f && stage == base_t::s_attack)
+        if (isZero(a) && stage == base_t::s_attack)
         {
             phase = 0;
             stage = base_t::s_hold;
         }
-        if (h == 0.f && stage == base_t::s_hold)
+        if (isZero(h) && stage == base_t::s_hold)
         {
             phase = 0.f;
             stage = base_t::s_decay;
         }
-        if (d == 0.f && stage == base_t::s_decay)
+        if (isZero(d) && stage == base_t::s_decay)
         {
             phase = 0.f;
             stage = base_t::s_sustain;
@@ -261,10 +263,7 @@ struct AHDSRShapedSC : DiscreteStagesEnvelope<BLOCK_SIZE, RangeProvider>
             phase += dPhase(delay);
             if (phase > 1)
             {
-                while (phase > 1)
-                {
-                    phase -= 1;
-                }
+                phase -= std::floor(phase);
                 if (a > 0.f)
                 {
                     stage = base_t::s_attack;
@@ -299,7 +298,7 @@ struct AHDSRShapedSC : DiscreteStagesEnvelope<BLOCK_SIZE, RangeProvider>
                 {
                     stage = base_t::s_decay;
                 }
-                phase -= 1.f;
+                phase -= std::floor(phase);
                 target = 1.0;
             }
             else
@@ -316,7 +315,7 @@ struct AHDSRShapedSC : DiscreteStagesEnvelope<BLOCK_SIZE, RangeProvider>
             if (phase > 1)
             {
                 stage = base_t::s_decay;
-                phase -= 1.f;
+                phase -= std::floor(phase);
             }
         }
         break;
