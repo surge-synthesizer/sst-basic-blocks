@@ -62,13 +62,7 @@ template <typename SRProvider, int BLOCK_SIZE> struct SimpleLFO
         for (int i = 0; i < BLOCK_SIZE; ++i)
             outputBlock[i] = 0;
 
-        rngState[0] = urng();
-        rngState[1] = urng();
-        for (int i = 0; i < 4; ++i)
-        {
-            rngCurrent = dsp::correlated_noise_o2mk2_suppliedrng(rngState[0], rngState[1], 0, urng);
-            rngHistory[3 - i] = rngCurrent;
-        }
+        restartRandomSequence();
     }
 
     //  Move towards this so we can remove the rng member above
@@ -81,13 +75,7 @@ template <typename SRProvider, int BLOCK_SIZE> struct SimpleLFO
         for (int i = 0; i < BLOCK_SIZE; ++i)
             outputBlock[i] = 0;
 
-        rngState[0] = urng();
-        rngState[1] = urng();
-        for (int i = 0; i < 4; ++i)
-        {
-            rngCurrent = dsp::correlated_noise_o2mk2_suppliedrng(rngState[0], rngState[1], 0, urng);
-            rngHistory[3 - i] = rngCurrent;
-        }
+        restartRandomSequence();
     }
 
     enum Shape
@@ -105,6 +93,17 @@ template <typename SRProvider, int BLOCK_SIZE> struct SimpleLFO
     float lastTarget{0};
     float outputBlock[BLOCK_SIZE];
     float phase{0};
+
+    inline void restartRandomSequence()
+    {
+        rngState[0] = urng();
+        rngState[1] = urng();
+        for (int i = 0; i < 4; ++i)
+        {
+            rngCurrent = dsp::correlated_noise_o2mk2_suppliedrng(rngState[0], rngState[1], 0, urng);
+            rngHistory[3 - i] = rngCurrent;
+        }
+    }
 
     inline float bend1(float x, float d)
     {
@@ -133,13 +132,18 @@ template <typename SRProvider, int BLOCK_SIZE> struct SimpleLFO
         lastDPhase = 0;
         amplitude = 1;
     }
-    // FIXME - make this work for proper attacks
+
     inline void attack(const int lshape)
     {
         phase = 0;
         lastDPhase = 0;
         for (int i = 0; i < BLOCK_SIZE; ++i)
             outputBlock[i] = 0;
+
+        if (lshape == SH_NOISE || lshape == SMOOTH_NOISE)
+        {
+            restartRandomSequence();
+        }
     }
 
     float lastDPhase{0};
