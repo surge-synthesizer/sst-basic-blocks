@@ -909,7 +909,7 @@ inline std::optional<std::string> ParamMetaData::valueToString(float val,
 
     if (fs.isTemposynced)
     {
-        return temposyncNotation(temposyncMultiplier * val);
+        return temposyncNotation(snapToTemposync(temposyncMultiplier * val));
     }
 
     // float cases

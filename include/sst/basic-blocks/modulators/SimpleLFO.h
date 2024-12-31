@@ -170,11 +170,12 @@ template <typename SRProvider, int BLOCK_SIZE> struct SimpleLFO
         }
     }
 
-    inline void process_block(const float r, const float d, const int lshape, bool reverse = false)
+    inline void process_block(const float r, const float d, const int lshape, bool reverse = false,
+                              float tsScale = 1.f)
     {
         float target{0.f};
 
-        auto frate = srProvider->envelope_rate_linear_nowrap(-r);
+        auto frate = tsScale * srProvider->envelope_rate_linear_nowrap(-r);
         phase += frate * (reverse ? -1 : 1);
         int phaseMidpoint{0};
         bool phaseTurned{false};
