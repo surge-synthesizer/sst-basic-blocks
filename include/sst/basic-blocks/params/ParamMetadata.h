@@ -1152,7 +1152,7 @@ inline std::optional<float> ParamMetaData::valueFromString(std::string_view v, s
                 return std::nullopt;
             }
 
-            return r;
+            return (float)r;
         }
         catch (const std::exception &)
         {
