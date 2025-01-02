@@ -44,7 +44,7 @@ template <typename SRProvider, int BLOCK_SIZE> struct SimpleLFO
 
     sst::basic_blocks::dsp::RNG &objrngRef;
     sst::basic_blocks::dsp::RNG objrng{0}; // this is unused in ext ref so seed only if used
-    std::function<float()> urng = []() { return 0; };
+    std::function<float()> urng = []() { return 0.f; };
 
     static_assert((BLOCK_SIZE >= 8) & !(BLOCK_SIZE & (BLOCK_SIZE - 1)),
                   "Block size must be power of 2 8 or above.");
