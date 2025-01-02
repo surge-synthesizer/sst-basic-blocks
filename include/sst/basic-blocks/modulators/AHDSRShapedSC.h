@@ -48,8 +48,8 @@ struct AHDSRShapedSC : DiscreteStagesEnvelope<BLOCK_SIZE, RangeProvider>
     static constexpr size_t expLutSize{1024};
     static thread_local inline float expLut[expLutSize];
 
-    SRProvider *srProvider{nullptr};
-    AHDSRShapedSC(SRProvider *s)
+    const SRProvider *srProvider{nullptr};
+    AHDSRShapedSC(const SRProvider *s)
         : DiscreteStagesEnvelope<BLOCK_SIZE, RangeProvider>(), srProvider(s)
     {
         assert(srProvider);
