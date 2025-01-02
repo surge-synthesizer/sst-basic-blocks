@@ -36,9 +36,14 @@ typedef float panmatrix_t[4]; // L R RinL LinR
 // These are shamelessly borrowed/copied/adapted from MixMaster. Thanks marc!
 inline void sinCos(float &destSin, float &destCos, float theta)
 {
-    destSin = theta + std::pow(theta, 3) * (-0.166666667f + theta * theta * 0.00833333333f);
+    auto t2 = theta * theta;
+    auto t3 = t2 * theta;
+
+    destSin = theta + t3 * (-0.166666667f + t2 * 0.00833333333f);
     theta = float(M_PI * 0.5) - theta;
-    destCos = theta + std::pow(theta, 3) * (-0.166666667f + theta * theta * 0.00833333333f);
+    t2 = theta * theta;
+    t3 = t2 * theta;
+    destCos = theta + t3 * (-0.166666667f + t2 * 0.00833333333f);
 }
 static constexpr float sqrt2{1.414213562373095};
 inline void sinCosSqrt2(float &destSin, float &destCos, float theta)

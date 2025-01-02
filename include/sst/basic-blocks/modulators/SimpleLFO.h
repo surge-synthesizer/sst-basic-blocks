@@ -30,6 +30,7 @@
 #include "sst/basic-blocks/dsp/CorrelatedNoise.h"
 #include "sst/basic-blocks/dsp/Interpolators.h"
 #include "sst/basic-blocks/dsp/RNG.h"
+#include "sst/basic-blocks/dsp/FastMath.h"
 
 #include <cmath>
 #include <cassert>
@@ -105,8 +106,11 @@ template <typename SRProvider, int BLOCK_SIZE> struct SimpleLFO
         }
     }
 
-    inline float bend1(float x, float d)
+    inline float bend1(float x, float d) const
     {
+        if (d == 0)
+            return x;
+
         auto a = 0.5 * std::clamp(d, -3.f, 3.f);
         x = x - a * x * x + a;
         x = x - a * x * x + a;
@@ -211,8 +215,13 @@ template <typename SRProvider, int BLOCK_SIZE> struct SimpleLFO
         switch (shp)
         {
         case SINE:
-            target = bend1(std::sin(2.0 * M_PI * phase), d);
-            break;
+        {
+            // target = bend1(std::sin(2.0 * M_PI * phase), d);
+            // -sin(x-pi) == sin(x) but since phase[0,1] and fast [-pi,pi] this gets us
+            auto s = -dsp::fastsin(2.0 * M_PI * (phase - 0.5));
+            target = bend1(s, d);
+        }
+        break;
         case RAMP:
             target = bend1(2 * phase - 1, d);
             break;
