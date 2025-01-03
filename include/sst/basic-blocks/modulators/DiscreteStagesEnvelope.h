@@ -117,9 +117,9 @@ template <int BLOCK_SIZE, typename RangeProvider> struct DiscreteStagesEnvelope
     {
         s_delay, // skipped in ADSR
         s_attack,
+        s_hold,
         s_decay,   // Skipped in DAHD
         s_sustain, // Ignored in DAHD
-        s_hold,
         s_release,
         s_analog_residual_decay,
         s_analog_residual_release,
