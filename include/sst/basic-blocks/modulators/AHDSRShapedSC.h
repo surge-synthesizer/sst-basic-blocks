@@ -89,7 +89,8 @@ struct AHDSRShapedSC : DiscreteStagesEnvelope<BLOCK_SIZE, RangeProvider>
         else
         {
             phase = 0;
-            this->outBlock0 = 0.0;
+            delayValue = from;
+            this->outBlock0 = delayValue;
             this->stage = base_t::s_delay;
         }
     }
@@ -262,11 +263,14 @@ struct AHDSRShapedSC : DiscreteStagesEnvelope<BLOCK_SIZE, RangeProvider>
         case base_t::s_delay:
         {
             phase += dPhase(delay);
+
+            target = delayValue;
             if (phase > 1)
             {
                 phase -= std::floor(phase);
                 if (a > 0.f)
                 {
+                    attackStartValue = delayValue;
                     stage = base_t::s_attack;
                 }
                 else if (h > 0.f)
@@ -403,7 +407,7 @@ struct AHDSRShapedSC : DiscreteStagesEnvelope<BLOCK_SIZE, RangeProvider>
         // (int)base_t::stage << " re=" << base_t::outBlock0 << std::endl;
     }
 
-    float phase{0.f}, attackStartValue{0.f}, releaseStartValue{0.f};
+    float phase{0.f}, attackStartValue{0.f}, releaseStartValue{0.f}, delayValue{0.f};
 };
 }; // namespace sst::basic_blocks::modulators
 
