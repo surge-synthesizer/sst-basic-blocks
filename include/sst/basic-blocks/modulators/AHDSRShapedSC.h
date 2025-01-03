@@ -107,6 +107,7 @@ struct AHDSRShapedSC : DiscreteStagesEnvelope<BLOCK_SIZE, RangeProvider>
         {
             phase = 0;
             attackStartValue = fv;
+            this->outBlock0 = fv;
             this->stage = base_t::s_attack;
         }
     }
