@@ -35,6 +35,7 @@
 #include "sst/basic-blocks/dsp/Interpolators.h"
 #include "sst/basic-blocks/dsp/BlockInterpolators.h"
 #include "sst/basic-blocks/dsp/PanLaws.h"
+#include "sst/basic-blocks/tables/MIDICCNames.h"
 
 #include "sst/basic-blocks/modulators/ADAREnvelope.h"
 #include "sst/basic-blocks/modulators/ADSREnvelope.h"
