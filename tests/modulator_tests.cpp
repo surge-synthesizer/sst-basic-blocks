@@ -27,6 +27,9 @@
 #include "catch2.hpp"
 #include "sst/basic-blocks/simd/setup.h"
 #include "sst/basic-blocks/modulators/FXModControl.h"
+#include "sst/basic-blocks/modulators/SimpleLFO.h"
+
+#include <iostream>
 
 namespace smod = sst::basic_blocks::modulators;
 
@@ -49,6 +52,49 @@ TEST_CASE("Mod LFO Is Well Behaved", "[mod]")
                     mc.pre_process(m, rate, depth, phase_offset);
                     REQUIRE(mc.value() <= 1.0);
                     REQUIRE(mc.value() >= -1.0);
+                }
+            }
+        }
+    }
+}
+
+static constexpr int bs{8};
+static constexpr double tbs{1.0 / bs};
+
+struct SRProvider
+{
+    static constexpr double sampleRate{48000};
+    static constexpr double samplerate{48000};
+    static constexpr double sampleRateInv{1.0 / sampleRate};
+    float envelope_rate_linear_nowrap(float f) const { return tbs * sampleRateInv * pow(2.f, -f); }
+};
+
+TEST_CASE("SimpleLFO is Bounded")
+{
+    SRProvider sr;
+    using slfo_t = sst::basic_blocks::modulators::SimpleLFO<SRProvider, bs>;
+
+    sst::basic_blocks::dsp::RNG urng;
+    for (auto s = (int)slfo_t::SINE; s <= (int)slfo_t::RANDOM_TRIGGER; ++s)
+    {
+        DYNAMIC_SECTION("Test shape " << s)
+        {
+            for (auto tries = 0; tries < 500; ++tries)
+            {
+                urng.reseed(urng.unifU32());
+                auto def = urng.unifPM1() * 0.95;
+                auto rt = urng.unif01() * 6 - 2;
+
+                auto lfo = slfo_t(&sr, urng);
+                lfo.attack((slfo_t::Shape)s);
+                for (int i = 0; i < 500; ++i)
+                {
+                    lfo.process_block(rt, def, (slfo_t::Shape)s);
+                    for (int j = 0; j < bs; ++j)
+                    {
+                        REQUIRE(lfo.outputBlock[j] - 1.0 <= 1e-5);
+                        REQUIRE(lfo.outputBlock[j] + 1.0 >= -1e-5);
+                    }
                 }
             }
         }
