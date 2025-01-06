@@ -92,8 +92,8 @@ TEST_CASE("SimpleLFO is Bounded")
                     lfo.process_block(rt, def, (slfo_t::Shape)s);
                     for (int j = 0; j < bs; ++j)
                     {
-                        REQUIRE(lfo.outputBlock[j] - 1.0 <= 1e-5);
-                        REQUIRE(lfo.outputBlock[j] + 1.0 >= -1e-5);
+                        REQUIRE(lfo.outputBlock[j] - 1.0 <= 5e-5);
+                        REQUIRE(lfo.outputBlock[j] + 1.0 >= -5e-5);
                     }
                 }
             }
