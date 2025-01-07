@@ -24,9 +24,12 @@
  * https://github.com/surge-synthesizer/sst-basic-blocks
  */
 
+#include <iostream>
+
 #include "catch2.hpp"
 #include "sst/basic-blocks/simd/setup.h"
 #include "sst/basic-blocks/modulators/FXModControl.h"
+#include "sst/basic-blocks/modulators/SimpleLFO.h"
 
 namespace smod = sst::basic_blocks::modulators;
 
@@ -54,3 +57,48 @@ TEST_CASE("Mod LFO Is Well Behaved", "[mod]")
         }
     }
 }
+
+static constexpr int bs{8};
+static constexpr double tbs{1.0 / bs};
+
+struct SRProvider
+{
+    static constexpr double sampleRate{48000};
+    static constexpr double samplerate{48000};
+    static constexpr double sampleRateInv{1.0 / sampleRate};
+    float envelope_rate_linear_nowrap(float f) const { return tbs * sampleRateInv * pow(2.f, -f); }
+};
+
+#if 0
+// Well it turns out random isn't strictly bounded, so this test is no good, but we are
+// close to boudned now so leave it here in case we want to tweak more
+TEST_CASE("Random SimpleLFO is Bounded")
+{
+    SRProvider sr;
+    using slfo_t = sst::basic_blocks::modulators::SimpleLFO<SRProvider, bs>;
+
+    sst::basic_blocks::dsp::RNG urng;
+    for (auto tries = 0; tries < 10000; ++tries)
+    {
+        auto sd = urng.unifU32();
+        auto def = urng.unifPM1() * 0.95;
+        auto rt = urng.unif01() * 6 - 2;
+
+        // sd=2663274685; rt=1.37236; def=0.00200983;
+        urng.reseed(sd);
+        INFO("sd=" << sd << "; rt=" << rt << "; def=" << def << ";");
+        auto lfo = slfo_t(&sr, urng);
+        lfo.attack(slfo_t::Shape::SMOOTH_NOISE);
+        for (int i = 0; i < 1000; ++i)
+        {
+            lfo.process_block(rt, def, slfo_t::Shape::SMOOTH_NOISE);
+            for (int j = 0; j < bs; ++j)
+            {
+                // std::cout << lfo.outputBlock[j] << std::endl;
+                REQUIRE(lfo.outputBlock[j] - 1.0 <= 5e-5);
+                REQUIRE(lfo.outputBlock[j] + 1.0 >= -5e-5);
+            }
+        }
+    }
+}
+#endif

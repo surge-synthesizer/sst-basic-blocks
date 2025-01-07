@@ -63,7 +63,7 @@ template <typename SRProvider, int BLOCK_SIZE> struct SimpleLFO
         for (int i = 0; i < BLOCK_SIZE; ++i)
             outputBlock[i] = 0;
 
-        restartRandomSequence();
+        restartRandomSequence(0.f);
     }
 
     //  Move towards this so we can remove the rng member above
@@ -76,7 +76,7 @@ template <typename SRProvider, int BLOCK_SIZE> struct SimpleLFO
         for (int i = 0; i < BLOCK_SIZE; ++i)
             outputBlock[i] = 0;
 
-        restartRandomSequence();
+        restartRandomSequence(0.f);
     }
 
     enum Shape
@@ -95,14 +95,31 @@ template <typename SRProvider, int BLOCK_SIZE> struct SimpleLFO
     float outputBlock[BLOCK_SIZE];
     float phase{0};
 
-    inline void restartRandomSequence()
+    inline void restartRandomSequence(double corr)
     {
         rngState[0] = urng();
         rngState[1] = urng();
-        for (int i = 0; i < 4; ++i)
+        // We have to restart and make sure the correlation filter works so do two things
+        // First, warm it up with a quick blast. Second, if it does produce out of bound value
+        // then try again.
+        for (auto i = 0; i < 50; ++i)
         {
-            rngCurrent = dsp::correlated_noise_o2mk2_suppliedrng(rngState[0], rngState[1], 0, urng);
-            rngHistory[3 - i] = rngCurrent;
+            rngCurrent =
+                dsp::correlated_noise_o2mk2_suppliedrng(rngState[0], rngState[1], corr, urng);
+        }
+        int its{0};
+        bool allGood{false};
+        while (its < 20 && !allGood)
+        {
+            allGood = true;
+            for (int i = 0; i < 4; ++i)
+            {
+                rngCurrent =
+                    dsp::correlated_noise_o2mk2_suppliedrng(rngState[0], rngState[1], corr, urng);
+                rngHistory[3 - i] = rngCurrent;
+                allGood = allGood && rngHistory[3 - i] > -1 && rngHistory[3 - i] < 1;
+            }
+            its++;
         }
     }
 
@@ -137,6 +154,7 @@ template <typename SRProvider, int BLOCK_SIZE> struct SimpleLFO
         amplitude = 1;
     }
 
+    bool needsRandomRestart{false};
     inline void attack(const int lshape)
     {
         phase = 0;
@@ -146,7 +164,8 @@ template <typename SRProvider, int BLOCK_SIZE> struct SimpleLFO
 
         if (lshape == SH_NOISE || lshape == SMOOTH_NOISE)
         {
-            restartRandomSequence();
+            needsRandomRestart = true;
+            phase = 1.000001;
         }
     }
 
@@ -190,6 +209,11 @@ template <typename SRProvider, int BLOCK_SIZE> struct SimpleLFO
             {
                 // The deform can push correlated noise out of bounds
                 auto ud = d * 0.8;
+                if (needsRandomRestart)
+                {
+                    restartRandomSequence(ud);
+                    needsRandomRestart = false;
+                }
                 rngCurrent =
                     dsp::correlated_noise_o2mk2_suppliedrng(rngState[0], rngState[1], ud, urng);
 
