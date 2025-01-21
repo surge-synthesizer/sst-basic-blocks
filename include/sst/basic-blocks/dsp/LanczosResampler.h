@@ -211,6 +211,8 @@ template <int blockSize> struct LanczosResampler
      * checked the range.
      */
     void populateNextBlockSize(float *fL, float *fR);
+    void populateNextBlockSizeLin(float *fL, float *fR);
+    void populateNextBlockSizeZOH(float *fL, float *fR);
     void populateNextBlockSizeOS(float *fL, float *fR);
 
     inline void advanceReadPointer(size_t n) { phaseO += n * dPhaseO; }
@@ -258,6 +260,25 @@ template <int bs> void LanczosResampler<bs>::populateNextBlockSize(float *fL, fl
     phaseO += bs * dPhaseO;
 }
 
+template <int bs> void LanczosResampler<bs>::populateNextBlockSizeLin(float *fL, float *fR)
+{
+    double r0 = phaseI - phaseO;
+    for (int i = 0; i < bs; ++i)
+    {
+        readLin(r0 - i * dPhaseO, fL[i], fR[i]);
+    }
+    phaseO += bs * dPhaseO;
+}
+
+template <int bs> void LanczosResampler<bs>::populateNextBlockSizeZOH(float *fL, float *fR)
+{
+    double r0 = phaseI - phaseO;
+    for (int i = 0; i < bs; ++i)
+    {
+        readZOH(r0 - i * dPhaseO, fL[i], fR[i]);
+    }
+    phaseO += bs * dPhaseO;
+}
 template <int bs> void LanczosResampler<bs>::populateNextBlockSizeOS(float *fL, float *fR)
 {
     double r0 = phaseI - phaseO;
