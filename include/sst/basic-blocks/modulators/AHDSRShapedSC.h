@@ -42,11 +42,11 @@ struct AHDSRShapedSC : DiscreteStagesEnvelope<BLOCK_SIZE, RangeProvider>
 
     static constexpr int nTables{64};
     static constexpr int nLUTPoints{256};
-    static thread_local inline float lut[nTables][nLUTPoints];
-    static thread_local inline bool lutsInitialized{false};
+    static inline float lut[nTables][nLUTPoints];
+    static inline bool lutsInitialized{false};
 
     static constexpr size_t expLutSize{1024};
-    static thread_local inline float expLut[expLutSize];
+    static inline float expLut[expLutSize];
 
     const SRProvider *srProvider{nullptr};
     AHDSRShapedSC(const SRProvider *s)
