@@ -320,6 +320,7 @@ struct ParamMetaData
         DECIBEL,           // TODO - implement
         UNORDERED_MAP,     // out = discreteValues[(int)std::round(val)]
         MIDI_NOTE,    // uses C4 etc.. notation. The octaveOffset has 0 -> 69=A4, 1 = A5, -1 = A3
+        LOGARITHMIC,  // A ln(v) / ln(B) + C
         USER_PROVIDED // TODO - implement
     } displayScale{LINEAR};
 
@@ -565,6 +566,19 @@ struct ParamMetaData
         res.svA = scale;
         res.unit = units;
         res.displayScale = LINEAR;
+        res.supportsStringConversion = true;
+        return res;
+    }
+
+    ParamMetaData withLogarithmicFormating(std::string units, float scale = 1,
+                                           float basis = std::exp(0), float offset = 0)
+    {
+        auto res = *this;
+        res.svA = scale;
+        res.svB = basis;
+        res.svC = offset;
+        res.unit = units;
+        res.displayScale = LOGARITHMIC;
         res.supportsStringConversion = true;
         return res;
     }
@@ -973,6 +987,15 @@ inline std::optional<std::string> ParamMetaData::valueToString(float val,
             }
         }
         break;
+    case LOGARITHMIC:
+    {
+        if (val <= 0)
+            return "-inf";
+        auto dval = svA * std::log(val) / std::log(svB) + svC;
+
+        return fmt::format("{:.{}f} {:s}", dval,
+                           (fs.isHighPrecision ? (decimalPlaces + 4) : decimalPlaces), unit);
+    }
     case SCALED_OFFSET_EXP:
     {
         auto dval = (std::exp(svA + val * (svB - svA)) + svC) / svD;
@@ -1159,6 +1182,24 @@ inline std::optional<float> ParamMetaData::valueFromString(std::string_view v, s
             errMsg = rangeMsg();
             return std::nullopt;
         }
+    }
+    break;
+    case LOGARITHMIC:
+    {
+        if (v == "-inf")
+            return minVal;
+
+        auto r = std::stof(std::string(v));
+        // A ln(r) / ln(B) + C = v
+        // (r - c) * lnB / A = lnv
+        auto lnv = (r - svC) * std::log(svB) / svA;
+        auto res = std::exp(lnv);
+        if (res < minVal || res > maxVal)
+        {
+            errMsg = rangeMsg();
+            return std::nullopt;
+        }
+        return res;
     }
     break;
     case SCALED_OFFSET_EXP:
