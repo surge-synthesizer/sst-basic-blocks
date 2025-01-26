@@ -162,6 +162,8 @@ template <typename T, bool first_run> struct LinearLag
         }
     }
 
+    bool isActive() const { return active; }
+
     T v{0}, target_v{0};
 
   private:
