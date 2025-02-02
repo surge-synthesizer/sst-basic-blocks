@@ -1225,6 +1225,12 @@ inline std::optional<float> ParamMetaData::valueFromString(std::string_view v, s
             auto drc = std::max(svD * r - svC, 0.00000001f);
             auto xv = (std::log(drc) - svA) / (svB - svA);
 
+            if (xv < minVal || xv > maxVal)
+            {
+                errMsg = rangeMsg();
+                return std::nullopt;
+            }
+
             return xv;
         }
         catch (const std::exception &)
