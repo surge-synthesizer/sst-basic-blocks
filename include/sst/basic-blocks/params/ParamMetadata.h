@@ -202,7 +202,8 @@ struct ParamMetaData
     enum struct Features : uint64_t
     {
         SUPPORTS_MULTIPLICATIVE_MODULATION = 1 << 0,
-        BELOW_ONE_IS_INVERSE_FRACTION = 1 << 1
+        BELOW_ONE_IS_INVERSE_FRACTION = 1 << 1,
+        ALLOW_FRACTIONAL_TYPEINS = 1 << 2
     };
     uint64_t features{0};
     ParamMetaData withFeature(Features f) const
@@ -858,8 +859,10 @@ struct ParamMetaData
     void toClapParamInfo(IsAClapParamInfo *info) const
     {
         info->id = id;
-        strncpy(info->name, name.c_str(), stringSize);
-        strncpy(info->module, groupName.c_str(), stringSize);
+        strncpy(info->name, name.c_str(), stringSize - 2);
+        info->name[stringSize - 1] = 0;
+        strncpy(info->module, groupName.c_str(), stringSize - 2);
+        info->module[stringSize - 1] = 0;
         info->min_value = minVal;
         info->max_value = maxVal;
         info->default_value = defaultVal;
@@ -1141,6 +1144,19 @@ inline std::optional<float> ParamMetaData::valueFromString(std::string_view v, s
                     r = 1.;
                 else
                     r = 1.0 / uv;
+            }
+            else if ((features & (uint64_t)Features::ALLOW_FRACTIONAL_TYPEINS) &&
+                     vs.find("/") != std::string::npos)
+            {
+                auto ps = vs.find("/");
+                auto num = vs.substr(0, ps);
+                auto den = vs.substr(ps + 1);
+                auto uv = std::stof(num);
+                auto dv = std::stof(den);
+                if (uv == 0 || dv == 0)
+                    r = std::stof(std::string(v));
+                else
+                    r = uv / dv;
             }
             else
             {
