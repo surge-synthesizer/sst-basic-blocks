@@ -1134,19 +1134,8 @@ inline std::optional<float> ParamMetaData::valueFromString(std::string_view v, s
         {
             auto r = 1.0;
             auto vs = std::string(v);
-            if ((features & (uint64_t)Features::BELOW_ONE_IS_INVERSE_FRACTION) &&
-                vs.find("1/") != std::string::npos)
-            {
-                auto ps = vs.find("1/");
-                auto ss = vs.substr(ps + 2);
-                auto uv = std::stof(ss);
-                if (uv == 0)
-                    r = 1.;
-                else
-                    r = 1.0 / uv;
-            }
-            else if ((features & (uint64_t)Features::ALLOW_FRACTIONAL_TYPEINS) &&
-                     vs.find("/") != std::string::npos)
+            if ((features & (uint64_t)Features::ALLOW_FRACTIONAL_TYPEINS) &&
+                vs.find("/") != std::string::npos)
             {
                 auto ps = vs.find("/");
                 auto num = vs.substr(0, ps);
@@ -1157,6 +1146,17 @@ inline std::optional<float> ParamMetaData::valueFromString(std::string_view v, s
                     r = std::stof(std::string(v));
                 else
                     r = uv / dv;
+            }
+            else if ((features & (uint64_t)Features::BELOW_ONE_IS_INVERSE_FRACTION) &&
+                     vs.find("1/") != std::string::npos)
+            {
+                auto ps = vs.find("1/");
+                auto ss = vs.substr(ps + 2);
+                auto uv = std::stof(ss);
+                if (uv == 0)
+                    r = 1.;
+                else
+                    r = 1.0 / uv;
             }
             else
             {
