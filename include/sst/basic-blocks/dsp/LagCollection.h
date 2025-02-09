@@ -66,7 +66,7 @@ template <int N> struct LagCollection
     };
 
     std::array<Lagger, N> lags;
-    Lagger *activeHead;
+    Lagger *activeHead{nullptr};
 
     void setRateInMilliseconds(double rate, double sampleRate, double blockSizeInv)
     {
