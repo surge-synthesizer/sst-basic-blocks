@@ -848,6 +848,7 @@ struct ParamMetaData
 
     // For now, his is the temposync notation assuming a 2^x and temposync ratio based on 120bpm
     std::string temposyncNotation(float f) const;
+    std::optional<float> valueFromTemposyncNotation(const std::string &s) const;
     float snapToTemposync(float f) const;
 
     /*
@@ -1669,6 +1670,58 @@ inline std::string ParamMetaData::temposyncNotation(float f) const
     std::string res = nn + " " + t;
 
     return res;
+}
+
+inline std::optional<float> ParamMetaData::valueFromTemposyncNotation(const std::string &s) const
+{
+    // OK so the basic idea is marching down the string we have numbers and slashes
+    // then characters from a constrained set
+    std::string numPart;
+    std::string restPart;
+    bool inNum{true};
+    for (const auto &c : s)
+    {
+        if (inNum && ((c >= '0' && c <= '9') || c == '/' || c == ' '))
+        {
+            numPart += c;
+        }
+        else
+        {
+            inNum = false;
+            if (c != ' ')
+                restPart += std::toupper(c);
+        }
+    }
+    if (numPart.empty())
+        return std::nullopt;
+
+    auto slpos = numPart.find('/');
+    auto num = 0, den = 1;
+    if (slpos == std::string::npos)
+    {
+        num = std::stoi(numPart);
+    }
+    else
+    {
+        num = std::stoi(numPart.substr(0, slpos));
+        den = std::stoi(numPart.substr(slpos + 1));
+    }
+    if (den == 0)
+        return std::nullopt;
+
+    // 1/2 should be 0, 1/4 should be 1
+    auto frac = 2.0 * num / den;
+    auto ufrac = 1.0 / frac;
+    auto pfrac = std::floor(std::log2(ufrac));
+
+    if (restPart == "T")
+        pfrac += 0.51;
+    if (restPart == "D" || restPart == ".")
+    {
+        pfrac -= 0.6;
+    }
+
+    return snapToTemposync(pfrac);
 }
 
 inline float ParamMetaData::snapToTemposync(float f) const

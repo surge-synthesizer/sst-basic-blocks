@@ -355,3 +355,33 @@ TEST_CASE("25 Second Exp", "[param]")
         REQUIRE(md.has_value());
     }
 }
+
+TEST_CASE("Temposync type In")
+{
+    std::vector<std::pair<std::string, std::string>> cases = {
+        {"1/32", "1/32 note"},    {"1/16", "1/16 note"},      {"1/8", "1/8 note"},
+        {"1/4", "1/4 note"},      {"1/2", "1/2 note"},        {"1", "whole note"},
+        {"1W", "whole note"},     {"2", "double whole note"}, {"2W", "double whole note"},
+
+        {"1/4 d", "1/4 dotted"},  {"1/4 .", "1/4 dotted"},    {"1/4.", "1/4 dotted"},
+        {"1/4d", "1/4 dotted"},
+
+        {"1/8 t", "1/8 triplet"}, {"1/16t", "1/16 triplet"},
+
+        {"1/4 t", "1/4 triplet"}, {"1/4t", "1/4 triplet"},    {"1/2t", "1/2 triplet"},
+        {"1T", "whole triplet"},
+    };
+    for (const auto &[in, out] : cases)
+    {
+        DYNAMIC_SECTION("Convert " << in << " to " << out)
+        {
+            auto p = pmd::ParamMetaData().asLfoRate();
+            auto v = p.valueFromTemposyncNotation(in);
+            REQUIRE(v.has_value());
+            auto s = p.valueToString(*v, pmd::ParamMetaData::FeatureState().withTemposync(true));
+            REQUIRE(s.has_value());
+            INFO("Result is " << *s << " " << *v);
+            REQUIRE(*s == out);
+        }
+    }
+}
