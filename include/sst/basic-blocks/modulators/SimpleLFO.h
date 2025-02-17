@@ -39,7 +39,7 @@ namespace sst::basic_blocks::modulators
 {
 
 // For context on SRProvider see the ADSRDAHD Envelope
-template <typename SRProvider, int BLOCK_SIZE> struct SimpleLFO
+template <typename SRProvider, int BLOCK_SIZE, bool clampDeform = false> struct SimpleLFO
 {
     SRProvider *srProvider{nullptr};
 
@@ -127,8 +127,10 @@ template <typename SRProvider, int BLOCK_SIZE> struct SimpleLFO
     {
         if (d == 0)
             return x;
+        if constexpr (clampDeform)
+            d = std::clamp(d, -3.f, 3.f);
+        auto a = 0.5 * d;
 
-        auto a = 0.5 * std::clamp(d, -3.f, 3.f);
         x = x - a * x * x + a;
         x = x - a * x * x + a;
         return x;
@@ -193,12 +195,18 @@ template <typename SRProvider, int BLOCK_SIZE> struct SimpleLFO
         }
     }
 
+    float lastRate{-123485924.0}, lastFRate{0};
     inline void process_block(const float r, const float d, const int lshape, bool reverse = false,
                               float tsScale = 1.f)
     {
         float target{0.f};
 
-        auto frate = tsScale * srProvider->envelope_rate_linear_nowrap(-r);
+        auto frate = lastFRate;
+        if (r != lastRate)
+        {
+            frate = tsScale * srProvider->envelope_rate_linear_nowrap(-r);
+            lastRate = r;
+        }
         phase += frate * (reverse ? -1 : 1);
         int phaseMidpoint{0};
         bool phaseTurned{false};
