@@ -29,6 +29,7 @@
 
 #include <iostream>
 #include <chrono>
+#include <string>
 
 namespace perf
 {
