@@ -38,6 +38,13 @@ if (${SST_BASIC_BLOCKS_BUILD_TESTS})
             tests/modulator_tests.cpp
             tests/mod_matrix_tests.cpp
             )
+
+
+    add_executable(sst-basic-blocks-perf-test
+            tests/perf/perf_test.cpp
+            tests/perf/lfo.cpp
+    )
+
     if (NOT TARGET simde)
         message(STATUS "Importing SIMDE with CPM")
         CPMAddPackage(NAME simde
@@ -47,11 +54,17 @@ if (${SST_BASIC_BLOCKS_BUILD_TESTS})
         target_include_directories(sst-basic-blocks-test PRIVATE
                 ${simde_SOURCE_DIR}
                 tests)
+        target_include_directories(sst-basic-blocks-perf-test PRIVATE
+                ${simde_SOURCE_DIR}
+                tests/perf)
     else ()
         target_link_libraries(sst-basic-blocks-test PRIVATE simde)
+        target_link_libraries(sst-basic-blocks-perf-test PRIVATE simde)
     endif ()
 
     target_link_libraries(sst-basic-blocks-test PRIVATE fmt ${PROJECT_NAME})
+    target_link_libraries(sst-basic-blocks-perf-test PRIVATE fmt ${PROJECT_NAME})
+
     target_include_directories(sst-basic-blocks-test PRIVATE libs/catch2)
 
     if ((DEFINED ${CMAKE_OSX_DEPLOYMENT_TARGET}) AND ("${CMAKE_OSX_DEPLOYMENT_TARGET}" VERSION_LESS "10.12"))
