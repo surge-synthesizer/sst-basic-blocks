@@ -206,6 +206,7 @@ template <typename SRProvider, int BLOCK_SIZE, bool clampDeform = false> struct 
         {
             frate = tsScale * srProvider->envelope_rate_linear_nowrap(-r);
             lastRate = r;
+            lastFRate = frate;
         }
         phase += frate * (reverse ? -1 : 1);
         int phaseMidpoint{0};
