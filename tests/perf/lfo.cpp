@@ -25,9 +25,11 @@
  */
 
 #include <iostream>
+#include <array>
 
 #include "sst/basic-blocks/modulators/SimpleLFO.h"
 #include "sst/basic-blocks/tables/TwoToTheXProvider.h"
+#include "sst/basic-blocks/dsp/RNG.h"
 #include "perfutils.h"
 
 template <int blockSize> struct SRProvider
