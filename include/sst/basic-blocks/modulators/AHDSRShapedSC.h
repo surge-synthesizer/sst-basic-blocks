@@ -113,6 +113,8 @@ struct AHDSRShapedSC : DiscreteStagesEnvelope<BLOCK_SIZE, RangeProvider>
         }
     }
 
+    float lastDPhaseX{-1234.56789}, lastDPhase{0};
+
     inline float dPhase(float x)
     {
         if constexpr (RangeProvider::phaseStrategy == DPhaseStrategies::ENVTIME_2TWOX)
@@ -124,6 +126,9 @@ struct AHDSRShapedSC : DiscreteStagesEnvelope<BLOCK_SIZE, RangeProvider>
         {
             if (x == 0.0)
                 return 1.0;
+
+            if (x == lastDPhaseX)
+                return lastDPhase;
 
             static thread_local tables::TwoToTheXProvider twoToX;
             if (!twoToX.isInit)
@@ -163,6 +168,9 @@ struct AHDSRShapedSC : DiscreteStagesEnvelope<BLOCK_SIZE, RangeProvider>
 #endif
 
             auto dPhase = BLOCK_SIZE * srProvider->sampleRateInv * res;
+
+            lastDPhaseX = x;
+            lastDPhase = dPhase;
 
             return dPhase;
         }
@@ -211,6 +219,20 @@ struct AHDSRShapedSC : DiscreteStagesEnvelope<BLOCK_SIZE, RangeProvider>
         float target = 0;
 
         auto &stage = this->stage;
+
+        // short circuit a bunch of code for the held case
+        if (stage == base_t::s_sustain && gateActive)
+        {
+            if (needsCurve)
+            {
+                base_t::updateBlockToNoCube(s);
+            }
+            else
+            {
+                this->outBlock0 = s;
+                this->current = 0;
+            }
+        }
 
         if (!gateActive && stage < base_t::s_release)
         {
