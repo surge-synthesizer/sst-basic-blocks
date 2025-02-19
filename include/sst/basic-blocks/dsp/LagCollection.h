@@ -71,7 +71,7 @@ template <int N> struct LagCollection
 
     LagCollection()
     {
-        for (int i=0; i<N; ++i)
+        for (int i = 0; i < N; ++i)
             lags[i].index = i;
     }
 
@@ -87,7 +87,8 @@ template <int N> struct LagCollection
         lags[index].lag.setTarget(target);
         lags[index].onto = onto;
 
-        if (lags[index].next == nullptr && lags[index].prev == nullptr && &lags[index] != activeHead)
+        if (lags[index].next == nullptr && lags[index].prev == nullptr &&
+            &lags[index] != activeHead)
         {
             lags[index].next = activeHead;
             activeHead = &lags[index];
