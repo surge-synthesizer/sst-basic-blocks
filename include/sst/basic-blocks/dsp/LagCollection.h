@@ -63,10 +63,17 @@ template <int N> struct LagCollection
         float *onto{nullptr};
         LinearLag<float, true> lag;
         Lagger *next{nullptr}, *prev{nullptr};
+        int index;
     };
 
     std::array<Lagger, N> lags;
     Lagger *activeHead{nullptr};
+
+    LagCollection()
+    {
+        for (int i = 0; i < N; ++i)
+            lags[i].index = i;
+    }
 
     void setRateInMilliseconds(double rate, double sampleRate, double blockSizeInv)
     {
@@ -80,7 +87,8 @@ template <int N> struct LagCollection
         lags[index].lag.setTarget(target);
         lags[index].onto = onto;
 
-        if (lags[index].next == nullptr && lags[index].prev == nullptr)
+        if (lags[index].next == nullptr && lags[index].prev == nullptr &&
+            &lags[index] != activeHead)
         {
             lags[index].next = activeHead;
             activeHead = &lags[index];
