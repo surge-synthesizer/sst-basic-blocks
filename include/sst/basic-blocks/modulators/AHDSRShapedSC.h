@@ -134,6 +134,24 @@ struct AHDSRShapedSC : DiscreteStagesEnvelope<BLOCK_SIZE, RangeProvider>
             if (!twoToX.isInit)
                 twoToX.init();
 
+            // First few luts do it exactly
+            [[unlikely]] if (x < 2.0 / 1024.0)
+            {
+                auto timeInSeconds =
+                    (std::exp(RangeProvider::A + x * (RangeProvider::B - RangeProvider::A)) -
+                     RangeProvider::C) /
+                    RangeProvider::D;
+
+                auto checkV = 1.0 / timeInSeconds;
+
+                auto dPhase = BLOCK_SIZE * srProvider->sampleRateInv * checkV;
+                lastDPhaseX = x;
+                lastDPhase = dPhase;
+
+                return dPhase;
+            }
+
+#define CHECK_VS_LUT 0
 #if CHECK_VS_LUT
             auto timeInSeconds =
                 (std::exp(RangeProvider::A + x * (RangeProvider::B - RangeProvider::A)) -
@@ -146,7 +164,7 @@ struct AHDSRShapedSC : DiscreteStagesEnvelope<BLOCK_SIZE, RangeProvider>
             int xpi = (int)xp;
             auto xpf = xp - xpi;
             auto interp = (1 - xpf) * expLut[xpi] + xpf * expLut[xpi + 1];
-            auto res = twoToX.twoToThe(interp);
+            float res = twoToX.twoToThe(interp);
 
 #if CHECK_VS_LUT
             static float lastX = -23;
@@ -156,6 +174,8 @@ struct AHDSRShapedSC : DiscreteStagesEnvelope<BLOCK_SIZE, RangeProvider>
                           << "\n  time=" << timeInSeconds << "\n  sr=" << srProvider->sampleRate
                           << " sri=" << srProvider->sampleRateInv
                           << " 1/sri=" << 1.0 / srProvider->sampleRateInv << " bs=" << BLOCK_SIZE
+                          << "\n"
+                          << "xp=" << xp << " xpi=" << xpi << " xpf=" << xpf << " interp=" << interp
                           << "\n  dPhaseLUT=" << BLOCK_SIZE * srProvider->sampleRateInv * res
                           << "\n  dPhaseCAL=" << BLOCK_SIZE * srProvider->sampleRateInv * checkV
                           << "\n  1/dPhaseLUT="
