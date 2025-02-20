@@ -95,11 +95,17 @@ template <int N> struct LagCollection
 
     void processAll()
     {
-        for (auto &lag : activeSet)
+        for (auto it = activeSet.begin(); it != activeSet.end();)
         {
-            lag.process();
-            if (!lag.lag.isActive())
-                activeSet.removeFromActive(lag);
+            it->process();
+            if (!it->lag.isActive())
+            {
+                it = activeSet.erase(it);
+            }
+            else
+            {
+                ++it;
+            }
         }
     }
 
