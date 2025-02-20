@@ -37,6 +37,7 @@
 #include "sst/basic-blocks/dsp/FastMath.h"
 #include "sst/basic-blocks/dsp/Clippers.h"
 #include "sst/basic-blocks/dsp/Lag.h"
+#include "sst/basic-blocks/dsp/LagCollection.h"
 #include "sst/basic-blocks/mechanics/block-ops.h"
 #include "sst/basic-blocks/tables/SincTableProvider.h"
 #include "sst/basic-blocks/dsp/SSESincDelayLine.h"
@@ -1255,5 +1256,107 @@ TEST_CASE("OscillatorSupportFunctions", "[dsp]")
         REQUIRE(L == Approx(R));
         us.panLaw(2, L, R);
         REQUIRE(L > R);
+    }
+}
+
+TEST_CASE("Lag Collection", "[dsp]")
+{
+    SECTION("Collection Instantiates")
+    {
+        sst::basic_blocks::dsp::LagCollection<16> lags;
+        lags.setRateInMilliseconds(100, 48000, 1.0 / 16);
+        lags.processAll();
+    }
+
+    SECTION("Collection Instantiates")
+    {
+        std::array<float, 16> vals{};
+        sst::basic_blocks::dsp::LagCollection<16> lags;
+        std::fill(vals.begin(), vals.end(), 0.f);
+        lags.setRateInMilliseconds(1000, 48000, 1.0 / 16);
+        lags.processAll();
+        lags.setTarget(5, 0.0, &vals[5]);
+        lags.processAll();
+        lags.setTarget(5, 1.0, &vals[5]);
+
+        auto pv5 = vals[5];
+        for (int i = 0; i < 3; ++i)
+        {
+            lags.processAll();
+            ;
+            REQUIRE(vals[5] > pv5);
+            pv5 = vals[5];
+        }
+        REQUIRE(vals[5] < 1);
+        lags.snapAllActiveToTarget();
+        REQUIRE(vals[5] == 1);
+        REQUIRE(lags.activeSet.activeCount == 0);
+    }
+
+    SECTION("Lags get done eventually")
+    {
+        std::array<float, 16> vals{};
+        sst::basic_blocks::dsp::LagCollection<16> lags;
+        std::fill(vals.begin(), vals.end(), 0.f);
+        lags.setRateInMilliseconds(1000, 48000, 1.0 / 16);
+        lags.setTarget(5, 0.0, &vals[5]);
+        lags.processAll();
+        lags.setTarget(5, 1.0, &vals[5]);
+        int its{0}, maxIts{10000};
+        while (its < maxIts && lags.activeSet.activeCount > 0)
+        {
+            lags.processAll();
+            its++;
+        }
+        REQUIRE(its != maxIts);
+    }
+
+    SECTION("Fire on Single Targets")
+    {
+        std::array<float, 16> vals{};
+        sst::basic_blocks::dsp::LagCollection<16> lags;
+        std::fill(vals.begin(), vals.end(), 0.f);
+        lags.setRateInMilliseconds(1000, 48000, 1.0 / 16);
+
+        float lv{0.f};
+        for (int i = 0; i < 100; ++i)
+        {
+            lv = (float)rand() / (float)RAND_MAX;
+            lags.setTarget(7, lv, &vals[7]);
+            lags.processAll();
+            ;
+        }
+        REQUIRE(vals[7] != lv);
+        lags.snapAllActiveToTarget();
+        REQUIRE(vals[7] == lv);
+        REQUIRE(lags.activeSet.activeCount == 0);
+    }
+
+    SECTION("Fire on Two Targes")
+    {
+        std::array<float, 16> vals{};
+        sst::basic_blocks::dsp::LagCollection<16> lags;
+        std::fill(vals.begin(), vals.end(), 0.f);
+        lags.setRateInMilliseconds(1000, 48000, 1.0 / 16);
+
+        float lv{0.f};
+        for (int i = 0; i < 100; ++i)
+        {
+            lv = (float)rand() / (float)RAND_MAX;
+            lags.setTarget(7, lv, &vals[7]);
+            if (i % 14 == 0)
+            {
+                lags.setTarget(3, 0.7 + lv * 0.72, &vals[3]);
+            }
+            lags.processAll();
+            if (i < 14)
+                REQUIRE(lags.activeSet.activeCount == 1);
+            else
+                REQUIRE(lags.activeSet.activeCount == 2);
+        }
+        REQUIRE(vals[7] != lv);
+        lags.snapAllActiveToTarget();
+        REQUIRE(vals[7] == lv);
+        REQUIRE(lags.activeSet.activeCount == 0);
     }
 }

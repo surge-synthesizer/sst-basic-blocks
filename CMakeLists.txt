@@ -27,6 +27,13 @@ if (${SST_BASIC_BLOCKS_BUILD_TESTS})
                 )
     endif ()
 
+    if (NOT TARGET sst-cpputils)
+        CPMAddPackage(NAME sst-cpputils
+                GITHUB_REPOSITORY surge-synthesizer/sst-cpputils
+                GIT_TAG main
+        )
+    endif()
+
     add_executable(sst-basic-blocks-test
             tests/smoketest.cpp
             tests/dsp_tests.cpp
@@ -78,6 +85,13 @@ else()
     if (NOT TARGET simde)
         message(WARNING "SST Basic Blocks requires access to the 'simde' target from "
                 "https://github.com/simde-everywhere/simde. This build will only work on x86_64 architecture.")
-        target_compile_definitions(${PROJECT_NAME} SIMDE_UNAVAILABLE=1)
+        target_compile_definitions(${PROJECT_NAME} INTERFACE SIMDE_UNAVAILABLE=1)
     endif()
 endif ()
+
+if (NOT TARGET sst-cpputils)
+    message(WARNING "SST Basic Blocks requires sst-cpputils for some features. Deactivating those")
+    target_compile_definitions(${PROJECT_NAME} INTERFACE SST_CPPUTILS_UNAVAILABLE=1)
+else()
+    target_link_libraries(${PROJECT_NAME} INTERFACE sst-cpputils)
+endif()
