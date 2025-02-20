@@ -1349,7 +1349,9 @@ TEST_CASE("Lag Collection", "[dsp]")
                 lags.setTarget(3, 0.7 + lv * 0.72, &vals[3]);
             }
             lags.processAll();
-            if (i < 14)
+            if (i == 0)
+                REQUIRE(lags.activeSet.activeCount == 0);
+            else if (i < 14 && i >= 1)
                 REQUIRE(lags.activeSet.activeCount == 1);
             else
                 REQUIRE(lags.activeSet.activeCount == 2);
