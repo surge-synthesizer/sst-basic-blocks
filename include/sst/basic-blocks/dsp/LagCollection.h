@@ -27,6 +27,11 @@
 #ifndef INCLUDE_SST_BASIC_BLOCKS_DSP_LAGCOLLECTION_H
 #define INCLUDE_SST_BASIC_BLOCKS_DSP_LAGCOLLECTION_H
 
+#if SST_CPPUTILS_UNAVAILABLE
+#else
+
+#include <cassert>
+#include "sst/cpputils/active_set_overlay.h"
 #include "Lag.h"
 
 namespace sst::basic_blocks::dsp
@@ -40,7 +45,7 @@ namespace sst::basic_blocks::dsp
  */
 template <int N> struct LagCollection
 {
-    struct Lagger
+    struct Lagger : sst::cpputils::active_set_overlay<Lagger>::participant
     {
         void process()
         {
@@ -62,12 +67,11 @@ template <int N> struct LagCollection
         }
         float *onto{nullptr};
         LinearLag<float, true> lag;
-        Lagger *next{nullptr}, *prev{nullptr};
         int index;
     };
 
     std::array<Lagger, N> lags;
-    Lagger *activeHead{nullptr};
+    sst::cpputils::active_set_overlay<Lagger> activeSet;
 
     LagCollection()
     {
@@ -78,7 +82,7 @@ template <int N> struct LagCollection
     void setRateInMilliseconds(double rate, double sampleRate, double blockSizeInv)
     {
         for (auto &l : lags)
-            l.lag.setRateInMilliseconds(1000.0 * 64.0 / 48000.0, sampleRate, blockSizeInv);
+            l.lag.setRateInMilliseconds(1000.0 * rate / 48000.0, sampleRate, blockSizeInv);
     }
 
     void setTarget(size_t index, float target, float *onto)
@@ -86,56 +90,29 @@ template <int N> struct LagCollection
         assert(index < N);
         lags[index].lag.setTarget(target);
         lags[index].onto = onto;
-
-        if (lags[index].next == nullptr && lags[index].prev == nullptr &&
-            &lags[index] != activeHead)
-        {
-            lags[index].next = activeHead;
-            activeHead = &lags[index];
-        }
+        activeSet.addToActive(lags[index]);
     }
 
     void processAll()
     {
-        auto curr = activeHead;
-        while (curr)
+        for (auto &lag : activeSet)
         {
-            curr->process();
-            if (!curr->lag.isActive())
-            {
-                if (curr->next)
-                    curr->next->prev = curr->prev;
-                if (curr->prev)
-                    curr->prev->next = curr->next;
-                if (curr == activeHead)
-                    activeHead = curr->next;
-
-                auto nv = curr->next;
-                curr->next = nullptr;
-                curr->prev = nullptr;
-                curr->onto = nullptr;
-                curr = nv;
-            }
-            else
-            {
-                curr = curr->next;
-            }
+            lag.process();
+            if (!lag.lag.isActive())
+                activeSet.removeFromActive(lag);
         }
     }
 
     void snapAllActiveToTarget()
     {
-        auto curr = activeHead;
-        while (curr)
+        for (auto &lag : activeSet)
         {
-            curr->snapToTarget();
-            auto nv = curr->next;
-            curr->next = nullptr;
-            curr->prev = nullptr;
-            curr = nv;
+            lag.snapToTarget();
         }
-        activeHead = nullptr;
+        while (activeSet.begin() != activeSet.end())
+            activeSet.removeFromActive(*activeSet.begin());
     }
 };
 } // namespace sst::basic_blocks::dsp
+#endif
 #endif // LAGCOLLECTION_H
