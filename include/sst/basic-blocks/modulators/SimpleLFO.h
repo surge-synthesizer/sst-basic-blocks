@@ -195,18 +195,19 @@ template <typename SRProvider, int BLOCK_SIZE, bool clampDeform = false> struct 
         }
     }
 
-    float lastRate{-123485924.0}, lastFRate{0};
+    float lastRate{-123485924.0}, lastFRate{0}, lastTSScale{-76543.2f};
     inline void process_block(const float r, const float d, const int lshape, bool reverse = false,
                               float tsScale = 1.f)
     {
         float target{0.f};
 
         auto frate = lastFRate;
-        if (r != lastRate)
+        if (r != lastRate || tsScale != lastTSScale)
         {
             frate = tsScale * srProvider->envelope_rate_linear_nowrap(-r);
             lastRate = r;
             lastFRate = frate;
+            lastTSScale = tsScale;
         }
         phase += frate * (reverse ? -1 : 1);
         int phaseMidpoint{0};
