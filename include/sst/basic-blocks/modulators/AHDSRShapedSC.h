@@ -135,7 +135,7 @@ struct AHDSRShapedSC : DiscreteStagesEnvelope<BLOCK_SIZE, RangeProvider>
                 twoToX.init();
 
             // First few luts do it exactly
-            [[unlikely]] if (x < 2.0 / 1024.0)
+            if (x < 2.0 / 1024.0)
             {
                 auto timeInSeconds =
                     (std::exp(RangeProvider::A + x * (RangeProvider::B - RangeProvider::A)) -
