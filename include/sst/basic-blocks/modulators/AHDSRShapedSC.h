@@ -113,7 +113,7 @@ struct AHDSRShapedSC : DiscreteStagesEnvelope<BLOCK_SIZE, RangeProvider>
         }
     }
 
-    float lastDPhaseX{-1234.56789}, lastDPhase{0};
+    float lastDPhaseX{-1234.56789}, lastDPhase{0}, lastSR{0};
 
     inline float dPhase(float x)
     {
@@ -127,7 +127,7 @@ struct AHDSRShapedSC : DiscreteStagesEnvelope<BLOCK_SIZE, RangeProvider>
             if (x == 0.0)
                 return 1.0;
 
-            if (x == lastDPhaseX)
+            if (x == lastDPhaseX && lastSR == srProvider->sampleRate)
                 return lastDPhase;
 
             static thread_local tables::TwoToTheXProvider twoToX;
@@ -191,6 +191,7 @@ struct AHDSRShapedSC : DiscreteStagesEnvelope<BLOCK_SIZE, RangeProvider>
 
             lastDPhaseX = x;
             lastDPhase = dPhase;
+            lastSR = srProvider->sampleRate;
 
             return dPhase;
         }
