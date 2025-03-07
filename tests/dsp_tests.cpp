@@ -462,7 +462,7 @@ TEST_CASE("Check FastMath Functions", "[dsp]")
         }
     }
 
-    SECTION("fastTan")
+    SECTION("fasttan and fasttanSSE")
     {
         // need to bump start point slightly, fasttan is only valid just after -PI/2
         for (float x = -M_PI / 2.0 + 0.001; x < M_PI / 2.0; x += 0.02)
@@ -471,6 +471,25 @@ TEST_CASE("Check FastMath Functions", "[dsp]")
             auto rn = tanf(x);
             auto rd = sst::basic_blocks::dsp::fasttan(x);
             REQUIRE(rd == Approx(rn).epsilon(1e-4));
+        }
+
+        // need to bump start point slightly, fasttan is only valid just after -PI/2
+        for (float x = -M_PI / 2.0 + 0.001; x < M_PI / 2.0; x += 0.08)
+        {
+            float r alignas(16)[4], tv alignas(16)[4], res alignas(16)[4];
+            for (int i = 0; i < 4; ++i)
+            {
+                r[i] = x + 0.02 * i;
+                tv[i] = tanf(r[i]);
+            }
+
+            INFO("Testing fasttanSSE at " << r[0] << " " << r[1] << " " << r[2] << " " << r[3]);
+            auto xsse = SIMD_MM(load_ps)(r);
+            auto rsse = sst::basic_blocks::dsp::fasttanSSE(xsse);
+            SIMD_MM(store_ps)(res, rsse);
+
+            for (int i = 0; i < 4; ++i)
+                REQUIRE(res[i] == Approx(tv[i]).epsilon(1e-4));
         }
     }
 
