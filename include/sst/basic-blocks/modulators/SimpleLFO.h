@@ -88,7 +88,8 @@ template <typename SRProvider, int BLOCK_SIZE, bool clampDeform = false> struct 
         PULSE,
         SMOOTH_NOISE,
         SH_NOISE,
-        RANDOM_TRIGGER
+        RANDOM_TRIGGER,
+        SAW_TRI_RAMP
     };
 
     float lastTarget{0};
@@ -197,7 +198,7 @@ template <typename SRProvider, int BLOCK_SIZE, bool clampDeform = false> struct 
 
     float lastRate{-123485924.0}, lastFRate{0}, lastTSScale{-76543.2f}, lastSR{0};
     inline void process_block(const float r, const float d, const int lshape, bool reverse = false,
-                              float tsScale = 1.f)
+                              float tsScale = 1.f, float phaseDeformAngle = 0)
     {
         float target{0.f};
 
@@ -253,7 +254,22 @@ template <typename SRProvider, int BLOCK_SIZE, bool clampDeform = false> struct 
         {
             // target = bend1(std::sin(2.0 * M_PI * phase), d);
             // -sin(x-pi) == sin(x) but since phase[0,1] and fast [-pi,pi] this gets us
-            auto s = -dsp::fastsin(2.0 * M_PI * (phase - 0.5));
+            auto usePhase = phase;
+            if (phaseDeformAngle > 0)
+            {
+                auto f = 2 * (usePhase - 0.5);
+                auto d = 2 * phaseDeformAngle / 3;
+                auto g = d * f * f * f + (1 - d) * f;
+                usePhase = 0.5 + g * 0.5;
+            }
+            else if (phaseDeformAngle < 0)
+            {
+                auto f = 2 * (usePhase - 0.5);
+                auto d = -phaseDeformAngle;
+                auto g = d * cbrt(f) + (1 - d) * f;
+                usePhase = 0.5 + g * 0.5;
+            }
+            auto s = -dsp::fastsin(2.0 * M_PI * (usePhase - 0.5));
             target = bend1(s, d);
         }
         break;
@@ -301,6 +317,33 @@ template <typename SRProvider, int BLOCK_SIZE, bool clampDeform = false> struct 
             {
                 target = -1;
             }
+        }
+        break;
+        case SAW_TRI_RAMP:
+        {
+            auto q = phaseDeformAngle * 0.5 + 0.5;
+            auto res = 0.f;
+            if (q == 0)
+            {
+                res = 1 - phase;
+            }
+            else if (q == 1)
+            {
+                res = phase;
+            }
+            else
+            {
+                if (phase < q)
+                {
+                    res = phase / q;
+                }
+                else
+                {
+                    res = (q - phase) / (1 - q) + 1;
+                }
+            }
+
+            target = bend1(2 * res - 1, d);
         }
         break;
 
