@@ -27,6 +27,7 @@
 #ifndef INCLUDE_SST_BASIC_BLOCKS_MODULATORS_STEPLFO_H
 #define INCLUDE_SST_BASIC_BLOCKS_MODULATORS_STEPLFO_H
 
+#include <array>
 #include "Transport.h"
 #include "sst/basic-blocks/dsp/RNG.h"
 #include "sst/basic-blocks/tables/EqualTuningProvider.h"
