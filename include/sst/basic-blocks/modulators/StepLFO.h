@@ -121,10 +121,9 @@ template <size_t blockSize> struct StepLFO
             wf_history[2] = wf_history[1];
             wf_history[1] = wf_history[0];
             wf_history[0] = storage->data[state & (Storage::stepLfoSteps - 1)];
-            if (!state)
-                UpdatePhaseIncrement(rate, ts);
         }
 
+        UpdatePhaseIncrement(rate, ts);
         output = std::clamp(lfo_ipol(wf_history, phase, storage->smooth, state & 1), -1.f, 1.f);
     }
 
@@ -198,6 +197,7 @@ template <size_t blockSize> struct StepLFO
     int shuffle_id;
     sst::basic_blocks::modulators::Transport *td{nullptr};
     Storage *storage{nullptr};
+    float priorRate{-1000};
 
     double samplerate{1}, samplerate_inv{1};
 };
