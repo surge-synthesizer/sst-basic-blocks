@@ -254,22 +254,37 @@ template <typename SRProvider, int BLOCK_SIZE, bool clampDeform = false> struct 
         {
             // target = bend1(std::sin(2.0 * M_PI * phase), d);
             // -sin(x-pi) == sin(x) but since phase[0,1] and fast [-pi,pi] this gets us
-            auto usePhase = phase;
-            if (phaseDeformAngle > 0)
+            float s = 0.f;
+            if (phaseDeformAngle == 0)
             {
-                auto f = 2 * (usePhase - 0.5);
-                auto d = 2 * phaseDeformAngle / 3;
-                auto g = d * f * f * f + (1 - d) * f;
-                usePhase = 0.5 + g * 0.5;
+                s = -dsp::fastsin(2.0 * M_PI * (phase - 0.5));
             }
-            else if (phaseDeformAngle < 0)
+            else
             {
-                auto f = 2 * (usePhase - 0.5);
-                auto d = -phaseDeformAngle;
-                auto g = d * cbrt(f) + (1 - d) * f;
-                usePhase = 0.5 + g * 0.5;
+                auto x = phase;
+                auto g = -0.9999 * phaseDeformAngle;
+                auto q = x / (1 - g);
+                if (q < 0.25)
+                {
+                    s = -dsp::fastsin(2.0 * M_PI * (q - 0.5));
+                }
+                else
+                {
+                    auto m = 0.5 / (1 - 0.5 * (1 - g));
+                    auto b = 0.25 * (1 - m * (1 - g));
+                    auto r = m * x + b;
+                    if (r > 0.25 && r <= 0.75)
+                    {
+                        s = -dsp::fastsin(2.0 * M_PI * (r - 0.5));
+                    }
+                    else
+                    {
+                        auto q2 = q + 1 - 1 / (1 - g);
+                        s = -dsp::fastsin(2.0 * M_PI * (q2 - 0.5));
+                    }
+                }
             }
-            auto s = -dsp::fastsin(2.0 * M_PI * (usePhase - 0.5));
+
             target = bend1(s, d);
         }
         break;
@@ -288,7 +303,51 @@ template <typename SRProvider, int BLOCK_SIZE, bool clampDeform = false> struct 
             break;
         }
         case PULSE:
-            target = (phase < (d + 1) * 0.5) ? 1 : -1;
+            if (phaseDeformAngle == 0)
+            {
+                target = (phase < (d + 1) * 0.5) ? 1 : -1;
+            }
+            else
+            {
+                auto useRamp = phaseDeformAngle > 0;
+                auto dw = std::fabs(phaseDeformAngle);
+
+                // OK so what we want to do is smooth the upswing and downswing
+                // the width of the pulse is (d+1)*0.5 but we always want the shorter
+                // pulse
+                auto pw = (d + 1) * 0.5;
+                auto npw = (pw > 0.5) ? (1 - pw) : (pw);
+                auto rpw = npw * dw;
+
+                // are we in the upswing period
+                if (phase < rpw / 2 || phase + rpw / 2 >= 1)
+                {
+                    auto q = (phase + rpw / 2);
+                    if (q > 1)
+                        q -= 1;
+                    q = q / rpw;
+                    target = 2 * q - 1;
+                    if (!useRamp)
+                        target = dsp::fastsin(target * M_PI * 0.5);
+                }
+                // or the downswing
+                else if (phase >= pw - rpw / 2 && phase < pw + rpw / 2)
+                {
+                    auto q = phase - (pw - rpw / 2);
+                    if (q > 1)
+                        q -= 1;
+                    if (q < 0)
+                        q += 1;
+                    q = q / rpw;
+                    target = 2 * (1 - q) - 1;
+                    if (!useRamp)
+                        target = dsp::fastsin(target * M_PI * 0.5);
+                }
+                else
+                {
+                    target = phase < pw ? 1 : -1;
+                }
+            }
             break;
         case SMOOTH_NOISE:
             target =
@@ -352,7 +411,8 @@ template <typename SRProvider, int BLOCK_SIZE, bool clampDeform = false> struct 
             break;
         }
         target = target * amplitude;
-        if (phaseMidpoint > 0 && (shp == PULSE || shp == SH_NOISE || shp == RANDOM_TRIGGER))
+        if (phaseMidpoint > 0 &&
+            ((shp == PULSE && phaseDeformAngle == 0) || shp == SH_NOISE || shp == RANDOM_TRIGGER))
         {
             for (int i = 0; i < phaseMidpoint; ++i)
                 outputBlock[i] = lastTarget;
