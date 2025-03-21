@@ -30,6 +30,7 @@
 #include "sst/basic-blocks/simd/setup.h"
 #include "sst/basic-blocks/modulators/FXModControl.h"
 #include "sst/basic-blocks/modulators/SimpleLFO.h"
+#include "sst/basic-blocks/modulators/StepLFO.h"
 
 namespace smod = sst::basic_blocks::modulators;
 
@@ -69,6 +70,14 @@ struct SRProvider
     float envelope_rate_linear_nowrap(float f) const { return tbs * sampleRateInv * pow(2.f, -f); }
 };
 
+TEST_CASE("You can at least make a step LFO", "[mod]")
+{
+    sst::basic_blocks::tables::EqualTuningProvider e;
+    e.init();
+    sst::basic_blocks::modulators::StepLFO<16> step(e);
+    sst::basic_blocks::modulators::StepLFO<16>::Storage stor;
+    REQUIRE(step.output == 0);
+}
 #if 0
 // Well it turns out random isn't strictly bounded, so this test is no good, but we are
 // close to boudned now so leave it here in case we want to tweak more
