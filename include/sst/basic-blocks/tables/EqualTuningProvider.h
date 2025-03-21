@@ -39,6 +39,9 @@ struct EqualTuningProvider
 {
     void init()
     {
+        if (initialized)
+            return;
+
         for (auto i = 0U; i < tuning_table_size; i++)
         {
             table_pitch[i] = powf(2.f, ((float)i - 256.f) * (1.f / 12.f));
@@ -51,6 +54,7 @@ struct EqualTuningProvider
             table_two_to_the[i] = pow(2.0, twelths);
             table_two_to_the_minus[i] = pow(2.0, -twelths);
         }
+        initialized = true;
     }
 
     /**
@@ -80,8 +84,8 @@ struct EqualTuningProvider
     // 2^0 -> 2^+/-1/12th. See comment in note_to_pitch
     float table_two_to_the alignas(16)[1001];
     float table_two_to_the_minus alignas(16)[1001];
+    bool initialized{false};
 };
-extern EqualTuningProvider equalTuning;
 } // namespace sst::basic_blocks::tables
 
 #endif // __SCXT_EQUAL_H
