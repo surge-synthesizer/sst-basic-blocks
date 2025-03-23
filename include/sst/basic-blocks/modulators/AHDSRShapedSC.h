@@ -56,6 +56,14 @@ struct AHDSRShapedSC : DiscreteStagesEnvelope<BLOCK_SIZE, RangeProvider>
         initializeLuts();
     }
 
+    static double timeInSecondsFromParam(double p)
+    {
+        assert(RangeProvider::phaseStrategy == ENVTIME_EXP);
+        return (std::exp(RangeProvider::A + p * (RangeProvider::B - RangeProvider::A)) +
+                RangeProvider::C) /
+               RangeProvider::D;
+    }
+
     static void initializeLuts()
     {
         if (lutsInitialized)
@@ -66,10 +74,7 @@ struct AHDSRShapedSC : DiscreteStagesEnvelope<BLOCK_SIZE, RangeProvider>
             for (int i = 0; i < expLutSize; ++i)
             {
                 double x = 1.0 * i / (expLutSize - 1);
-                auto timeInSeconds =
-                    (std::exp(RangeProvider::A + x * (RangeProvider::B - RangeProvider::A)) +
-                     RangeProvider::C) /
-                    RangeProvider::D;
+                auto timeInSeconds = timeInSecondsFromParam(x);
                 auto invTime = 1.0 / timeInSeconds;
                 expLut[i] = std::log2(invTime);
             }
@@ -235,7 +240,8 @@ struct AHDSRShapedSC : DiscreteStagesEnvelope<BLOCK_SIZE, RangeProvider>
 
     inline void processCore(const float delay, const float a, const float h, const float d,
                             const float s, const float r, const float ashape, const float dshape,
-                            const float rshape, const bool gateActive, bool needsCurve)
+                            const float rshape, const bool gateActive, bool needsCurve,
+                            const float rateMul = 1.0)
     {
         float target = 0;
 
@@ -305,7 +311,7 @@ struct AHDSRShapedSC : DiscreteStagesEnvelope<BLOCK_SIZE, RangeProvider>
         {
         case base_t::s_delay:
         {
-            phase += dPhase(delay);
+            phase += rateMul * dPhase(delay);
 
             target = delayValue;
             if (phase > 1)
@@ -314,6 +320,14 @@ struct AHDSRShapedSC : DiscreteStagesEnvelope<BLOCK_SIZE, RangeProvider>
                 if (a > 0.f)
                 {
                     attackStartValue = delayValue;
+                    /*
+                     * If the delay is very very small (so the dphase is big)
+                     * then you end up starting too far alng the attack, which
+                     * really isn't the intent. So make it so delay->attack start
+                     * adjustment gets you at most 2% into the attack. This is just
+                     * empirically set by looking at very short delays.
+                     */
+                    phase = std::min(phase, 0.02f);
                     stage = base_t::s_attack;
                 }
                 else if (h > 0.f)
@@ -324,6 +338,9 @@ struct AHDSRShapedSC : DiscreteStagesEnvelope<BLOCK_SIZE, RangeProvider>
                 else if (d > 0.f)
                 {
                     stage = base_t::s_decay;
+                    // See above
+                    phase = std::min(phase, 0.02f);
+                    target = 1.0;
                 }
                 else
                 {
@@ -335,7 +352,7 @@ struct AHDSRShapedSC : DiscreteStagesEnvelope<BLOCK_SIZE, RangeProvider>
         break;
         case base_t::s_attack:
         {
-            phase += dPhase(a);
+            phase += rateMul * dPhase(a);
             if (phase > 1)
             {
                 if (h > 0)
@@ -357,7 +374,7 @@ struct AHDSRShapedSC : DiscreteStagesEnvelope<BLOCK_SIZE, RangeProvider>
         break;
         case base_t::s_hold:
         {
-            phase += dPhase(h);
+            phase += rateMul * dPhase(h);
 
             target = 1;
             if (phase > 1)
@@ -369,7 +386,7 @@ struct AHDSRShapedSC : DiscreteStagesEnvelope<BLOCK_SIZE, RangeProvider>
         break;
         case base_t::s_decay:
         {
-            phase += dPhase(d);
+            phase += rateMul * dPhase(d);
             if (phase > 1)
             {
                 stage = base_t::s_sustain;
@@ -388,7 +405,7 @@ struct AHDSRShapedSC : DiscreteStagesEnvelope<BLOCK_SIZE, RangeProvider>
         break;
         case base_t::s_release:
         {
-            phase += dPhase(r);
+            phase += rateMul * dPhase(r);
             if (phase > 1)
             {
                 stage = base_t::s_complete;
@@ -445,6 +462,19 @@ struct AHDSRShapedSC : DiscreteStagesEnvelope<BLOCK_SIZE, RangeProvider>
                                       const bool gateActive, bool needsCurve)
     {
         processCore(delay, a, h, d, s, r, ashape, dshape, rshape, gateActive, needsCurve);
+        // std::cout << "pbwd de=" << delay << " at=" << a << " h=" << h << " d=" << d << " s=" << s
+        // << "r= " << r << " ga=" << gateActive << " "; std::cout << " ph=" << phase << " sg=" <<
+        // (int)base_t::stage << " re=" << base_t::outBlock0 << std::endl;
+    }
+
+    inline void processBlockWithDelayAndRateMul(const float delay, const float a, const float h,
+                                                const float d, const float s, const float r,
+                                                const float ashape, const float dshape,
+                                                const float rshape, const float rateMul,
+                                                const bool gateActive, bool needsCurve)
+    {
+
+        processCore(delay, a, h, d, s, r, ashape, dshape, rshape, gateActive, needsCurve, rateMul);
         // std::cout << "pbwd de=" << delay << " at=" << a << " h=" << h << " d=" << d << " s=" << s
         // << "r= " << r << " ga=" << gateActive << " "; std::cout << " ph=" << phase << " sg=" <<
         // (int)base_t::stage << " re=" << base_t::outBlock0 << std::endl;
