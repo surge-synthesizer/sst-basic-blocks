@@ -101,6 +101,12 @@ template <size_t blockSize> struct StepLFO
         samplerate_inv = sri;
     }
 
+    void retrigger()
+    {
+        state = 0;
+        phase = 0;
+    }
+
     void process(float rate, int triggerMode, bool ts, bool oneShot, int samples)
     {
         phase += phaseInc;
