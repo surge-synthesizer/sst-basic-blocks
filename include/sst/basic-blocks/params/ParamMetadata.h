@@ -233,7 +233,8 @@ struct ParamMetaData
      */
     struct FeatureState
     {
-        bool isHighPrecision{false}, isExtended{false}, isAbsolute{false}, isTemposynced{false};
+        bool isHighPrecision{false}, isExtended{false}, isAbsolute{false}, isTemposynced{false},
+            isNoUnits{false};
 
         FeatureState(){};
 
@@ -259,6 +260,12 @@ struct ParamMetaData
         {
             auto res = *this;
             res.isTemposynced = e;
+            return res;
+        }
+        FeatureState withNoUnits(bool e)
+        {
+            auto res = *this;
+            res.isNoUnits = e;
             return res;
         }
     };
@@ -909,6 +916,9 @@ inline std::optional<std::string> ParamMetaData::valueToString(float val,
         }
         if (displayScale == LINEAR)
         {
+            if (fs.isNoUnits)
+                return std::to_string(iv);
+
             return std::to_string(iv) + (unit.empty() ? "" : " ") + unit;
         }
 
@@ -936,11 +946,23 @@ inline std::optional<std::string> ParamMetaData::valueToString(float val,
     case LINEAR:
         if (alternateScaleWhen == NO_ALTERNATE)
         {
-            return fmt::format("{:.{}f} {:s}", svA * val,
-                               (fs.isHighPrecision ? (decimalPlaces + 4) : decimalPlaces), unit);
+            if (fs.isNoUnits)
+            {
+                auto res = fmt::format("{:.{}f}", svA * val,
+                                       (fs.isHighPrecision ? (decimalPlaces + 4) : decimalPlaces));
+                return res;
+            }
+            else
+            {
+                return fmt::format("{:.{}f} {:s}", svA * val,
+                                   (fs.isHighPrecision ? (decimalPlaces + 4) : decimalPlaces),
+                                   unit);
+            }
         }
         else
         {
+            // Conscious choice - don't supress units if alternate units are in effect
+            assert(!fs.isNoUnits);
             auto rsv = svA * val;
             if ((alternateScaleWhen == SCALE_BELOW && rsv < alternateScaleCutoff) ||
                 (alternateScaleWhen == SCALE_ABOVE && rsv > alternateScaleCutoff))
@@ -969,11 +991,23 @@ inline std::optional<std::string> ParamMetaData::valueToString(float val,
                 dval = 1.0 / dval;
                 prefix = "1/";
             }
-            return fmt::format("{}{:.{}f} {:s}", prefix, dval,
-                               (fs.isHighPrecision ? (decimalPlaces + 4) : decimalPlaces), unit);
+            if (fs.isNoUnits)
+            {
+                return fmt::format("{}{:.{}f}", prefix, dval,
+                                   (fs.isHighPrecision ? (decimalPlaces + 4) : decimalPlaces));
+            }
+            else
+            {
+                return fmt::format("{}{:.{}f} {:s}", prefix, dval,
+                                   (fs.isHighPrecision ? (decimalPlaces + 4) : decimalPlaces),
+                                   unit);
+            }
         }
         else
         {
+            // Conscious choice - don't supress units if alternate units are in effect
+            assert(!fs.isNoUnits);
+
             auto rsv = svA * pow(2.0, svB * val + svC);
             if ((alternateScaleWhen == SCALE_BELOW && rsv < alternateScaleCutoff) ||
                 (alternateScaleWhen == SCALE_ABOVE && rsv > alternateScaleCutoff))
@@ -997,8 +1031,16 @@ inline std::optional<std::string> ParamMetaData::valueToString(float val,
             return "-inf";
         auto dval = svA * std::log(val) / std::log(svB) + svC;
 
-        return fmt::format("{:.{}f} {:s}", dval,
-                           (fs.isHighPrecision ? (decimalPlaces + 4) : decimalPlaces), unit);
+        if (fs.isNoUnits)
+        {
+            return fmt::format("{:.{}f}", dval,
+                               (fs.isHighPrecision ? (decimalPlaces + 4) : decimalPlaces));
+        }
+        else
+        {
+            return fmt::format("{:.{}f} {:s}", dval,
+                               (fs.isHighPrecision ? (decimalPlaces + 4) : decimalPlaces), unit);
+        }
     }
     case SCALED_OFFSET_EXP:
     {
@@ -1025,8 +1067,9 @@ inline std::optional<std::string> ParamMetaData::valueToString(float val,
 
         auto v3 = val * val * val * svA;
         auto db = 20 * std::log10(v3);
-        return fmt::format("{:.{}f} dB", db,
-                           (fs.isHighPrecision ? (decimalPlaces + 4) : decimalPlaces));
+        return fmt::format("{:.{}f}{}", db,
+                           (fs.isHighPrecision ? (decimalPlaces + 4) : decimalPlaces),
+                           fs.isNoUnits ? "" : " dB");
     }
     break;
     default:
