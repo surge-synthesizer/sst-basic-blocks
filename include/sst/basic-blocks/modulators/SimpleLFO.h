@@ -352,9 +352,32 @@ template <typename SRProvider, int BLOCK_SIZE, bool clampDeform = false> struct 
         case SMOOTH_NOISE:
             target =
                 dsp::cubic_ipol(rngHistory[3], rngHistory[2], rngHistory[1], rngHistory[0], phase);
+            if (phaseDeformAngle < 0)
+            {
+                auto lt = dsp::cubic_ipol(rngHistory[3], rngHistory[2], rngHistory[1],
+                                          rngHistory[0], std::sqrt(phase));
+                target = -phaseDeformAngle * lt + (1 + phaseDeformAngle) * target;
+            }
+            else if (phaseDeformAngle > 0)
+            {
+                auto lt = dsp::cubic_ipol(rngHistory[3], rngHistory[2], rngHistory[1],
+                                          rngHistory[0], phase * phase * phase * phase);
+                target = phaseDeformAngle * lt + (1 - phaseDeformAngle) * target;
+            }
             break;
         case SH_NOISE:
             target = rngCurrent;
+            if (phaseDeformAngle > 0)
+            {
+                // we want if phase = 1 current if phase = 0 rngHistory[1]
+                auto lt = rngHistory[1] + (rngCurrent - rngHistory[1]) * phase;
+                target = phaseDeformAngle * lt + (1 - phaseDeformAngle) * target;
+            }
+            else if (phaseDeformAngle < 0)
+            {
+                auto lt = rngCurrent * (1 - phase);
+                target = -phaseDeformAngle * lt + (1 + phaseDeformAngle) * target;
+            }
             break;
         case RANDOM_TRIGGER:
         {
