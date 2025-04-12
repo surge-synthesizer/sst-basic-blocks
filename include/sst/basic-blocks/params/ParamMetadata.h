@@ -193,6 +193,20 @@ struct ParamMetaData
     }
 
     /*
+     * Enabled indicates whether or not this parameter is used by the provider.
+     * This is handy in dynamic situations where theres inter-param action, ike
+     * the shrot circuit VA oscillator
+     */
+    bool enabled{true};
+    bool isEnabled() const { return enabled; }
+    ParamMetaData withEnabled(bool e)
+    {
+        auto res = *this;
+        res.enabled = e;
+        return res;
+    }
+
+    /*
      * Parameters have an extensible optional set of features stored in a single
      * uint64_t which you can flag on and off. This allows us to add things we want
      * as binaries on params without adding a squillion little bools for lesser importance
