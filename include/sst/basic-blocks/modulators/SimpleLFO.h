@@ -178,8 +178,10 @@ template <typename SRProvider, int BLOCK_SIZE, bool clampDeform = false> struct 
         if (dPhase != lastDPhase)
         {
             phase += dPhase - lastDPhase;
-            if (phase > 1)
+            if (phase > 1 && !needsRandomRestart)
                 phase -= 1;
+            if (needsRandomRestart)
+                phase = std::clamp(phase, 0.f, 1.999999f);
         }
         lastDPhase = dPhase;
     }
