@@ -1346,7 +1346,7 @@ inline std::optional<float> ParamMetaData::valueFromString(std::string_view v, s
     return std::nullopt;
 }
 
-inline std::optional<std::string> ParamMetaData::valueToAlternateString(float val) const
+inline std::optional<std::string> ParamMetaData::valueToAlternateString(float) const
 {
     return std::nullopt;
 }
