@@ -245,6 +245,45 @@ TEST_CASE("Alternate Scales Above and Below", "[param]")
         REQUIRE(*(p.valueFromString("9.84 kHz", em)) == Approx(9840.f));
     }
 
+    SECTION("Linear alternate above Substring")
+    {
+        auto p = pmd::ParamMetaData()
+                     .asFloat()
+                     .withRange(100, 10000)
+                     .withLinearScaleFormatting("ms")
+                     .withDisplayRescalingAbove(1000.f, 0.001f, "s");
+
+        REQUIRE(*(p.valueToString(400)) == "400.00 ms");
+        REQUIRE(*(p.valueToString(1100)) == "1.10 s");
+        REQUIRE(*(p.valueToString(9840)) == "9.84 s");
+
+        std::string em;
+        REQUIRE(*(p.valueFromString("400 ms", em)) == Approx(400.f));
+        REQUIRE(*(p.valueFromString("1100 ms", em)) == Approx(1100.f));
+        REQUIRE(*(p.valueFromString("1.10 s", em)) == Approx(1100.f));
+        REQUIRE(*(p.valueFromString("9840 ms", em)) == Approx(9840.f));
+        REQUIRE(*(p.valueFromString("9840", em)) == Approx(9840.f));
+        REQUIRE(*(p.valueFromString("9.84 s", em)) == Approx(9840.f));
+    }
+
+    SECTION("Two To The alternate above Substring")
+    {
+        auto p = pmd::ParamMetaData()
+                     .asFloat()
+                     .withRange(-3, 5)
+                     .withATwoToTheBFormatting(1000, 1, "ms")
+                     .withDisplayRescalingAbove(1000.f, 0.001f, "s");
+
+        REQUIRE(*(p.valueToString(-1)) == "500.00 ms");
+        REQUIRE(*(p.valueToString(-2)) == "250.00 ms");
+        REQUIRE(*(p.valueToString(2)) == "4.00 s");
+
+        std::string em;
+        REQUIRE(*(p.valueFromString("500 ms", em)) == Approx(-1.f));
+        REQUIRE(*(p.valueFromString("2 s", em)) == Approx(1.f));
+        REQUIRE(*(p.valueFromString("500", em)) == Approx(-1.f));
+    }
+
     SECTION("Scaled Linear no alternate")
     {
         auto p =
