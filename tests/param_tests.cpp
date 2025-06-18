@@ -385,3 +385,90 @@ TEST_CASE("Temposync type In")
         }
     }
 }
+
+TEST_CASE("Two to the X Formatting")
+{
+    SECTION("Basic AB")
+    {
+        auto p = pmd::ParamMetaData().withATwoToTheBFormatting(5, 3, "foo").withRange(0, 3);
+        auto v = p.valueToString(3); // so 5 * 2 ^ 3 * 3 = 4 * 2^9 = 2560
+        REQUIRE(v.has_value());
+        REQUIRE(*v == "2560.00 foo");
+
+        std::string em;
+        auto vv = p.valueFromString(*v, em);
+        REQUIRE(vv.has_value());
+        REQUIRE(*vv == 3);
+    }
+    SECTION("Basic ABC")
+    {
+        auto p =
+            pmd::ParamMetaData().withATwoToTheBPlusCFormatting(3, 2, -1, "foo").withRange(0, 3);
+        auto v = p.valueToString(2); // so 3 * 2 ^ 2*2-1 = 3 * 2^3-1 = 3 * 2^3 == 24
+        REQUIRE(v.has_value());
+        REQUIRE(*v == "24.00 foo");
+
+        std::string em;
+        auto vv = p.valueFromString(*v, em);
+        REQUIRE(vv.has_value());
+        REQUIRE(*vv == 2);
+    }
+
+    SECTION("Basic ABCD")
+    {
+        auto p = pmd::ParamMetaData()
+                     .withATwoToTheBPlusCPlusDFormatting(3, 2, -1, -14, "foo")
+                     .withRange(0, 3);
+        auto v = p.valueToString(2); // so 3 * 2 ^ 2*2-1  -14 = 3 * 2^3-1 -14 = 3 * 2^3 -14 == 10
+        REQUIRE(v.has_value());
+        REQUIRE(*v == "10.00 foo");
+
+        std::string em;
+        auto vv = p.valueFromString(*v, em);
+        REQUIRE(vv.has_value());
+        REQUIRE(*vv == 2);
+    }
+
+    SECTION("AeB")
+    {
+        auto p =
+            pmd::ParamMetaData().withAExpBPlusCPlusDFormatting(3, 2, 0, 0, "foo").withRange(0, 3);
+        auto v = p.valueToString(2); // so 3 e^4
+        REQUIRE(v.has_value());
+        REQUIRE(*v == "163.79 foo");
+
+        std::string em;
+        auto vv = p.valueFromString(*v, em);
+        REQUIRE(vv.has_value());
+        REQUIRE(*vv == Approx(2).margin(1e-4));
+    }
+
+    SECTION("AeBCD")
+    {
+        auto p = pmd::ParamMetaData()
+                     .withAExpBPlusCPlusDFormatting(3, 2, -1, -17, "foo")
+                     .withRange(0, 3);
+        auto v = p.valueToString(2); // so 3 e^(4-1) - 17
+        REQUIRE(v.has_value());
+        REQUIRE(*v == "43.26 foo");
+
+        std::string em;
+        auto vv = p.valueFromString(*v, em);
+        REQUIRE(vv.has_value());
+        REQUIRE(*vv == Approx(2).margin(1e-4));
+    }
+
+    SECTION("OBXF Log")
+    {
+
+        auto logsc = [](float param, const float min, const float max, const float rolloff) {
+            return ((expf(param * logf(rolloff + 1.f)) - 1.f) / (rolloff)) * (max - min) + min;
+        };
+        auto p = pmd::ParamMetaData().withOBXFLogScale(0.2, 17, 23, "foo").withRange(0, 3);
+        auto v = p.valueToString(2.1);
+        auto vc = logsc(2.1, 0.2, 17, 23);
+        REQUIRE(vc == Approx(577.59894));
+        REQUIRE(v.has_value());
+        REQUIRE(*v == "577.60 foo");
+    }
+}
