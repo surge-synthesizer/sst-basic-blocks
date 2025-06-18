@@ -336,7 +336,7 @@ struct ParamMetaData
     enum DisplayScale
     {
         LINEAR,            // out = A * r + B
-        A_TWO_TO_THE_B,    // out = A 2^(B r + C)
+        A_TWO_TO_THE_B,    // out = A 2^(B r + C) + D
         CUBED_AS_DECIBEL,  // the underlier is an amplitude applied as v*v*v and displayed as db
         SCALED_OFFSET_EXP, // (exp(A + x ( B - A )) + C) / D
         DECIBEL,           // TODO - implement
@@ -548,14 +548,51 @@ struct ParamMetaData
 
     ParamMetaData withATwoToTheBPlusCFormatting(float A, float B, float C, std::string_view units)
     {
+        return withATwoToTheBPlusCPlusDFormatting(A, B, C, 0.f, units);
+    }
+
+    ParamMetaData withATwoToTheBPlusCPlusDFormatting(float A, float B, float C, float D,
+                                                     std::string_view units)
+    {
         auto res = *this;
         res.svA = A;
         res.svB = B;
         res.svC = C;
+        res.svD = D;
         res.unit = units;
         res.displayScale = A_TWO_TO_THE_B;
         res.supportsStringConversion = true;
         return res;
+    }
+
+    // A e^ (Bx + C) + d
+    ParamMetaData withAExpBPlusCPlusDFormatting(float A, float B, float C, float D,
+                                                std::string_view units)
+    {
+        // so e^x = 2^x/ln(2)
+        // e^(BX + C) = 2^(BX + C)/ln(2)
+        static constexpr float ln2{0.693147180559945};
+        auto res = *this;
+        res.svA = A;
+        res.svB = B / ln2;
+        res.svC = C / ln2;
+        res.svD = D;
+        res.unit = units;
+        res.displayScale = A_TWO_TO_THE_B;
+        res.supportsStringConversion = true;
+        return res;
+    }
+
+    ParamMetaData withOBXFLogScale(float min, float max, float rolloff, std::string_view units)
+    {
+        // return ((expf(param * logf(rolloff + 1.f)) - 1.f) / (rolloff)) * (max - min) + min;
+        // (e^(x log(ro+1)) - 1) * (max-min)/rolloff + min
+        // A == (max-min)/rolloff
+        // A e^(x log(ro+1)) - A + D
+        auto At = (max - min) / rolloff;
+        auto Bt = log(rolloff + 1);
+        auto Dt = min - At;
+        return withAExpBPlusCPlusDFormatting(At, Bt, 0, Dt, units);
     }
 
     ParamMetaData withScaledOffsetExpFormatting(float A, float B, float C, float D,
@@ -997,7 +1034,7 @@ inline std::optional<std::string> ParamMetaData::valueToString(float val,
     case A_TWO_TO_THE_B:
         if (alternateScaleWhen == NO_ALTERNATE)
         {
-            auto dval = svA * pow(2.0, svB * val + svC);
+            auto dval = svA * pow(2.0, svB * val + svC) + svD;
             std::string prefix{};
             if ((features & (uint64_t)Features::BELOW_ONE_IS_INVERSE_FRACTION) && dval < 1 &&
                 dval > 0)
@@ -1022,7 +1059,7 @@ inline std::optional<std::string> ParamMetaData::valueToString(float val,
             // Conscious choice - don't supress units if alternate units are in effect
             assert(!fs.isNoUnits);
 
-            auto rsv = svA * pow(2.0, svB * val + svC);
+            auto rsv = svA * pow(2.0, svB * val + svC) + svD;
             if ((alternateScaleWhen == SCALE_BELOW && rsv < alternateScaleCutoff) ||
                 (alternateScaleWhen == SCALE_ABOVE && rsv > alternateScaleCutoff))
             {
@@ -1056,6 +1093,7 @@ inline std::optional<std::string> ParamMetaData::valueToString(float val,
                                (fs.isHighPrecision ? (decimalPlaces + 4) : decimalPlaces), unit);
         }
     }
+    break;
     case SCALED_OFFSET_EXP:
     {
         auto dval = (std::exp(svA + val * (svB - svA)) + svC) / svD;
@@ -1238,11 +1276,11 @@ inline std::optional<float> ParamMetaData::valueFromString(std::string_view v, s
                 errMsg = rangeMsg();
                 return std::nullopt;
             }
-            /* v = svA 2^(svB r + svC)
-             * log2(v / svA) = svB r + svC
-             * (log2(v/svA) - svC)/svB = r
+            /* v = svA 2^(svB r + svC) + svD
+             * log2((v-svD) / svA) = svB r + svC
+             * (log2((v-svD)/svA) - svC)/svB = r
              */
-            r = (log2(r / svA) - svC) / svB;
+            r = (log2((r - svD) / svA) - svC) / svB;
             if (r < minVal || r > maxVal)
             {
                 errMsg = rangeMsg();
@@ -1276,6 +1314,7 @@ inline std::optional<float> ParamMetaData::valueFromString(std::string_view v, s
         return res;
     }
     break;
+
     case SCALED_OFFSET_EXP:
     {
         try
@@ -1412,9 +1451,9 @@ ParamMetaData::modulationNaturalToString(float naturalBaseVal, float modulationN
         auto nvu = naturalBaseVal + modulationNatural;
         auto nvd = naturalBaseVal - modulationNatural;
 
-        auto scv = svA * pow(2, svB * naturalBaseVal + svC);
-        auto svu = svA * pow(2, svB * nvu + svC);
-        auto svd = svA * pow(2, svB * nvd + svC);
+        auto scv = svA * pow(2, svB * naturalBaseVal + svC) + svD;
+        auto svu = svA * pow(2, svB * nvu + svC) + svD;
+        auto svd = svA * pow(2, svB * nvd + svC) + svD;
         auto du = svu - scv;
         auto dd = scv - svd;
 
@@ -1602,7 +1641,7 @@ ParamMetaData::modulationNaturalFromString(std::string_view deltaNatural, float 
     {
         try
         {
-            auto xbv = svA * pow(2, svB * naturalBaseVal);
+            auto xbv = svA * pow(2, svB * naturalBaseVal) + svD;
             auto mv = std::stof(std::string(deltaNatural));
             auto rv = xbv + mv;
             if (rv < 0)
@@ -1635,6 +1674,7 @@ inline std::string ParamMetaData::temposyncNotation(float f) const
 {
     assert(type == FLOAT);
     assert(displayScale == A_TWO_TO_THE_B);
+    assert(svD == 0.f);
     float a, b = modff(f, &a);
 
     if (b >= 0)
