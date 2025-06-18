@@ -1196,8 +1196,10 @@ inline std::optional<float> ParamMetaData::valueFromString(std::string_view v, s
 
             if (alternateScaleWhen != NO_ALTERNATE)
             {
-                auto ps = v.find(alternateScaleUnits);
-                if (ps != std::string::npos && alternateScaleRescaling != 0.f)
+                auto unitSubstr = (unit.find(alternateScaleUnits) != std::string::npos);
+                auto us = (v.find(unit) != std::string::npos);
+                auto ps = (v.find(alternateScaleUnits) != std::string::npos);
+                if ((!unitSubstr && ps) || (unitSubstr && ps && !us))
                 {
                     // We have a string containing the alterante units
                     r = r / alternateScaleRescaling;
@@ -1263,8 +1265,10 @@ inline std::optional<float> ParamMetaData::valueFromString(std::string_view v, s
 
             if (alternateScaleWhen != NO_ALTERNATE)
             {
-                auto ps = v.find(alternateScaleUnits);
-                if (ps != std::string::npos && alternateScaleRescaling != 0.f)
+                auto unitSubstr = (unit.find(alternateScaleUnits) != std::string::npos);
+                auto us = (v.find(unit) != std::string::npos);
+                auto ps = (v.find(alternateScaleUnits) != std::string::npos);
+                if ((!unitSubstr && ps) || (unitSubstr && ps && !us))
                 {
                     // We have a string containing the alterante units
                     r = r / alternateScaleRescaling;
