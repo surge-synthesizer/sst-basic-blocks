@@ -347,9 +347,7 @@ struct ParamMetaData
     } displayScale{LINEAR};
 
     std::string unit;
-    std::string customMinDisplay;
-    std::string customMaxDisplay;
-    std::string customDefaultDisplay;
+    std::vector<std::tuple<std::string, float, float>> customValueLabelsWithAccuracy;
 
     std::unordered_map<int, std::string> discreteValues;
     int decimalPlaces{2};
@@ -690,23 +688,42 @@ struct ParamMetaData
         return res;
     }
 
-    ParamMetaData withCustomMaxDisplay(const std::string &v)
+    ParamMetaData withValueLabelRemoved(float v)
     {
         auto res = *this;
-        res.customMaxDisplay = v;
+
+        for (auto r = res.customValueLabelsWithAccuracy.begin();
+             r < res.customValueLabelsWithAccuracy.end(); ++r)
+        {
+            if (std::get<1>(*r) == v)
+            {
+                r = res.customValueLabelsWithAccuracy.erase(r);
+            }
+            else
+            {
+                ++r;
+            }
+        }
         return res;
+    }
+    ParamMetaData withCustomMaxDisplay(const std::string &v)
+    {
+        return withCustomValueDisplay(v, maxVal, 1e-6);
     }
 
     ParamMetaData withCustomMinDisplay(const std::string &v)
     {
-        auto res = *this;
-        res.customMinDisplay = v;
-        return res;
+        return withCustomValueDisplay(v, minVal, 1e-6);
     }
     ParamMetaData withCustomDefaultDisplay(const std::string &v)
     {
-        auto res = *this;
-        res.customDefaultDisplay = v;
+        return withCustomValueDisplay(v, defaultVal);
+    }
+
+    ParamMetaData withCustomValueDisplay(const std::string &v, float val, float tol = 0.005)
+    {
+        auto res = withValueLabelRemoved(val);
+        res.customValueLabelsWithAccuracy.emplace_back(v, val, tol);
         return res;
     }
 
@@ -937,9 +954,14 @@ inline std::optional<std::string> ParamMetaData::valueToString(float val,
 {
     if (type == BOOL)
     {
-        if (val < 0.5)
-            return customMinDisplay.empty() ? "Off" : customMinDisplay;
-        return customMaxDisplay.empty() ? "On" : customMaxDisplay;
+        for (auto &v : customValueLabelsWithAccuracy)
+        {
+            if (std::get<1>(v) < 0.1 && val < 0.5)
+                return std::get<0>(v);
+
+            if (std::get<1>(v) > 0.9 && val > 0.5)
+                return std::get<0>(v);
+        }
     }
 
     if (type == INT)
@@ -976,12 +998,14 @@ inline std::optional<std::string> ParamMetaData::valueToString(float val,
         return std::nullopt;
     }
 
-    if (!customMinDisplay.empty() && val == minVal)
-        return customMinDisplay;
-    if (!customMaxDisplay.empty() && val == maxVal)
-        return customMaxDisplay;
-    if (!customDefaultDisplay.empty() && val == defaultVal)
-        return customDefaultDisplay;
+    for (auto &det : customValueLabelsWithAccuracy)
+    {
+        auto dv = std::get<1>(det);
+        auto da = std::get<2>(det);
+
+        if (fabs(val - dv) < da * (maxVal - minVal))
+            return std::get<0>(det);
+    }
 
     if (fs.isExtended)
         val = exA * val + exB;
@@ -1168,11 +1192,11 @@ inline std::optional<float> ParamMetaData::valueFromString(std::string_view v, s
         return std::nullopt;
     }
 
-    if (!customMinDisplay.empty() && v == customMinDisplay)
-        return minVal;
-
-    if (!customMaxDisplay.empty() && v == customMaxDisplay)
-        return maxVal;
+    for (const auto &det : customValueLabelsWithAccuracy)
+    {
+        if (v == std::get<0>(det))
+            return std::get<1>(det);
+    };
 
     auto rangeMsg = [this]() {
         std::string em;

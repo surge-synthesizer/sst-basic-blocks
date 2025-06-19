@@ -511,3 +511,20 @@ TEST_CASE("Two to the X Formatting")
         REQUIRE(*v == "577.60 foo");
     }
 }
+
+TEST_CASE("Custom Min Max and Default")
+{
+    SECTION("Pan as test case")
+    {
+        auto p = pmd::ParamMetaData().asPan();
+        REQUIRE(p.valueToString(-1).value_or("") == "L");
+        REQUIRE(p.valueToString(1).value_or("") == "R");
+        REQUIRE(p.valueToString(0).value_or("") == "C");
+        REQUIRE(p.valueToString(0.00001).value_or("") == "C");
+
+        std::string em;
+        REQUIRE(p.valueFromString("L", em).value_or(1000) == -1);
+        REQUIRE(p.valueFromString("R", em).value_or(1000) == 1);
+        REQUIRE(p.valueFromString("C", em).value_or(1000) == 0);
+    }
+}
