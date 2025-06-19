@@ -59,6 +59,7 @@
 #include <string>
 #include <string_view>
 #include <variant>
+#include <vector>
 #include <optional>
 #include <unordered_map>
 #include <cassert>
