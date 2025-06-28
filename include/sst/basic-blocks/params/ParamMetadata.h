@@ -249,7 +249,7 @@ struct ParamMetaData
     struct FeatureState
     {
         bool isHighPrecision{false}, isExtended{false}, isAbsolute{false}, isTemposynced{false},
-            isNoUnits{false};
+            isNoUnits{false}, modulationClamped{true};
 
         FeatureState(){};
 
@@ -281,6 +281,12 @@ struct ParamMetaData
         {
             auto res = *this;
             res.isNoUnits = e;
+            return res;
+        }
+        FeatureState withModulationClamped(bool e)
+        {
+            auto res = *this;
+            res.modulationClamped = e;
             return res;
         }
     };
@@ -1480,6 +1486,31 @@ ParamMetaData::modulationNaturalToString(float naturalBaseVal, float modulationN
         auto nvu = naturalBaseVal + modulationNatural;
         auto nvd = naturalBaseVal - modulationNatural;
 
+        std::string upPfx{}, downPfx{};
+        if (fs.modulationClamped)
+        {
+            if (nvu > maxVal)
+            {
+                nvu = maxVal;
+                upPfx = ">";
+            }
+            if (nvu < minVal)
+            {
+                nvu = minVal;
+                upPfx = "<";
+            }
+            if (nvd > maxVal)
+            {
+                nvd = maxVal;
+                downPfx = ">";
+            }
+            if (nvd < minVal)
+            {
+                nvd = minVal;
+                downPfx = "<";
+            }
+        }
+
         auto scv = svA * pow(2, svB * naturalBaseVal + svC) + svD;
         auto svu = svA * pow(2, svB * nvu + svC) + svD;
         auto svd = svA * pow(2, svB * nvd + svC) + svD;
@@ -1487,7 +1518,7 @@ ParamMetaData::modulationNaturalToString(float naturalBaseVal, float modulationN
         auto dd = scv - svd;
 
         auto dp = (fs.isHighPrecision ? (decimalPlaces + 4) : decimalPlaces);
-        result.value = fmt::format("{:.{}f} {}", du, dp, unit);
+        result.value = fmt::format("{}{:.{}f} {}", upPfx, du, dp, unit);
         if (isBipolar)
         {
             if (du > 0)
@@ -1503,13 +1534,13 @@ ParamMetaData::modulationNaturalToString(float naturalBaseVal, float modulationN
         {
             result.summary = fmt::format("{:.{}f} {}", du, dp, unit);
         }
-        result.changeUp = fmt::format("{:.{}f}", du, dp);
+        result.changeUp = fmt::format("{}{:.{}f}", upPfx, du, dp);
         if (isBipolar)
-            result.changeDown = fmt::format("{:.{}f}", dd, dp);
-        result.valUp = fmt::format("{:.{}f}", svu, dp);
+            result.changeDown = fmt::format("{}{:.{}f}", downPfx, dd, dp);
+        result.valUp = fmt::format("{}{:.{}f}", upPfx, svu, dp);
 
         if (isBipolar)
-            result.valDown = fmt::format("{:.{}f}", svd, dp);
+            result.valDown = fmt::format("{}{:.{}f}", downPfx, svd, dp);
         auto v2s = valueToString(naturalBaseVal, fs);
         if (v2s.has_value())
             result.baseValue = *v2s;
@@ -1517,11 +1548,12 @@ ParamMetaData::modulationNaturalToString(float naturalBaseVal, float modulationN
             result.baseValue = "-ERROR-";
 
         if (isBipolar)
-            result.singleLineModulationSummary = fmt::format(
-                "{} {} < {} > {} {}", result.valDown, unit, result.baseValue, result.valUp, unit);
+            result.singleLineModulationSummary =
+                fmt::format("{}{} {} < {} > {}{} {}", downPfx, result.valDown, unit,
+                            result.baseValue, upPfx, result.valUp, unit);
         else
             result.singleLineModulationSummary =
-                fmt::format("{} > {} {}", result.baseValue, result.valUp, unit);
+                fmt::format("{} > {}{} {}", result.baseValue, upPfx, result.valUp, unit);
 
         return result;
     }
