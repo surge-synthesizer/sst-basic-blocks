@@ -354,7 +354,7 @@ struct ParamMetaData
     } displayScale{LINEAR};
 
     std::string unit;
-    std::string unitSeparator = " ";
+    std::string unitSeparator{" "};
     std::vector<std::tuple<std::string, float, float>> customValueLabelsWithAccuracy;
 
     std::unordered_map<int, std::string> discreteValues;
