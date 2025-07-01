@@ -241,9 +241,9 @@ struct ParamMetaData
      * To String and From String conversion functions require information about the
      * parameter to execute. The primary driver is the value so the API takes the form
      * `valueToString(float)` but for optional features like extension, deform,
-     * absolute and temposync we need to knwo that. Since this metadata does not
+     * absolute and temposync we need to know that. Since this metadata does not
      * store any values but has the values handed externally, we could either have
-     * a long-argument-list api or a little helper class for those values. We chose
+     * a long-argument-list API or a little helper class for those values. We chose
      * the later in FeatureState
      */
     struct FeatureState
@@ -354,6 +354,7 @@ struct ParamMetaData
     } displayScale{LINEAR};
 
     std::string unit;
+    std::string unitSeparator = " ";
     std::vector<std::tuple<std::string, float, float>> customValueLabelsWithAccuracy;
 
     std::unordered_map<int, std::string> discreteValues;
@@ -695,6 +696,13 @@ struct ParamMetaData
         return res;
     }
 
+    ParamMetaData withUnitSeparator(std::string_view s)
+    {
+        auto res = *this;
+        res.unitSeparator = s;
+        return res;
+    }
+
     ParamMetaData withValueLabelRemoved(float v)
     {
         auto res = *this;
@@ -999,7 +1007,7 @@ inline std::optional<std::string> ParamMetaData::valueToString(float val,
             if (fs.isNoUnits)
                 return std::to_string(iv);
 
-            return std::to_string(iv) + (unit.empty() ? "" : " ") + unit;
+            return std::to_string(iv) + (unit.empty() ? "" : unitSeparator) + unit;
         }
 
         return std::nullopt;
@@ -1036,9 +1044,9 @@ inline std::optional<std::string> ParamMetaData::valueToString(float val,
             }
             else
             {
-                return fmt::format("{:.{}f} {:s}", svA * val,
+                return fmt::format("{:.{}f}{}{:s}", svA * val,
                                    (fs.isHighPrecision ? (decimalPlaces + 4) : decimalPlaces),
-                                   unit);
+                                   unitSeparator, unit);
             }
         }
         else
@@ -1050,15 +1058,15 @@ inline std::optional<std::string> ParamMetaData::valueToString(float val,
                 (alternateScaleWhen == SCALE_ABOVE && rsv > alternateScaleCutoff))
             {
                 rsv = rsv * alternateScaleRescaling;
-                return fmt::format("{:.{}f} {:s}", rsv,
+                return fmt::format("{:.{}f}{}{:s}", rsv,
                                    (fs.isHighPrecision ? (decimalPlaces + 4) : decimalPlaces),
-                                   alternateScaleUnits);
+                                   unitSeparator, alternateScaleUnits);
             }
             else
             {
-                return fmt::format("{:.{}f} {:s}", svA * val,
+                return fmt::format("{:.{}f}{}{:s}", svA * val,
                                    (fs.isHighPrecision ? (decimalPlaces + 4) : decimalPlaces),
-                                   unit);
+                                   unitSeparator, unit);
             }
         }
         break;
@@ -1080,9 +1088,9 @@ inline std::optional<std::string> ParamMetaData::valueToString(float val,
             }
             else
             {
-                return fmt::format("{}{:.{}f} {:s}", prefix, dval,
+                return fmt::format("{}{:.{}f}{}{:s}", prefix, dval,
                                    (fs.isHighPrecision ? (decimalPlaces + 4) : decimalPlaces),
-                                   unit);
+                                   unitSeparator, unit);
             }
         }
         else
@@ -1095,15 +1103,15 @@ inline std::optional<std::string> ParamMetaData::valueToString(float val,
                 (alternateScaleWhen == SCALE_ABOVE && rsv > alternateScaleCutoff))
             {
                 rsv = rsv * alternateScaleRescaling;
-                return fmt::format("{:.{}f} {:s}", rsv,
+                return fmt::format("{:.{}f}{}{:s}", rsv,
                                    (fs.isHighPrecision ? (decimalPlaces + 4) : decimalPlaces),
-                                   alternateScaleUnits);
+                                   unitSeparator, alternateScaleUnits);
             }
             else
             {
-                return fmt::format("{:.{}f} {:s}", rsv,
+                return fmt::format("{:.{}f}{}{:s}", rsv,
                                    (fs.isHighPrecision ? (decimalPlaces + 4) : decimalPlaces),
-                                   unit);
+                                   unitSeparator, unit);
             }
         }
         break;
@@ -1120,8 +1128,9 @@ inline std::optional<std::string> ParamMetaData::valueToString(float val,
         }
         else
         {
-            return fmt::format("{:.{}f} {:s}", dval,
-                               (fs.isHighPrecision ? (decimalPlaces + 4) : decimalPlaces), unit);
+            return fmt::format("{:.{}f}{}{:s}", dval,
+                               (fs.isHighPrecision ? (decimalPlaces + 4) : decimalPlaces),
+                               unitSeparator, unit);
         }
     }
     break;
@@ -1132,27 +1141,28 @@ inline std::optional<std::string> ParamMetaData::valueToString(float val,
             (alternateScaleWhen == SCALE_BELOW && dval > alternateScaleCutoff) ||
             (alternateScaleWhen == SCALE_ABOVE && dval < alternateScaleCutoff))
         {
-            return fmt::format("{:.{}f} {:s}", dval,
-                               (fs.isHighPrecision ? (decimalPlaces + 4) : decimalPlaces), unit);
+            return fmt::format("{:.{}f}{}{:s}", dval,
+                               (fs.isHighPrecision ? (decimalPlaces + 4) : decimalPlaces), unit,
+                               unitSeparator);
         }
         // We must be in an alternate case
-        return fmt::format("{:.{}f} {:s}", dval * alternateScaleRescaling,
+        return fmt::format("{:.{}f}{}{:s}", dval * alternateScaleRescaling,
                            (fs.isHighPrecision ? (decimalPlaces + 4) : decimalPlaces),
-                           alternateScaleUnits);
+                           unitSeparator, alternateScaleUnits);
     }
     break;
     case CUBED_AS_DECIBEL:
     {
         if (val <= 0)
         {
-            return "-inf";
+            return fmt::format("-inf{}dB", unitSeparator);
         }
 
         auto v3 = val * val * val * svA;
         auto db = 20 * std::log10(v3);
         return fmt::format("{:.{}f}{}", db,
                            (fs.isHighPrecision ? (decimalPlaces + 4) : decimalPlaces),
-                           fs.isNoUnits ? "" : " dB");
+                           fs.isNoUnits ? "" : unitSeparator + "dB");
     }
     break;
     default:
@@ -1443,21 +1453,21 @@ ParamMetaData::modulationNaturalToString(float naturalBaseVal, float modulationN
         auto dd = -modulationNatural;
 
         auto dp = (fs.isHighPrecision ? (decimalPlaces + 4) : decimalPlaces);
-        result.value = fmt::format("{:.{}f} {}", svA * du, dp, unit);
+        result.value = fmt::format("{:.{}f}{}{}", svA * du, dp, unitSeparator, unit);
         if (isBipolar)
         {
             if (du > 0)
             {
-                result.summary = fmt::format("+/- {:.{}f} {}", svA * du, dp, unit);
+                result.summary = fmt::format("+/- {:.{}f}{}{}", svA * du, dp, unitSeparator, unit);
             }
             else
             {
-                result.summary = fmt::format("-/+ {:.{}f} {}", -svA * du, dp, unit);
+                result.summary = fmt::format("-/+ {:.{}f}{}{}", -svA * du, dp, unitSeparator, unit);
             }
         }
         else
         {
-            result.summary = fmt::format("{:.{}f} {}", svA * du, dp, unit);
+            result.summary = fmt::format("{:.{}f}{}{}", svA * du, dp, unitSeparator, unit);
         }
         result.changeUp = fmt::format("{:.{}f}", svA * du, dp);
         if (isBipolar)
@@ -1474,11 +1484,12 @@ ParamMetaData::modulationNaturalToString(float naturalBaseVal, float modulationN
             result.baseValue = "-ERROR-";
 
         if (isBipolar)
-            result.singleLineModulationSummary = fmt::format(
-                "{} {} < {} > {} {}", result.valDown, unit, result.baseValue, result.valUp, unit);
+            result.singleLineModulationSummary =
+                fmt::format("{}{}{} < {} > {}{}{}", result.valDown, unitSeparator, unit,
+                            result.baseValue, result.valUp, unitSeparator, unit);
         else
             result.singleLineModulationSummary =
-                fmt::format("{} > {} {}", result.baseValue, result.valUp, unit);
+                fmt::format("{} > {}{}{}", result.baseValue, result.valUp, unitSeparator, unit);
         return result;
     }
     case A_TWO_TO_THE_B:
@@ -1518,21 +1529,21 @@ ParamMetaData::modulationNaturalToString(float naturalBaseVal, float modulationN
         auto dd = scv - svd;
 
         auto dp = (fs.isHighPrecision ? (decimalPlaces + 4) : decimalPlaces);
-        result.value = fmt::format("{}{:.{}f} {}", upPfx, du, dp, unit);
+        result.value = fmt::format("{}{:.{}f}{}{}", upPfx, du, dp, unitSeparator, unit);
         if (isBipolar)
         {
             if (du > 0)
             {
-                result.summary = fmt::format("+/- {:.{}f} {}", du, dp, unit);
+                result.summary = fmt::format("+/- {:.{}f}{}{}", du, dp, unitSeparator, unit);
             }
             else
             {
-                result.summary = fmt::format("-/+ {:.{}f} {}", -du, dp, unit);
+                result.summary = fmt::format("-/+ {:.{}f}{}{}", -du, dp, unitSeparator, unit);
             }
         }
         else
         {
-            result.summary = fmt::format("{:.{}f} {}", du, dp, unit);
+            result.summary = fmt::format("{:.{}f}{}{}", du, dp, unitSeparator, unit);
         }
         result.changeUp = fmt::format("{}{:.{}f}", upPfx, du, dp);
         if (isBipolar)
@@ -1549,11 +1560,11 @@ ParamMetaData::modulationNaturalToString(float naturalBaseVal, float modulationN
 
         if (isBipolar)
             result.singleLineModulationSummary =
-                fmt::format("{}{} {} < {} > {}{} {}", downPfx, result.valDown, unit,
-                            result.baseValue, upPfx, result.valUp, unit);
+                fmt::format("{}{}{}{} < {} > {}{}{}{}", downPfx, result.valDown, unitSeparator,
+                            unit, result.baseValue, upPfx, result.valUp, unitSeparator, unit);
         else
-            result.singleLineModulationSummary =
-                fmt::format("{} > {}{} {}", result.baseValue, upPfx, result.valUp, unit);
+            result.singleLineModulationSummary = fmt::format(
+                "{} > {}{}{}{}", result.baseValue, upPfx, result.valUp, unitSeparator, unit);
 
         return result;
     }
@@ -1571,21 +1582,21 @@ ParamMetaData::modulationNaturalToString(float naturalBaseVal, float modulationN
         auto deltDn = vd - v;
 
         auto dp = (fs.isHighPrecision ? (decimalPlaces + 4) : decimalPlaces);
-        result.value = fmt::format("{:.{}f} {}", deltUp, dp, unit);
+        result.value = fmt::format("{:.{}f}{}{}", deltUp, dp, unitSeparator, unit);
         if (isBipolar)
         {
             if (deltDn > 0)
             {
-                result.summary = fmt::format("+/- {:.{}f} {}", deltUp, dp, unit);
+                result.summary = fmt::format("+/- {:.{}f}{}{}", deltUp, dp, unitSeparator, unit);
             }
             else
             {
-                result.summary = fmt::format("-/+ {:.{}f} {}", -deltUp, dp, unit);
+                result.summary = fmt::format("-/+ {:.{}f}{}{}", -deltUp, dp, unitSeparator, unit);
             }
         }
         else
         {
-            result.summary = fmt::format("{:.{}f} {}", deltUp, dp, unit);
+            result.summary = fmt::format("{:.{}f}{}{}", deltUp, dp, unitSeparator, unit);
         }
         result.changeUp = fmt::format("{:.{}f}", deltUp, dp);
         if (isBipolar)
@@ -1601,11 +1612,12 @@ ParamMetaData::modulationNaturalToString(float naturalBaseVal, float modulationN
             result.baseValue = "-ERROR-";
 
         if (isBipolar)
-            result.singleLineModulationSummary = fmt::format(
-                "{} {} < {} > {} {}", result.valDown, unit, result.baseValue, result.valUp, unit);
+            result.singleLineModulationSummary =
+                fmt::format("{}{}{} < {} > {}{}{}", result.valDown, unitSeparator, unit,
+                            result.baseValue, result.valUp, unitSeparator, unit);
         else
             result.singleLineModulationSummary =
-                fmt::format("{} > {} {}", result.baseValue, result.valUp, unit);
+                fmt::format("{} > {}{}{}", result.baseValue, result.valUp, unitSeparator, unit);
 
         return result;
     }
@@ -1628,21 +1640,21 @@ ParamMetaData::modulationNaturalToString(float naturalBaseVal, float modulationN
         auto deltDn = dbd - db;
 
         auto dp = (fs.isHighPrecision ? (decimalPlaces + 4) : decimalPlaces);
-        result.value = fmt::format("{:.{}f} {}", deltUp, dp, unit);
+        result.value = fmt::format("{:.{}f}{}{}", deltUp, dp, unitSeparator, unit);
         if (isBipolar)
         {
             if (deltDn > 0)
             {
-                result.summary = fmt::format("+/- {:.{}f} {}", deltUp, dp, unit);
+                result.summary = fmt::format("+/- {:.{}f}{}{}", deltUp, dp, unitSeparator, unit);
             }
             else
             {
-                result.summary = fmt::format("-/+ {:.{}f} {}", -deltUp, dp, unit);
+                result.summary = fmt::format("-/+ {:.{}f}{}{}", -deltUp, dp, unitSeparator, unit);
             }
         }
         else
         {
-            result.summary = fmt::format("{:.{}f} {}", deltUp, dp, unit);
+            result.summary = fmt::format("{:.{}f}{}{}", deltUp, dp, unitSeparator, unit);
         }
         result.changeUp = fmt::format("{:.{}f}", deltUp, dp);
         if (isBipolar)
@@ -1658,11 +1670,12 @@ ParamMetaData::modulationNaturalToString(float naturalBaseVal, float modulationN
             result.baseValue = "-ERROR-";
 
         if (isBipolar)
-            result.singleLineModulationSummary = fmt::format(
-                "{} {} < {} > {} {}", result.valDown, unit, result.baseValue, result.valUp, unit);
+            result.singleLineModulationSummary =
+                fmt::format("{}{}{} < {} > {}{}{}", result.valDown, unitSeparator, unit,
+                            result.baseValue, result.valUp, unitSeparator, unit);
         else
             result.singleLineModulationSummary =
-                fmt::format("{} > {} {}", result.baseValue, result.valUp, unit);
+                fmt::format("{} > {}{}{}", result.baseValue, result.valUp, unitSeparator, unit);
 
         return result;
     }
@@ -1687,7 +1700,8 @@ ParamMetaData::modulationNaturalFromString(std::string_view deltaNatural, float 
             auto mv = std::stof(std::string(deltaNatural)) / svA;
             if (std::fabs(mv) > (maxVal - minVal))
             {
-                errMsg = fmt::format("Maximum depth: {} {}", (maxVal - minVal) * svA, unit);
+                errMsg = fmt::format("Maximum depth: {}{}{}", (maxVal - minVal) * svA,
+                                     unitSeparator, unit);
                 return std::nullopt;
             }
             return mv;
