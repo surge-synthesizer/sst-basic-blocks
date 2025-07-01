@@ -1142,8 +1142,8 @@ inline std::optional<std::string> ParamMetaData::valueToString(float val,
             (alternateScaleWhen == SCALE_ABOVE && dval < alternateScaleCutoff))
         {
             return fmt::format("{:.{}f}{}{:s}", dval,
-                               (fs.isHighPrecision ? (decimalPlaces + 4) : decimalPlaces), unit,
-                               unitSeparator);
+                               (fs.isHighPrecision ? (decimalPlaces + 4) : decimalPlaces),
+                               unitSeparator, unit);
         }
         // We must be in an alternate case
         return fmt::format("{:.{}f}{}{:s}", dval * alternateScaleRescaling,
@@ -1311,7 +1311,7 @@ inline std::optional<float> ParamMetaData::valueFromString(std::string_view v, s
                 auto ps = (v.find(alternateScaleUnits) != std::string::npos);
                 if ((!unitSubstr && ps) || (unitSubstr && ps && !us))
                 {
-                    // We have a string containing the alterante units
+                    // We have a string containing the alternate units
                     r = r / alternateScaleRescaling;
                 }
             }
