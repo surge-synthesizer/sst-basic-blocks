@@ -216,11 +216,11 @@ struct ParamMetaData
      */
     enum struct Features : uint64_t
     {
-        SUPPORTS_MULTIPLICATIVE_MODULATION = 1L << 0,
-        BELOW_ONE_IS_INVERSE_FRACTION = 1L << 1,
-        ALLOW_FRACTIONAL_TYPEINS = 1L << 2,
+        SUPPORTS_MULTIPLICATIVE_MODULATION = 1ULL << 0,
+        BELOW_ONE_IS_INVERSE_FRACTION = 1ULL << 1,
+        ALLOW_FRACTIONAL_TYPEINS = 1ULL << 2,
 
-        USER_FEATURE_0 = 1L << 32
+        USER_FEATURE_0 = 1ULL << 32
     };
     uint64_t features{0};
     ParamMetaData withFeature(Features f) const
