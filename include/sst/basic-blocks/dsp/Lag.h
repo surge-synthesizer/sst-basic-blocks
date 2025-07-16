@@ -172,6 +172,59 @@ template <typename T, bool first_run> struct LinearLag
 };
 
 /**
+ * Base class for lag handler assignment styles. Basically DestinantionHandler
+ * needs to implement void setDestination(float) in whatever way it wants.
+ * Two versions (set direct value and set via method on reference) are below.
+ */
+
+template <typename DestinationHandler> struct UIComponentLagHandlerBase
+{
+    float targetValue{0.f};
+    float value{0.f};
+    float dTarget{0.f}, dTargetScale{0.05f};
+    bool active{false};
+
+    DestinationHandler *asDestinationHandler() { return static_cast<DestinationHandler *>(this); }
+
+    void setRate(float rateInHz, uint16_t blockSize, float sampleRate)
+    {
+        int blocks = (int)std::round(sampleRate / rateInHz / blockSize);
+        dTargetScale = 1.f / blocks;
+    }
+
+    void setTarget(float t)
+    {
+        targetValue = t;
+        dTarget = (targetValue - value) * dTargetScale;
+        active = true;
+    }
+
+    void process()
+    {
+        if (!active)
+            return;
+
+        value += dTarget;
+        if (std::fabs(value - targetValue) < std::fabs(dTarget))
+        {
+            value = targetValue;
+            active = false;
+        }
+
+        asDestinationHandler()->updateDestination(value);
+    }
+
+    void instantlySnap()
+    {
+        if (!active)
+            return;
+
+        asDestinationHandler()->updateDestination(targetValue);
+        active = false;
+    }
+};
+
+/**
  * Linearly lag a float value onto a destination. Takes a pointer to the destination
  * and the target. Handles restatements properly etc...
  *
@@ -179,18 +232,17 @@ template <typename T, bool first_run> struct LinearLag
  *
  * If target is reached, does nothing other than a single branch / return
  */
-struct UIComponentLagHandler
+
+struct UIComponentLagHandler : UIComponentLagHandlerBase<UIComponentLagHandler>
 {
     float *destination{nullptr};
-    float targetValue{0.f};
-    float value{0.f};
-    float dTarget{0.f}, dTargetScale{0.05f};
-    bool active{false};
 
-    void setRate(float rateInHz, uint16_t blockSize, float sampleRate)
+    void updateDestination(float val)
     {
-        int blocks = (int)std::round(sampleRate / rateInHz / blockSize);
-        dTargetScale = 1.f / blocks;
+        if (destination)
+        {
+            *destination = val;
+        }
     }
 
     void setNewDestination(float *d, float toTarget)
@@ -212,39 +264,7 @@ struct UIComponentLagHandler
             setTarget(toTarget);
         }
     }
-
-    void setTarget(float t)
-    {
-        targetValue = t;
-        dTarget = (targetValue - value) * dTargetScale;
-        active = true;
-    }
-
-    void process()
-    {
-        if (!active)
-            return;
-
-        value += dTarget;
-        if (std::fabs(value - targetValue) < std::fabs(dTarget))
-        {
-            value = targetValue;
-            active = false;
-        }
-        *destination = value;
-    }
-
-    void instantlySnap()
-    {
-        if (!active)
-            return;
-
-        if (destination)
-        {
-            *destination = targetValue;
-        }
-        active = false;
-    }
 };
+
 } // namespace sst::basic_blocks::dsp
 #endif // SURGE_LAG_H
