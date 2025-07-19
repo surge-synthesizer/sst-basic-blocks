@@ -261,7 +261,7 @@ struct ParamMetaData
         bool isHighPrecision{false}, isExtended{false}, isAbsolute{false}, isTemposynced{false},
             isNoUnits{false}, modulationClamped{true};
 
-        FeatureState() {};
+        FeatureState(){};
 
         FeatureState withHighPrecision(bool e)
         {
