@@ -261,7 +261,7 @@ struct ParamMetaData
         bool isHighPrecision{false}, isExtended{false}, isAbsolute{false}, isTemposynced{false},
             isNoUnits{false}, modulationClamped{true};
 
-        FeatureState(){};
+        FeatureState() {};
 
         FeatureState withHighPrecision(bool e)
         {
@@ -717,8 +717,8 @@ struct ParamMetaData
     {
         auto res = *this;
 
-        for (auto r = res.customValueLabelsWithAccuracy.begin();
-             r < res.customValueLabelsWithAccuracy.end(); ++r)
+        auto r = res.customValueLabelsWithAccuracy.begin();
+        while (r != res.customValueLabelsWithAccuracy.end())
         {
             if (std::get<1>(*r) == v)
             {
