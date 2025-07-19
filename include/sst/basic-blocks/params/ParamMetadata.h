@@ -717,8 +717,8 @@ struct ParamMetaData
     {
         auto res = *this;
 
-        for (auto r = res.customValueLabelsWithAccuracy.begin();
-             r < res.customValueLabelsWithAccuracy.end(); ++r)
+        auto r = res.customValueLabelsWithAccuracy.begin();
+        while (r != res.customValueLabelsWithAccuracy.end())
         {
             if (std::get<1>(*r) == v)
             {
