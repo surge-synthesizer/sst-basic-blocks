@@ -461,6 +461,8 @@ struct ParamMetaData
         res.maxVal = 1;
         return res;
     }
+    ParamMetaData asOnOffBool() { return asBool().withOnOffFormatting(); }
+    ParamMetaData asStereoSwitch() { return asOnOffBool().withName("Stereo"); }
     ParamMetaData withName(const std::string t)
     {
         auto res = *this;
@@ -645,6 +647,8 @@ struct ParamMetaData
         return res;
     }
 
+    ParamMetaData withDimensionlessFormatting() { return withLinearScaleFormatting(""); }
+
     ParamMetaData withLogarithmicFormating(std::string units, float scale = 1,
                                            float basis = std::exp(0), float offset = 0)
     {
@@ -692,6 +696,11 @@ struct ParamMetaData
         return res;
     }
 
+    ParamMetaData withOnOffFormatting()
+    {
+        assert(type == BOOL || (type == INT && maxVal == 1 && minVal == 0));
+        return withUnorderedMapFormatting({{false, "Off"}, {true, "On"}});
+    }
     ParamMetaData withDecimalPlaces(int d)
     {
         auto res = *this;
