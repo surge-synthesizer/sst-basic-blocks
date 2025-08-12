@@ -1216,14 +1216,21 @@ inline std::optional<float> ParamMetaData::valueFromString(std::string_view v, s
                 std::array<int, 7> noteToPosition{9, 11, 0, 2, 4, 5, 7};
                 auto res =
                     noteToPosition[n0] + sharp - flat + (oct + 1 + midiNoteOctaveOffset) * 12;
-                return (float)res;
+                if (res >= minVal && res <= maxVal)
+                    return (float)res;
             }
             else
-                return (float)std::atoi(s.c_str());
+            {
+                auto res = (float)std::atoi(s.c_str());
+                if (res >= minVal && res <= maxVal)
+                    return res;
+            }
         }
         if (displayScale == LINEAR)
         {
-            return (float)std::atoi(std::string(v).c_str());
+            auto res = std::atoi(std::string(v).c_str());
+            if (res >= minVal && res <= maxVal)
+                return res;
         }
         return std::nullopt;
     }
