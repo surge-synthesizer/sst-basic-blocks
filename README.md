@@ -14,3 +14,10 @@ are explicitly marked in the text of the header file and are listed here also
 
 - include/sst/basic-blocks/dsp/LanczosResampler.h
 - include/sst/basic-blocks/dsp/HilbertTransform.h
+- include/sst/basic-blocks/dsp/EllipticBlepOscillators.h
+
+Also note the basic blocks package ships with a version of the
+MIT licensed catch2 testing framework in libs/catch2. It also
+contains the excellent SignalSmith elliptic blep library
+from https://github.com/Signalsmith-Audio/elliptic-blep in 
+libs/elliptic-blep
