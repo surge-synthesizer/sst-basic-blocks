@@ -6,6 +6,7 @@ set(CMAKE_CXX_STANDARD 17)
 
 add_library(${PROJECT_NAME} INTERFACE)
 target_include_directories(${PROJECT_NAME} INTERFACE include)
+target_include_directories(${PROJECT_NAME} INTERFACE libs)
 
 if (${SST_BASIC_BLOCKS_SIMD_OMIT_NATIVE_ALIASES})
     message(STATUS "CMake Omitting Native Aliases")
