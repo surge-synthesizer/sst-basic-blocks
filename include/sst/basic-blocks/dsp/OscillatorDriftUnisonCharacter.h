@@ -179,14 +179,14 @@ template <typename valtype> struct UnisonSetup
         odd = voices & 1;
         mid = voices * 0.5 - 0.5;
         half = voices >> 1;
+
+        if (n_unison == 1)
+            bias = 1.0;
+        else
+            bias = 2.0 / (n_unison - 1);
     }
 
-    inline valtype detuneBias() const
-    {
-        if (n_unison == 1)
-            return 1.0;
-        return 2.0 / (n_unison - 1);
-    }
+    inline valtype detuneBias() const { return bias; }
     inline valtype detuneOffset() const
     {
         if (n_unison == 1)
@@ -228,7 +228,7 @@ template <typename valtype> struct UnisonSetup
     valtype mid;
     int half;
     int n_unison = 1;
-    double sqrt_uni, sqrt_uni_inv;
+    double sqrt_uni, sqrt_uni_inv, bias;
 };
 
 } // namespace sst::basic_blocks::dsp
