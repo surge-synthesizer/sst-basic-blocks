@@ -29,49 +29,11 @@
 
 #include <cstdint>
 #include <cmath>
-#include "Lag.h"
-#include "BlockInterpolators.h"
+
+#include "SmoothingStrategies.h"
 
 namespace sst::basic_blocks::dsp
 {
-struct LagSmoothingStrategy
-{
-    using smoothValue_t = SurgeLag<double, true>;
-    static void setTarget(smoothValue_t &v, float t) { v.newValue(t); }
-    static void setValueInstant(smoothValue_t &v, float t)
-    {
-        v.newValue(t);
-        v.instantize();
-    }
-    static double getValue(smoothValue_t &v) { return v.v; }
-    static void process(smoothValue_t &v) { v.process(); }
-
-    static void resetFirstRun(smoothValue_t &v) { v.first_run = true; }
-};
-template <int blockSize> struct BlockInterpSmoothingStrategy
-{
-    using smoothValue_t = lipol<double, blockSize, true>;
-    static void setTarget(smoothValue_t &v, float t) { v.newValue(t); }
-    static void setValueInstant(smoothValue_t &v, float t)
-    {
-        v.newValue(t);
-        v.instantize();
-    }
-    static double getValue(smoothValue_t &v) { return v.v; }
-    static void process(smoothValue_t &v) { v.process(); }
-    static void resetFirstRun(smoothValue_t &v) { v.first_run = true; }
-};
-struct NoSmoothingStrategy
-{
-    using smoothValue_t = double;
-    static void setTarget(smoothValue_t &v, float t) { v = t; }
-    static void setValueInstant(smoothValue_t &v, float t) { v = t; }
-    static double getValue(smoothValue_t &v) { return v; }
-    static void process(smoothValue_t &v) {}
-
-    static void resetFirstRun(smoothValue_t &v) {}
-};
-
 /*
  * Use a cubic integrated saw and second derive it at
  * each point. This is basically the math I worked
