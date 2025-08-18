@@ -62,6 +62,23 @@ template <typename Impl, typename SmoothingStrategy = LagSmoothingStrategy> stru
         SmoothingStrategy::resetFirstRun(sratio);
     }
 
+    void setInitialPhase(float ph, float initSRatio = 0)
+    {
+        if (initSRatio == 0)
+        {
+            initSRatio = SmoothingStrategy::getValue(sratio);
+        }
+        else
+        {
+            SmoothingStrategy::setValueInstant(sratio, initSRatio);
+        }
+        this->phase = ph;
+        auto sp = this->phase * initSRatio;
+        float ip;
+        sp = std::modf(sp, &ip);
+        this->sphase = sp;
+    }
+
     /**
      * Set the oscillator frequency.
      *
