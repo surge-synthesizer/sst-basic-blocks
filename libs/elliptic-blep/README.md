@@ -1,12 +1,17 @@
 This is a copy of of the MIT licensed header-only library 'elliptic-blep' by signalsmith. The original repo is
 https://github.com/Signalsmith-Audio/elliptic-blep and this copy was made as of hash d4bdc26
- 
+
+The original header is eeliptic-blep-original.h; we modified it to
+externalize and share pole storage and are chatting with SignalSmith
+about strategies to upstream this.
 
 # Elliptic BLEP
 
-This provides BLEP antialiasing, for producing a sampled signal from a continuous-time polynomial-segment signal, based on an 11th-order continuous-time 20kHz elliptic lowpass.  It uses pre-designed coefficients for simplicity.
+This provides BLEP antialiasing, for producing a sampled signal from a continuous-time polynomial-segment signal, based
+on an 11th-order continuous-time 20kHz elliptic lowpass. It uses pre-designed coefficients for simplicity.
 
-The filter is expressed as the sum of 1-pole filters, since they're easy to deal with in continous time.  It can be redesigned using the Python/SciPy code in `design/`, which outputs coefficients as C++ code.
+The filter is expressed as the sum of 1-pole filters, since they're easy to deal with in continous time. It can be
+redesigned using the Python/SciPy code in `design/`, which outputs coefficients as C++ code.
 
 ## How to use
 
@@ -24,38 +29,49 @@ The `EllipticBlep` class has these methods:
 
 * `.get(samplesInFuture=0.0)`: sums the 1-pole states together to get the filter output (up to 1 sample in the future).
 * `.step(samples=1.0)`: moves the filter state forward in time, by some (positive) number of samples
-* `.add(amount, blepOrder, samplesInPast=0.0)`: adds in some event for which the aliasing should be canceled (up to 1 sample in the past)
+* `.add(amount, blepOrder, samplesInPast=0.0)`: adds in some event for which the aliasing should be canceled (up to 1
+  sample in the past)
 * `.reset()`
 
-The `blepOrder` argument of `.add()` specifies which type of discontinuity (where `0` is an impulse, `1` is a step discontinuity, `2` an instantaneous gradient change etc.), and `amount` specifies how much the corresponding differential changed by.
+The `blepOrder` argument of `.add()` specifies which type of discontinuity (where `0` is an impulse, `1` is a step
+discontinuity, `2` an instantaneous gradient change etc.), and `amount` specifies how much the corresponding
+differential changed by.
 
-Make sure that you have added all events before calling `.get()` (especially if peeking at future output using `.get(fracSamples)`).
+Make sure that you have added all events before calling `.get()` (especially if peeking at future output using
+`.get(fracSamples)`).
 
 <img src="doc/step-add.png" width="478" style="max-width: 100%">
 
 ### Default BLEP vs "direct" mode
 
-The default mode is the classic BLEP pattern: you synthesise a waveform which will contain aliasing, and then add in an aliasing-cancellation signal.
+The default mode is the classic BLEP pattern: you synthesise a waveform which will contain aliasing, and then add in an
+aliasing-cancellation signal.
 
 ![impulse response for default BLEP mode](doc/double-residue-impulse-top.svg)
 
-In this mode, the sample-rate argument is optional, and is only needed if you want to have the exact same phase response (or cutoff) at different rates.
+In this mode, the sample-rate argument is optional, and is only needed if you want to have the exact same phase
+response (or cutoff) at different rates.
 
 #### Direct mode
 
-If `direct` is enabled during initialisation, you don't have to synthesise the waveform yourself - the step/ramp/etc. will be included in the filter's output:
+If `direct` is enabled during initialisation, you don't have to synthesise the waveform yourself - the step/ramp/etc.
+will be included in the filter's output:
 
 ![impulse response for direct mode](doc/double-direct-impulse-top.svg)
 
-The sample-rate is not optional for this mode, because the output will be highpassed at 20Hz and that needs to be correctly placed.  It also only works for purely polynomial-segment signals, and you *have* to inform the class of every discontinuity (including at the start of synthesis).
+The sample-rate is not optional for this mode, because the output will be highpassed at 20Hz and that needs to be
+correctly placed. It also only works for purely polynomial-segment signals, and you *have* to inform the class of every
+discontinuity (including at the start of synthesis).
 
 #### Impulses
 
-You can add impulses (using `blepOrder=0`).  Even in default BLEP mode, there is no "naive" signal equivalent for these, so they are always used directly (although default BLEP mode doesn't include the 20Hz highpass).
+You can add impulses (using `blepOrder=0`). Even in default BLEP mode, there is no "naive" signal equivalent for these,
+so they are always used directly (although default BLEP mode doesn't include the 20Hz highpass).
 
 ### Phase compensation
 
-There is an `EllipticBlepAllpass` template as well, which adds phase-shifts to make the BLEP filter approximately linear-phase.
+There is an `EllipticBlepAllpass` template as well, which adds phase-shifts to make the BLEP filter approximately
+linear-phase.
 
 ```cpp
 EllipticBlep<float> blep;
@@ -70,7 +86,8 @@ float approxLinearY = blepAllpass(minPhaseY);
 size_t linearLatency = EllipticBlepAllpass<float>::linearDelay;
 ```
 
-This needs to match the cutoff of the BLEP filter, so should **only** be used in default BLEP mode, with no sample-rate specified.
+This needs to match the cutoff of the BLEP filter, so should **only** be used in default BLEP mode, with no sample-rate
+specified.
 
 ![diagram of the min-phase and approximately-linear-phase impulse and phase responses](doc/double-phase.svg)
 
