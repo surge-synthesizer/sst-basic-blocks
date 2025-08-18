@@ -36,17 +36,56 @@
 
 #include "elliptic-blep/elliptic-blep.h"
 #include "SmoothingStrategies.h"
+#include <unordered_map>
 
 namespace sst::basic_blocks::dsp
 {
 
+struct CoeffHolder
+{
+    using payload_t = signalsmith::blep::EllipticBlepPoles<float>;
+
+    static payload_t &getPoleDataForSampleRate(double sampleRate)
+    {
+        static std::unordered_map<size_t, payload_t> data;
+
+        auto lu = data.find((size_t)sampleRate);
+        if (lu == data.end())
+        {
+            data[(size_t)sampleRate] = payload_t(false, sampleRate);
+            lu = data.find((size_t)sampleRate);
+        }
+        return lu->second;
+    }
+};
+
+static void prepareEBOscillators(double sr)
+{
+    // always do 44100 since thats the default setup below even though other
+    // SR will swap it out when we call setSampleRate. This keeps us no-arg
+    // constructible
+    CoeffHolder::getPoleDataForSampleRate(44100);
+    CoeffHolder::getPoleDataForSampleRate(sr);
+}
+
 template <typename Impl, typename SmoothingStrategy = LagSmoothingStrategy> struct EBOscillatorBase
 {
-    EBOscillatorBase()
+    EBOscillatorBase() : blep(CoeffHolder::getPoleDataForSampleRate(44100))
     {
         SmoothingStrategy::setValueInstant(sratio, 1.0);
         SmoothingStrategy::setValueInstant(sratio, 0.5);
         reset();
+    }
+
+    /**
+     * Set the sample rate; set up the internal blep state.
+     */
+    void setSampleRate(double sampleRate)
+    {
+        this->sampleRate = sampleRate;
+        this->sampleRateInv = 1.0 / sampleRate;
+        blep = signalsmith::blep::EllipticBlep<float>(
+            CoeffHolder::getPoleDataForSampleRate(sampleRate));
     }
 
     /**
@@ -83,10 +122,10 @@ template <typename Impl, typename SmoothingStrategy = LagSmoothingStrategy> stru
      * Set the oscillator frequency.
      *
      * @param freqInHz The frequency in hertz
-     * @param sampleRateInv The inverse sample rate
      */
-    void setFrequency(float freqInHz, double sampleRateInv)
+    void setFrequency(float freqInHz)
     {
+        assert(sampleRate > 1000); // hit this? call setSampleRate!
         SmoothingStrategy::setTarget(dphase, freqInHz * sampleRateInv);
     }
 
@@ -119,6 +158,9 @@ template <typename Impl, typename SmoothingStrategy = LagSmoothingStrategy> stru
     float phase = 0, sphase = 0;
 
     typename SmoothingStrategy::smoothValue_t sratio, dphase;
+
+    static std::unordered_map<size_t, bool> poled;
+    double sampleRate{1}, sampleRateInv{1};
 };
 
 template <typename SmoothingStrategy = LagSmoothingStrategy>
