@@ -320,7 +320,7 @@ struct EBApproxSemiSin : EBOscillatorBase<EBApproxSemiSin<SmoothingStrategy>, Sm
         auto srval = SmoothingStrategy::getValue(this->sratio);
 
         this->phase += freq;
-        this->sphase += freq *.5 * srval;
+        this->sphase += freq * .5 * srval;
 
         this->blep.step();
 
