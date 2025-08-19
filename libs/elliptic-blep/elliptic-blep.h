@@ -4,6 +4,7 @@
 #include <array>
 #include <vector>
 #include <complex>
+#include <cassert>
 
 #ifndef M_PI
 #	define M_PI 3.14159265358979323846
@@ -211,6 +212,7 @@ struct EllipticBlep {
 		
 		auto &bc = poles.blepCoeffs[blepOrder];
 
+		assert(samplesInPast >= 0 && samplesInPast <= 1);
 		Sample tableIndex = samplesInPast*poles.partialStepCount;
 		size_t intIndex = std::floor(tableIndex);
 		Sample fracIndex = tableIndex - std::floor(tableIndex);

@@ -357,7 +357,7 @@ struct EBPulse : EBOscillatorBase<EBPulse<SmoothingStrategy>, SmoothingStrategy>
         // mid width turnaround
         if (this->sphase > wval && level > 0)
         {
-            float samplesInPast = (this->phase - 1) / (freq);
+            float samplesInPast = (this->sphase - wval) / (srval * freq);
 
             level = -1;
             // high to low
