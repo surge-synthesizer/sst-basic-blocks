@@ -419,7 +419,7 @@ struct EBPulse : EBOscillatorBase<EBPulse<SmoothingStrategy>, SmoothingStrategy>
 
         if (this->sphase > 1)
         {
-            float samplesInPast = (this->phase - 1) / (freq);
+            float samplesInPast = (this->sphase - 1) / (srval * freq);
 
             level = 1;
             // low to high
