@@ -142,6 +142,18 @@ template <typename Impl, typename SmoothingStrategy = LagSmoothingStrategy> stru
     void setSyncRatio(float syncRatio) { SmoothingStrategy::setTarget(sratio, syncRatio); }
 
   protected:
+    /*
+     * At very high (above nyquist) frequencies we can end up occasionally
+     * generating a correction more than one sample in the past. The blep
+     * library doesn't handle that well. Since we only do this at transitions
+     * like phase resets, we can afford to clamp. This means the anti-aliasing
+     * of these ridiculously high frequency waves will be worse. But i mean
+     * come on, right?!
+     *
+     * We choose 0.99 etc... since the library also hates 1 but I don't think
+     * any of our algorithms here ever generate an exact 1.
+     */
+    inline float csip(float sip) { return std::clamp(sip, 0.f, 0.999999f); }
     void syncTurnaroundCorrection(float freq, float srval)
     {
         float samplesInPast = (this->phase - 1) / (freq);
@@ -150,7 +162,7 @@ template <typename Impl, typename SmoothingStrategy = LagSmoothingStrategy> stru
         auto thisSampleValue = Impl::valueAt(nextSPhase);
         auto dv = lastSampleValue - thisSampleValue;
 
-        this->blep.add(-dv, 1, samplesInPast);
+        this->blep.add(-dv, 1, csip(samplesInPast));
     }
 
     signalsmith::blep::EllipticBlep<float> blep;
@@ -192,7 +204,7 @@ struct EBSaw : EBOscillatorBase<EBSaw<SmoothingStrategy>, SmoothingStrategy>
             auto dv = lastSampleValue - thisSampleValue;
 
             this->sphase = (this->sphase - 1);
-            this->blep.add(-dv, 1, samplesInPast);
+            this->blep.add(-dv, 1, this->csip(samplesInPast));
         }
 
         float result = valueAt(this->sphase); // naive sawtooth
@@ -399,7 +411,7 @@ struct EBPulse : EBOscillatorBase<EBPulse<SmoothingStrategy>, SmoothingStrategy>
             {
                 float samplesInPast = (this->phase - 1) / (freq);
                 // low to high
-                this->blep.add(2, 1, samplesInPast);
+                this->blep.add(2, 1, this->csip(samplesInPast));
             }
 
             this->phase -= 1;
@@ -414,7 +426,7 @@ struct EBPulse : EBOscillatorBase<EBPulse<SmoothingStrategy>, SmoothingStrategy>
 
             level = -1;
             // high to low
-            this->blep.add(-2, 1, samplesInPast);
+            this->blep.add(-2, 1, this->csip(samplesInPast));
         }
 
         if (this->sphase > 1)
@@ -423,7 +435,7 @@ struct EBPulse : EBOscillatorBase<EBPulse<SmoothingStrategy>, SmoothingStrategy>
 
             level = 1;
             // low to high
-            this->blep.add(2, 1, samplesInPast);
+            this->blep.add(2, 1, this->csip(samplesInPast));
             this->sphase -= 1;
         }
 
