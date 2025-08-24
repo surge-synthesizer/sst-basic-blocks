@@ -745,6 +745,82 @@ TEST_CASE("Sinc Delay Line", "[dsp]")
 #endif
 }
 
+TEST_CASE("Sinc Interpolator", "[dsp]")
+{
+    SECTION("Ramp from Zero")
+    {
+        static constexpr size_t np{1000},
+            off{sst::basic_blocks::tables::SurgeSincTableProvider::FIRipol_N};
+        float buffer[np + 2 * off];
+        memset(buffer, 0, sizeof(buffer));
+        for (int i = 0; i < np; ++i)
+        {
+            buffer[i + off] = i * 1.0 / np;
+        }
+
+        sst::basic_blocks::tables::SurgeSincTableProvider st;
+        sst::basic_blocks::dsp::SSESincInterpolater<1> si(st, buffer, np + 2 * off);
+
+        for (int i = 5; i < np - 5; ++i)
+        {
+            int nFracs{7};
+            for (auto frac = 0; frac < nFracs; ++frac)
+            {
+                auto ffrac = frac * 1.0 / (nFracs);
+                INFO("i=" << i << " ffrac=" << ffrac);
+                REQUIRE(si.read(i + ffrac) == Approx((i + ffrac) * 1.0 / np).margin(5e-2));
+                REQUIRE(si.readLinear(i + ffrac) == Approx((i + ffrac) * 1.0 / np).margin(5e-2));
+                if (frac == 0)
+                    REQUIRE(si.readZOH(i + ffrac) == Approx((i + ffrac) * 1.0 / np).margin(5e-2));
+            }
+        }
+    }
+
+    SECTION("Stride Data")
+    {
+        static constexpr size_t np{1000},
+            off{sst::basic_blocks::tables::SurgeSincTableProvider::FIRipol_N};
+        float buffer[2 * (np + 2 * off)];
+        memset(buffer, 0, sizeof(buffer));
+
+        auto dS = 2.0 * M_PI / np;
+
+        for (int i = 0; i < np; ++i)
+        {
+            buffer[2 * (i + off)] = std::sin(i * dS);
+            buffer[2 * (i + off) + 1] = std::cos(i * dS);
+        }
+
+        sst::basic_blocks::tables::SurgeSincTableProvider st;
+        sst::basic_blocks::dsp::SSESincInterpolater<2> si(st, buffer, np + 2 * off);
+        sst::basic_blocks::dsp::SSESincInterpolater<2> ci(st, buffer + 1, np + 2 * off);
+
+        for (int i = 10; i < np - 10; ++i)
+        {
+            int nFracs{7};
+            for (auto frac = 0; frac < nFracs; ++frac)
+            {
+                auto ffrac = frac * 1.0 / (nFracs);
+
+                auto siVal = si.read(i + ffrac);
+                auto siAns = std::sin((i + ffrac) * dS);
+                auto ciVal = ci.read(i + ffrac);
+                auto ciAns = std::cos((i + ffrac) * dS);
+                REQUIRE(siVal == Approx(siAns).margin(1e-3));
+                REQUIRE(ciVal == Approx(ciAns).margin(1e-3));
+
+                if (frac == 0)
+                {
+                    REQUIRE(si.readLinear(i) == Approx(siAns).margin(1e-5));
+                    REQUIRE(si.readZOH(i) == Approx(siAns).margin(1e-5));
+                    REQUIRE(ci.readLinear(i) == Approx(ciAns).margin(1e-5));
+                    REQUIRE(ci.readZOH(i) == Approx(ciAns).margin(1e-5));
+                }
+            }
+        }
+    }
+}
+
 TEST_CASE("lipol_ps class", "[dsp]")
 {
     using lipol_ps = sst::basic_blocks::dsp::lipol_sse<64, false>;

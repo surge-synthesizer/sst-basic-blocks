@@ -122,5 +122,112 @@ struct SSESincDelayLine
         wp = 0;
     }
 };
+
+/*
+ * This is a class which encapsulates the SSE based SINC
+ * interpolation without maintaining a circular buffer, and requiring
+ * that you provide an external buffer. That buffer has to be padded by
+ * FIRipol_N (==12) samples on either side. The indexing is at sample 0.
+ * So you provide a buffer with
+ *
+ * 012345678901234     ...... n012345678901
+ *             ^               ^ pad zeroes at end
+ *             ^ your data and point 0 start here
+ *
+ * By default your buffer is a single channel but you can provide a
+ * buffer with interleave n for n-channel data and set the stride template
+ * param
+ */
+
+template <uint32_t stride> struct SSESincInterpolater
+{
+    using stp = tables::SurgeSincTableProvider;
+
+    const float *data{nullptr};
+    size_t frames{1}, offset{stp::FIRipol_N};
+    const float *sinctable{nullptr}; // a pointer copy of the storage member
+    SSESincInterpolater(const float *st, float *d, size_t frames)
+        : sinctable(st), frames(frames), data(d)
+    {
+    }
+
+    /**
+     * If you have a long lived instance of a SurgeSincTableProvider you can initialize with that
+     * but please make sure that table has lifetime longer than this interpolator, since we take the
+     * pointer address of its table
+     */
+    SSESincInterpolater(const tables::SurgeSincTableProvider &st, float *d, size_t frames)
+        : sinctable(st.sinctable), data(d), frames(frames)
+    {
+    }
+
+    inline SIMD_M128 pop4(size_t posn)
+    {
+        if constexpr (stride == 1)
+        {
+            return SIMD_MM(loadu_ps)(&data[posn]);
+        }
+        else
+        {
+            float tmp alignas(16)[4];
+            tmp[0] = data[posn];
+            tmp[1] = data[posn + stride];
+            tmp[2] = data[posn + 2 * stride];
+            tmp[3] = data[posn + 3 * stride];
+            return SIMD_MM(load_ps)(tmp);
+        }
+    }
+
+    inline float read(float posn)
+    {
+        auto iPosn = (size_t)posn;
+        auto fracPosn = posn - iPosn;
+        // iPosn += (fracPosn > 0) * 1;
+
+        auto sincTableOffset = (int)(fracPosn * stp::FIRipol_M) * stp::FIRipol_N * 2;
+
+        // So basically we interpolate around stp::FIRipol_N (the 12 sample sinc)
+        // remembering that stp::FIRoffset is the offset to center your table at
+        // a point ( it is stp::FIRipol_N >> 1)
+        int readPtr = stride * (iPosn + (offset + 1) - (stp::FIRipol_N >> 1));
+        // std::cout << "p=" << posn << " ip=" << iPosn << " fp=" << fracPosn << " rp=" << readPtr
+        // << " sto=" << sincTableOffset << std::endl;
+
+        // And so now do what we do in COMBSSE2Quad
+        auto a = pop4(readPtr);
+        auto b = SIMD_MM(loadu_ps)(&sinctable[sincTableOffset]);
+        auto o = SIMD_MM(mul_ps)(a, b);
+
+        a = pop4(readPtr + 4 * stride);
+        b = SIMD_MM(loadu_ps)(&sinctable[sincTableOffset + 4]);
+        o = SIMD_MM(add_ps)(o, SIMD_MM(mul_ps)(a, b));
+
+        a = pop4(readPtr + 8 * stride);
+        b = SIMD_MM(loadu_ps)(&sinctable[sincTableOffset + 8]);
+        o = SIMD_MM(add_ps)(o, SIMD_MM(mul_ps)(a, b));
+
+        float res;
+        SIMD_MM(store_ss)(&res, sst::basic_blocks::mechanics::sum_ps_to_ss(o));
+
+        return res;
+    }
+
+    inline float readLinear(float posn)
+    {
+        auto iPosn = (int)posn;
+        auto frac = posn - iPosn;
+        int RP = iPosn + offset;
+        int RPP = iPosn + offset + 1;
+        return data[stride * RP] * (1 - frac) + data[stride * RPP] * frac;
+    }
+
+    inline float readZOH(float posn)
+    {
+        auto iDelay = (int)posn;
+        int RP = iDelay + offset;
+        return data[stride * RP];
+    }
+};
+
 } // namespace sst::basic_blocks::dsp
 #endif // SURGE_SSESINCDELAYLINE_H
