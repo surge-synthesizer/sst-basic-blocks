@@ -195,6 +195,8 @@ template <size_t blockSize> struct StepLFO
 
     float phase{0};
 
+    long getCurrentStep() const { return state; }
+
   protected:
     long state;
     long state_tminus1;
