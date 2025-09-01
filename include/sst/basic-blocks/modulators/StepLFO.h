@@ -105,6 +105,11 @@ template <size_t blockSize> struct StepLFO
     {
         state = 0;
         phase = 0;
+
+        // Again a 1 step lag in interpolation
+        state = (state + 1) % storage->repeat;
+        for (int i = 0; i < 4; i++)
+            wf_history[i] = storage->data[((state + storage->repeat - i) % storage->repeat) & 0x1f];
     }
 
     void process(float rate, int triggerMode, bool ts, bool oneShot, int samples)
@@ -195,7 +200,14 @@ template <size_t blockSize> struct StepLFO
 
     float phase{0};
 
-    long getCurrentStep() const { return state; }
+    long getCurrentStep() const
+    {
+        auto res = state - 1;
+        if (res < 0)
+            res = storage->repeat - 1;
+
+        return res;
+    }
 
   protected:
     long state;
