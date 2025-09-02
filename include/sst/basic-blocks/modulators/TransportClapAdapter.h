@@ -55,11 +55,11 @@ void fromClapTransport(Transport &that, const clap_event_transport_t *t)
 
         that.status = Transport::STOPPED;
         if (t->flags & CLAP_TRANSPORT_IS_PLAYING)
-            that.status &= Transport::PLAYING;
+            that.status |= Transport::PLAYING;
         if (t->flags & CLAP_TRANSPORT_IS_RECORDING)
-            that.status &= Transport::RECORDING;
+            that.status |= Transport::RECORDING;
         if (t->flags & CLAP_TRANSPORT_IS_LOOP_ACTIVE)
-            that.status &= Transport::LOOPING;
+            that.status |= Transport::LOOPING;
 
         that.signature.numerator = t->tsig_num;
         that.signature.denominator = t->tsig_denom;
