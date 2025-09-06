@@ -399,7 +399,14 @@ template <typename ModMatrixTraits> struct FixedMatrix : ModMatrix<ModMatrixTrai
 
         for (const auto &[tgt, outIdx] : targetToOutputIndex)
         {
-            matrixOutputs[outIdx] = this->baseValues.at(tgt);
+            if constexpr (ModMatrixTraits::ProvidesNonZeroTargetBases)
+            {
+                matrixOutputs[outIdx] = this->baseValues.at(tgt);
+            }
+            else
+            {
+                matrixOutputs[outIdx] = 0.f;
+            }
         }
         for (auto &r : routingValuePointers)
         {

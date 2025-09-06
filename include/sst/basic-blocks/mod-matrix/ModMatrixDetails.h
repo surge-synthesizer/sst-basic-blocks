@@ -97,6 +97,9 @@ template <typename TR> struct CheckModMatrixConstraints
     static_assert(std::is_same<decltype(TR::IsFixedMatrix), const bool>::value,
                   "Configuration must define IsFixedMatrix const bool");
 
+    static_assert(std::is_same<decltype(TR::ProvidesNonZeroTargetBases), const bool>::value,
+                  "Configuration must define ProvidesNonZeroTargetBase const bool");
+
     static_assert(std::is_constructible<typename TR::RoutingExtraPayload>::value,
                   "RoutingExtraPayload must be a constructible type");
 

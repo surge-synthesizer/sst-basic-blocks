@@ -39,6 +39,7 @@ struct BldConfig
     using RoutingExtraPayload = int;
 
     static constexpr bool IsFixedMatrix{false};
+    static constexpr bool ProvidesNonZeroTargetBases{true};
 };
 TEST_CASE("Construct", "[mod-matrix]") { ModMatrix<BldConfig> m; }
 
@@ -87,6 +88,7 @@ struct Config
 
     static constexpr bool IsFixedMatrix{true};
     static constexpr size_t FixedMatrixSize{16};
+    static constexpr bool ProvidesNonZeroTargetBases{true};
 };
 
 template <> struct std::hash<Config::SourceIdentifier>
@@ -532,6 +534,7 @@ struct CurveConfig
 
     static constexpr bool IsFixedMatrix{true};
     static constexpr size_t FixedMatrixSize{16};
+    static constexpr bool ProvidesNonZeroTargetBases{true};
 
     static std::function<float(float)> getCurveOperator(CurveIdentifier id)
     {
