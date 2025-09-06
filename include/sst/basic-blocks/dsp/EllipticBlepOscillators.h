@@ -73,7 +73,6 @@ template <typename Impl, typename SmoothingStrategy = LagSmoothingStrategy> stru
     EBOscillatorBase() : blep(CoeffHolder::getPoleDataForSampleRate(44100))
     {
         SmoothingStrategy::setValueInstant(sratio, 1.0);
-        SmoothingStrategy::setValueInstant(sratio, 0.5);
         reset();
     }
 
