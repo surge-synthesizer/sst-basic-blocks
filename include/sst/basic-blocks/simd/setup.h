@@ -110,4 +110,7 @@
 #define SIMD_MM_SHUFFLE SIMDE_MM_SHUFFLE
 #endif
 
+// This is as close as we get to an 'included everywhere' sst-basic-blocks header
+static_assert(__cplusplus >= 202002L, "Surge team libraries have moved to C++ 20");
+
 #endif // SETUP_H

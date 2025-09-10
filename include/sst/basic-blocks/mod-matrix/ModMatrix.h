@@ -34,6 +34,7 @@
 #include <unordered_set>
 #include <functional>
 #include <cstdlib>
+#include <algorithm>
 #include <cmath>
 
 #include <iostream>
