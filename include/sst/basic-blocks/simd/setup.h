@@ -53,6 +53,7 @@
  * SST_SIMD_ARM64 - you are on an arm64 platform without emulation
  */
 
+
 #if (defined(__SSE2__) || defined(_M_AMD64) || defined(_M_X64) ||                                  \
      (defined(_M_IX86_FP) && _M_IX86_FP >= 2))
 #define SST_SIMD_NATIVE_X86
@@ -109,5 +110,9 @@
 #define SIMD_M128D simde__m128d
 #define SIMD_MM_SHUFFLE SIMDE_MM_SHUFFLE
 #endif
+
+// This is as close as we get to an 'included everywhere' sst-basic-blocks header
+static_assert(__cplusplus >= 202002L, "Surge team libraries have moved to C++ 20");
+
 
 #endif // SETUP_H
