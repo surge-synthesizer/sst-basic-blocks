@@ -62,6 +62,9 @@ template <class T, int defaultBlockSize, bool first_run_checks> struct lipol
     }
     inline T getTargetValue() { return new_v; }
     inline void process() { v += dv; }
+    // This is useful if you want to use, say, a runtime switchable
+    // oversampling and not have multiple block sizes and stufdf
+    inline void processPartial(float f) { v += dv * f; }
     /*
      * Some clients specify strictly in the template; others do not. Make it so the
      * template is the default but not the requirement.
