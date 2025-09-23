@@ -261,7 +261,7 @@ struct ParamMetaData
         bool isHighPrecision{false}, isExtended{false}, isAbsolute{false}, isTemposynced{false},
             isNoUnits{false}, modulationClamped{true};
 
-        FeatureState(){};
+        FeatureState() {};
 
         FeatureState withHighPrecision(bool e)
         {
@@ -637,10 +637,12 @@ struct ParamMetaData
     }
     ParamMetaData withLog2SecondsFormatting() { return withATwoToTheBFormatting(1, 1, "s"); }
 
-    ParamMetaData withLinearScaleFormatting(std::string units, float scale = 1.f)
+    ParamMetaData withLinearScaleFormatting(std::string units, float scale = 1.f,
+                                            float offset = 0.f)
     {
         auto res = *this;
         res.svA = scale;
+        res.svB = offset;
         res.unit = units;
         res.displayScale = LINEAR;
         res.supportsStringConversion = true;
@@ -1057,13 +1059,13 @@ inline std::optional<std::string> ParamMetaData::valueToString(float val,
         {
             if (fs.isNoUnits)
             {
-                auto res = fmt::format("{:.{}f}", svA * val,
+                auto res = fmt::format("{:.{}f}", svA * val + svB,
                                        (fs.isHighPrecision ? (decimalPlaces + 4) : decimalPlaces));
                 return res;
             }
             else
             {
-                return fmt::format("{:.{}f}{}{:s}", svA * val,
+                return fmt::format("{:.{}f}{}{:s}", svA * val + svB,
                                    (fs.isHighPrecision ? (decimalPlaces + 4) : decimalPlaces),
                                    unitSeparator, unit);
             }
@@ -1259,7 +1261,7 @@ inline std::optional<float> ParamMetaData::valueFromString(std::string_view v, s
         {
             auto r = std::stof(std::string(v));
             assert(svA != 0);
-            r = r / svA;
+            r = (r / svA) - svB;
 
             if (alternateScaleWhen != NO_ALTERNATE)
             {
@@ -1479,21 +1481,23 @@ ParamMetaData::modulationNaturalToString(float naturalBaseVal, float modulationN
         auto dd = -modulationNatural;
 
         auto dp = (fs.isHighPrecision ? (decimalPlaces + 4) : decimalPlaces);
-        result.value = fmt::format("{:.{}f}{}{}", svA * du, dp, unitSeparator, unit);
+        result.value = fmt::format("{:.{}f}{}{}", svA * du + svB, dp, unitSeparator, unit);
         if (isBipolar)
         {
             if (du > 0)
             {
-                result.summary = fmt::format("+/- {:.{}f}{}{}", svA * du, dp, unitSeparator, unit);
+                result.summary =
+                    fmt::format("+/- {:.{}f}{}{}", svA * du + svB, dp, unitSeparator, unit);
             }
             else
             {
-                result.summary = fmt::format("-/+ {:.{}f}{}{}", -svA * du, dp, unitSeparator, unit);
+                result.summary =
+                    fmt::format("-/+ {:.{}f}{}{}", -svA * du + svB, dp, unitSeparator, unit);
             }
         }
         else
         {
-            result.summary = fmt::format("{:.{}f}{}{}", svA * du, dp, unitSeparator, unit);
+            result.summary = fmt::format("{:.{}f}{}{}", svA * du + svB, dp, unitSeparator, unit);
         }
         result.changeUp = fmt::format("{:.{}f}", svA * du, dp);
         if (isBipolar)
@@ -1723,10 +1727,10 @@ ParamMetaData::modulationNaturalFromString(std::string_view deltaNatural, float 
     {
         try
         {
-            auto mv = std::stof(std::string(deltaNatural)) / svA;
+            auto mv = std::stof(std::string(deltaNatural)) / svA - svB;
             if (std::fabs(mv) > (maxVal - minVal))
             {
-                errMsg = fmt::format("Maximum depth: {}{}{}", (maxVal - minVal) * svA,
+                errMsg = fmt::format("Maximum depth: {}{}{}", (maxVal - minVal) * svA + svB,
                                      unitSeparator, unit);
                 return std::nullopt;
             }
