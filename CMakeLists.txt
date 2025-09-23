@@ -4,6 +4,10 @@ project(sst-basic-blocks VERSION 0.5 LANGUAGES C CXX)
 
 set(CMAKE_CXX_STANDARD 20)
 
+list(APPEND CMAKE_MODULE_PATH ${CMAKE_CURRENT_LIST_DIR}/cmake)
+include(CTest)
+include(Catch)
+
 add_library(${PROJECT_NAME} INTERFACE)
 target_include_directories(${PROJECT_NAME} INTERFACE include)
 target_include_directories(${PROJECT_NAME} INTERFACE libs)
@@ -25,7 +29,7 @@ endif ()
 
 
 if (${SST_BASIC_BLOCKS_BUILD_TESTS})
-    include(cmake/CPM.cmake)
+    include(CPM)
 
     if (NOT TARGET fmt)
         CPMAddPackage(NAME fmt
@@ -53,11 +57,14 @@ if (${SST_BASIC_BLOCKS_BUILD_TESTS})
             tests/mod_matrix_tests.cpp
             )
 
+    catch_discover_tests(sst-basic-blocks-test)
 
     add_executable(sst-basic-blocks-perf-test
             tests/perf/perf_test.cpp
             tests/perf/lfo.cpp
     )
+
+    catch_discover_tests(sst-basic-blocks-perf-test)
 
     if (NOT TARGET simde)
         message(STATUS "Importing SIMDE with CPM")
