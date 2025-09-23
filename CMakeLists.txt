@@ -5,8 +5,6 @@ project(sst-basic-blocks VERSION 0.5 LANGUAGES C CXX)
 set(CMAKE_CXX_STANDARD 20)
 
 list(APPEND CMAKE_MODULE_PATH ${CMAKE_CURRENT_LIST_DIR}/cmake)
-include(CTest)
-include(Catch)
 
 add_library(${PROJECT_NAME} INTERFACE)
 target_include_directories(${PROJECT_NAME} INTERFACE include)
@@ -29,6 +27,8 @@ endif ()
 
 
 if (${SST_BASIC_BLOCKS_BUILD_TESTS})
+    include(CTest)
+    include(Catch)
     include(CPM)
 
     if (NOT TARGET fmt)
