@@ -261,7 +261,7 @@ struct ParamMetaData
         bool isHighPrecision{false}, isExtended{false}, isAbsolute{false}, isTemposynced{false},
             isNoUnits{false}, modulationClamped{true};
 
-        FeatureState() {};
+        FeatureState() {}
 
         FeatureState withHighPrecision(bool e)
         {
@@ -1261,7 +1261,7 @@ inline std::optional<float> ParamMetaData::valueFromString(std::string_view v, s
         {
             auto r = std::stof(std::string(v));
             assert(svA != 0);
-            r = (r / svA) - svB;
+            r = (r - svB) / svA;
 
             if (alternateScaleWhen != NO_ALTERNATE)
             {
@@ -1727,10 +1727,10 @@ ParamMetaData::modulationNaturalFromString(std::string_view deltaNatural, float 
     {
         try
         {
-            auto mv = std::stof(std::string(deltaNatural)) / svA - svB;
+            auto mv = std::stof(std::string(deltaNatural)) / svA;
             if (std::fabs(mv) > (maxVal - minVal))
             {
-                errMsg = fmt::format("Maximum depth: {}{}{}", (maxVal - minVal) * svA + svB,
+                errMsg = fmt::format("Maximum depth: {}{}{}", (maxVal - minVal) * svA,
                                      unitSeparator, unit);
                 return std::nullopt;
             }
