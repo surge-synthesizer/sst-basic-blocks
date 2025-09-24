@@ -206,6 +206,35 @@ TEST_CASE("Alternate Scales Above and Below", "[param]")
         REQUIRE(*(p.valueFromString("4.20 s", em)) == Approx(4.2f));
     }
 
+    SECTION("Linear no alternate with offset")
+    {
+        auto p = pmd::ParamMetaData().asFloat().withLinearScaleFormatting("%", 1.f, 0.5f);
+
+        REQUIRE(*(p.valueToString(0.2)) == "0.70 %");
+        REQUIRE(*(p.valueToString(0.5)) == "1.00 %");
+        REQUIRE(*(p.valueToString(0.9)) == "1.40 %");
+
+        std::string em;
+        REQUIRE(*(p.valueFromString("0.70 %", em)) == Approx(0.2));
+        REQUIRE(*(p.valueFromString("1.00 %", em)) == Approx(0.5));
+        REQUIRE(*(p.valueFromString("1.40 %", em)) == Approx(0.9));
+    }
+
+    SECTION("Linear no alternate with scale and offset")
+    {
+        auto p = pmd::ParamMetaData().asFloat().withRange(0, 1).withLinearScaleFormatting(
+            "%", 47.5f, 50.f);
+
+        REQUIRE(*(p.valueToString(0.0)) == "50.00 %");
+        REQUIRE(*(p.valueToString(0.5)) == "73.75 %");
+        REQUIRE(*(p.valueToString(1.0)) == "97.50 %");
+
+        std::string em;
+        REQUIRE(*(p.valueFromString("50.00 %", em)) == Approx(0.0));
+        REQUIRE(*(p.valueFromString("73.75 %", em)) == Approx(0.5));
+        REQUIRE(*(p.valueFromString("97.50 %", em)) == Approx(1.0));
+    }
+
     SECTION("Linear alternate below")
     {
         auto p = pmd::ParamMetaData()
