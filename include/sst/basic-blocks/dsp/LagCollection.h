@@ -116,6 +116,7 @@ template <int N, typename T> struct LagCollectionBase
         for (auto &lag : activeSet)
         {
             lag.snapToTarget();
+            asT()->lagCompleted(lag.index);
         }
         while (activeSet.begin() != activeSet.end())
             activeSet.removeFromActive(*activeSet.begin());
@@ -148,7 +149,7 @@ template <int N> struct LagCollection : LagCollectionBase<N, LagCollection<N>>
         }
     }
 
-    void lagCompleted(size_t index) {}
+    void lagCompleted(size_t) {}
 };
 } // namespace sst::basic_blocks::dsp
 #endif
