@@ -36,17 +36,20 @@
 
 namespace sst::basic_blocks::dsp
 {
+
 /**
- * LagCollection is a bucket of laggers which act as a group and allow you
+ * LagCollectionBase is a bucket of laggers which act as a group and allow you
  * to easily manage the active set. Basically use it with <128> to smooth
  * midi ccs and stuff like that
  *
  * @tparam N how many laggers to have
  */
-template <int N> struct LagCollection
+template <int N, typename T> struct LagCollectionBase
 {
     struct Lagger : sst::cpputils::active_set_overlay<Lagger>::participant
     {
+        T *parent;
+
         void process()
         {
             lag.process();
@@ -58,25 +61,24 @@ template <int N> struct LagCollection
             lag.snapToTarget();
             apply();
         }
-        void apply()
-        {
-            if (onto)
-            {
-                *onto = lag.v;
-            }
-        }
-        float *onto{nullptr};
+        void apply() { parent->applyLag(index); }
         LinearLag<float, true> lag;
         int index;
     };
 
+    T *asT() { return static_cast<T *>(this); }
+    const T *asT() const { return static_cast<const T *>(this); }
+
     std::array<Lagger, N> lags;
     sst::cpputils::active_set_overlay<Lagger> activeSet;
 
-    LagCollection()
+    LagCollectionBase()
     {
         for (int i = 0; i < N; ++i)
+        {
+            lags[i].parent = asT();
             lags[i].index = i;
+        }
     }
 
     void setRateInMilliseconds(double rate, double sampleRate, double blockSizeInv)
@@ -85,11 +87,10 @@ template <int N> struct LagCollection
             l.lag.setRateInMilliseconds(1000.0 * rate / 48000.0, sampleRate, blockSizeInv);
     }
 
-    void setTarget(size_t index, float target, float *onto)
+    void setTargetValue(size_t index, float target)
     {
         assert(index < N);
         lags[index].lag.setTarget(target);
-        lags[index].onto = onto;
         activeSet.addToActive(lags[index]);
     }
 
@@ -100,6 +101,7 @@ template <int N> struct LagCollection
             it->process();
             if (!it->lag.isActive())
             {
+                asT()->lagCompleted(it->index);
                 it = activeSet.erase(it);
             }
             else
@@ -118,6 +120,35 @@ template <int N> struct LagCollection
         while (activeSet.begin() != activeSet.end())
             activeSet.removeFromActive(*activeSet.begin());
     }
+};
+
+/**
+ * LagCollection is a LagCollectionBase which implements updates by
+ * direct write to a float *. You can use other strategies by implementing
+ * a different set target and apply strategy
+ *
+ * @tparam N how many laggers to have
+ */
+template <int N> struct LagCollection : LagCollectionBase<N, LagCollection<N>>
+{
+
+    std::array<float *, N> onto;
+    void setTarget(size_t index, float target, float *ontoP)
+    {
+        assert(index < N);
+        onto[index] = ontoP;
+        this->setTargetValue(index, target);
+    }
+
+    void applyLag(size_t index)
+    {
+        if (onto[index])
+        {
+            *onto[index] = this->lags[index].lag.v;
+        }
+    }
+
+    void lagCompleted(size_t index) {}
 };
 } // namespace sst::basic_blocks::dsp
 #endif
