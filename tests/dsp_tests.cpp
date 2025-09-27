@@ -1457,3 +1457,34 @@ TEST_CASE("Lag Collection", "[dsp]")
         REQUIRE(lags.activeSet.activeCount == 0);
     }
 }
+
+struct CustomLC : sst::basic_blocks::dsp::LagCollectionBase<4, CustomLC>
+{
+    std::array<int, 4> updates;
+    void setTarget(int index, float target)
+    {
+        this->setTargetValue(index, target);
+        updates[index] = 0;
+    }
+
+    void applyLag(int index) { updates[index]++; }
+
+    void lagCompleted(size_t index) {}
+};
+
+TEST_CASE("Lag Collection Custom", "[dsp]")
+{
+    INFO("Just test that we can redirect to custom lag impl");
+    auto c = CustomLC();
+    c.setRateInMilliseconds(100, 48000, 1.0 / 16);
+    c.setTarget(2, 3);
+    c.processAll();
+    c.setTarget(2, 7);
+    REQUIRE(c.updates[2] == 0);
+    c.processAll();
+    REQUIRE(c.updates[2] == 1);
+    c.processAll();
+    REQUIRE(c.updates[2] == 2);
+    c.snapAllActiveToTarget();
+    REQUIRE(c.activeSet.activeCount == 0);
+}
