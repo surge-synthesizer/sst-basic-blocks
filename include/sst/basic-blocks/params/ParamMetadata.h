@@ -385,7 +385,7 @@ struct ParamMetaData
     double alternateScaleCutoff{0.f}, alternateScaleRescaling{0.f};
     std::string alternateScaleUnits{};
 
-    float naturalToNormalized01(float naturalValue) const
+    float naturalToNormalized01(float naturalValue, bool useSurgeIntConvention = false) const
     {
         float v = 0;
         switch (type)
@@ -396,8 +396,15 @@ struct ParamMetaData
             break;
         case INT:
             assert(maxVal != minVal);
-            // This is the surge conversion. Do we want to keep it?
-            v = 0.005 + 0.99 * (naturalValue - minVal) / (maxVal - minVal);
+            if (useSurgeIntConvention)
+            {
+                // This is the surge conversion. Do we want to keep it?
+                v = 0.005 + 0.99 * (naturalValue - minVal) / (maxVal - minVal);
+            }
+            else
+            {
+                v = (naturalValue - minVal) / (maxVal - minVal);
+            }
             break;
         case BOOL:
             assert(maxVal == 1 && minVal == 0);
