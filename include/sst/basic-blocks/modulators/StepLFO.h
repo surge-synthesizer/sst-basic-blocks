@@ -60,7 +60,7 @@ template <size_t blockSize> struct StepLFO
         this->td = td;
         state = 0;
         output = 0.f;
-        phase = 0.f;
+        phase = 0.;
         ratemult = 1.f;
         shuffle_id = 0;
 
@@ -88,11 +88,29 @@ template <size_t blockSize> struct StepLFO
         UpdatePhaseIncrement(rate, tempoSync);
     }
 
+    float lrate{-10000};
+    double tsVal{0.f};
     void UpdatePhaseIncrement(float rate, bool tempoSync)
     {
-        phaseInc = blockSize * tuning.note_to_pitch(12 * rate) * samplerate_inv *
-                   (storage->rateIsForSingleStep ? 1 : storage->repeat) *
-                   ((tempoSync && td) ? (td->tempo * (1.f / 120.f)) : 1);
+        if (tempoSync && td)
+        {
+            // Temposync rates change less often and need full
+            // double precision to avoid drift fo things like
+            // 5 minute voices and the like.
+            if (lrate != rate)
+            {
+                tsVal = pow(2.0, rate);
+            }
+            lrate = rate;
+            phaseInc = blockSize * tsVal * samplerate_inv *
+                       (storage->rateIsForSingleStep ? 1 : storage->repeat) * td->tempo *
+                       (1.0 / 120.);
+        }
+        else
+        {
+            phaseInc = blockSize * tuning.note_to_pitch(12 * rate) * samplerate_inv *
+                       (storage->rateIsForSingleStep ? 1 : storage->repeat);
+        }
     }
 
     void setSampleRate(double sr, double sri)
@@ -115,7 +133,7 @@ template <size_t blockSize> struct StepLFO
     void process(float rate, int triggerMode, bool ts, bool oneShot, int samples)
     {
         phase += phaseInc;
-        while (phase > 1.0f)
+        while (phase > 1.0)
         {
             state++;
 
@@ -127,7 +145,7 @@ template <size_t blockSize> struct StepLFO
             {
                 state = 0;
             }
-            phase -= 1.0f;
+            phase -= 1.0;
 
             wf_history[3] = wf_history[2];
             wf_history[2] = wf_history[1];
@@ -198,7 +216,7 @@ template <size_t blockSize> struct StepLFO
 
     float output{0.f};
 
-    float phase{0};
+    double phase{0};
 
     long getCurrentStep() const
     {
@@ -212,7 +230,7 @@ template <size_t blockSize> struct StepLFO
   protected:
     long state;
     long state_tminus1;
-    float phaseInc;
+    double phaseInc;
     float wf_history[4];
     float ratemult;
     int shuffle_id;
