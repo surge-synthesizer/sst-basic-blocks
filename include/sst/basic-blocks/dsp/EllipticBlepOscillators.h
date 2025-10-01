@@ -403,11 +403,10 @@ struct EBPulse : EBOscillatorBase<EBPulse<SmoothingStrategy>, SmoothingStrategy>
         SmoothingStrategy::resetFirstRun(width);
     }
 
-    void setWidth(float w) { SmoothingStrategy::setTarget(width, w); }
+    void setWidth(float w) { SmoothingStrategy::setTarget(width, std::clamp(w, 0.01f, 0.99f)); }
 
     float step()
     {
-        // TODO - there's a DC offset at width != 0; we should address via level
         auto freq = SmoothingStrategy::getValue(this->dphase);
         auto srval = SmoothingStrategy::getValue(this->sratio);
         auto wval = SmoothingStrategy::getValue(this->width);
@@ -456,6 +455,9 @@ struct EBPulse : EBOscillatorBase<EBPulse<SmoothingStrategy>, SmoothingStrategy>
 
         result += this->blep.get();     // add in BLEP residue
         result = this->allpass(result); // (optional) phase correction
+
+        // Remove DC offset: pulse wave integral is width * 1 + (1-width) * (-1) = 2*width - 1
+        result -= (2.0f * wval - 1.0f);
 
         SmoothingStrategy::process(this->dphase);
         SmoothingStrategy::process(this->sratio);
