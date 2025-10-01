@@ -249,7 +249,20 @@ struct EBTri : EBOscillatorBase<EBTri<SmoothingStrategy>, SmoothingStrategy>
         {
             this->sphase -= 1;
         }
+        else if (lastSPhase < 0.25 && this->sphase >= 0.25)
+        {
+            float samplesInPast = (this->sphase - 0.25) / (srval * freq);
+            auto dDeriv = -8 * srval * freq;
+            this->blep.add(dDeriv, 2, this->csip(samplesInPast));
+        }
+        else if (lastSPhase < 0.75 && this->sphase >= 0.75)
+        {
+            float samplesInPast = (this->sphase - 0.75) / (srval * freq);
+            auto dDeriv = 8 * srval * freq;
+            this->blep.add(dDeriv, 2, this->csip(samplesInPast));
+        }
 
+        lastSPhase = this->sphase;
         float result = valueAt(this->sphase); // naive sawtooth
 
         result += this->blep.get();     // add in BLEP residue
@@ -268,6 +281,8 @@ struct EBTri : EBOscillatorBase<EBTri<SmoothingStrategy>, SmoothingStrategy>
         else
             return -4 * uphase + 3;
     }
+
+    float lastSPhase{0};
 };
 
 template <typename SmoothingStrategy = LagSmoothingStrategy>
@@ -327,11 +342,12 @@ struct EBApproxSemiSin : EBOscillatorBase<EBApproxSemiSin<SmoothingStrategy>, Sm
 {
     float step()
     {
+        // TODO: This needs a blep order 2 correction for the derivative change at sphase==0
         auto freq = SmoothingStrategy::getValue(this->dphase);
         auto srval = SmoothingStrategy::getValue(this->sratio);
 
         this->phase += freq;
-        this->sphase += freq * .5 * srval;
+        this->sphase += freq * srval;
 
         this->blep.step();
 
@@ -363,15 +379,12 @@ struct EBApproxSemiSin : EBOscillatorBase<EBApproxSemiSin<SmoothingStrategy>, Sm
     static float valueAt(float sphase)
     {
         float sign{1.f};
-        if (sphase > 0.5)
-        {
-            sphase = sphase - 0.5;
-            sign = -1.f;
-        }
+
+        sphase *= 0.5;
         auto ang = sphase * 360.0;
         auto res = sign * 4 * ang * (180 - ang) / (40500 - ang * (180 - ang));
-        res = std::abs(res) * 2 - 1;
-        return res;
+
+        return M_PI * res * 0.5 - 1.0;
     }
 };
 
@@ -394,6 +407,7 @@ struct EBPulse : EBOscillatorBase<EBPulse<SmoothingStrategy>, SmoothingStrategy>
 
     float step()
     {
+        // TODO - there's a DC offset at width != 0; we should address via level
         auto freq = SmoothingStrategy::getValue(this->dphase);
         auto srval = SmoothingStrategy::getValue(this->sratio);
         auto wval = SmoothingStrategy::getValue(this->width);
@@ -438,7 +452,7 @@ struct EBPulse : EBOscillatorBase<EBPulse<SmoothingStrategy>, SmoothingStrategy>
             this->sphase -= 1;
         }
 
-        float result = level; // naive sawtooth
+        float result = level;
 
         result += this->blep.get();     // add in BLEP residue
         result = this->allpass(result); // (optional) phase correction
