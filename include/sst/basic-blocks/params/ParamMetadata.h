@@ -1266,7 +1266,28 @@ inline std::optional<float> ParamMetaData::valueFromString(std::string_view v, s
     {
         try
         {
-            auto r = std::stof(std::string(v));
+            auto r = 1.0;
+            auto vs = std::string(v);
+
+            if ((features & (uint64_t)Features::ALLOW_FRACTIONAL_TYPEINS) &&
+                vs.find("/") != std::string::npos)
+            {
+                auto ps = vs.find("/");
+                auto num = vs.substr(0, ps);
+                auto den = vs.substr(ps + 1);
+                auto uv = std::stof(num);
+                auto dv = std::stof(den);
+                if (uv == 0 || dv == 0)
+                    r = std::stof(std::string(v));
+                else
+                    r = uv / dv;
+            }
+            else
+
+            {
+                r = std::stof(std::string(v));
+            }
+
             assert(svA != 0);
             r = (r - svB) / svA;
 
@@ -1277,7 +1298,7 @@ inline std::optional<float> ParamMetaData::valueFromString(std::string_view v, s
                 auto ps = (v.find(alternateScaleUnits) != std::string::npos);
                 if ((!unitSubstr && ps) || (unitSubstr && ps && !us))
                 {
-                    // We have a string containing the alterante units
+                    // We have a string containing the alternAte units
                     r = r / alternateScaleRescaling;
                 }
             }
