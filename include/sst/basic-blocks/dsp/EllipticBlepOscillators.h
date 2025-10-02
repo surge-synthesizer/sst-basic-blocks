@@ -364,6 +364,14 @@ struct EBApproxSemiSin : EBOscillatorBase<EBApproxSemiSin<SmoothingStrategy>, Sm
         else if (this->sphase >= 1)
         {
             this->sphase -= 1;
+
+            // so at this point we are moving from pi/2 sin(pi x) the derivative
+            // of which is pi^2/2 cos(pi x) so the deriv goes from -pi^2/2 to pi^2/2 or
+            // a change of pi^2
+
+            float samplesInPast = (this->sphase - 0.75) / (srval * freq);
+            auto dDeriv = M_PI * M_PI * srval * freq;
+            this->blep.add(dDeriv, 2, this->csip(samplesInPast));
         }
 
         float result = valueAt(this->sphase); // naive sawtooth
