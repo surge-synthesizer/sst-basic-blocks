@@ -37,6 +37,7 @@
 #include "elliptic-blep/elliptic-blep.h"
 #include "SmoothingStrategies.h"
 #include <unordered_map>
+#include <algorithm>
 
 namespace sst::basic_blocks::dsp
 {
@@ -156,12 +157,15 @@ template <typename Impl, typename SmoothingStrategy = LagSmoothingStrategy> stru
     void syncTurnaroundCorrection(float freq, float srval)
     {
         float samplesInPast = (this->phase - 1) / (freq);
-        auto lastSampleValue = Impl::valueAt(this->sphase - srval * freq);
-        auto nextSPhase = (this->phase - 1) * srval;
-        auto thisSampleValue = Impl::valueAt(nextSPhase);
-        auto dv = lastSampleValue - thisSampleValue;
+        float syncSamplesInPast = samplesInPast * srval;
+        float syncAtTurnaround = this->sphase - syncSamplesInPast * freq;
+        float valueAtTurnaround = Impl::valueAt(syncAtTurnaround);
+        float newValueAtTurnaround = Impl::valueAt(0);
+        ;
 
-        this->blep.add(-dv, 1, csip(samplesInPast));
+        float changeAtTurnaround = newValueAtTurnaround - valueAtTurnaround;
+
+        this->blep.add(changeAtTurnaround, 1, this->csip(samplesInPast));
     }
 
     signalsmith::blep::EllipticBlep<float> blep;
@@ -187,7 +191,6 @@ struct EBSaw : EBOscillatorBase<EBSaw<SmoothingStrategy>, SmoothingStrategy>
 
         this->blep.step();
 
-        // this turns us around externally
         if (this->phase >= 1)
         {
             this->syncTurnaroundCorrection(freq, srval);
@@ -203,7 +206,7 @@ struct EBSaw : EBOscillatorBase<EBSaw<SmoothingStrategy>, SmoothingStrategy>
             auto dv = lastSampleValue - thisSampleValue;
 
             this->sphase = (this->sphase - 1);
-            this->blep.add(-dv, 1, this->csip(samplesInPast));
+            this->blep.add(-2, 1, this->csip(samplesInPast));
         }
 
         float result = valueAt(this->sphase); // naive sawtooth
@@ -249,16 +252,16 @@ struct EBTri : EBOscillatorBase<EBTri<SmoothingStrategy>, SmoothingStrategy>
         {
             this->sphase -= 1;
         }
-        else if (lastSPhase < 0.25 && this->sphase >= 0.25)
+        else if (srval * freq < 0.25 && lastSPhase < 0.25 && this->sphase >= 0.25)
         {
             float samplesInPast = (this->sphase - 0.25) / (srval * freq);
-            auto dDeriv = -8 * srval * freq;
+            auto dDeriv = 8 * srval * freq;
             this->blep.add(dDeriv, 2, this->csip(samplesInPast));
         }
-        else if (lastSPhase < 0.75 && this->sphase >= 0.75)
+        else if (srval * freq < 0.25 && lastSPhase < 0.75 && this->sphase >= 0.75)
         {
             float samplesInPast = (this->sphase - 0.75) / (srval * freq);
-            auto dDeriv = 8 * srval * freq;
+            auto dDeriv = -8 * srval * freq;
             this->blep.add(dDeriv, 2, this->csip(samplesInPast));
         }
 
@@ -351,6 +354,18 @@ struct EBApproxSemiSin : EBOscillatorBase<EBApproxSemiSin<SmoothingStrategy>, Sm
 
         this->blep.step();
 
+        if (this->sphase >= 1)
+        {
+            // so at this point we are moving from pi/2 sin(pi x) the derivative
+            // of which is pi^2/2 cos(pi x) so the deriv goes from -pi^2/2 to pi^2/2 or
+            // a change of pi^2
+
+            float samplesInPast = (this->sphase - 1) / (srval * freq);
+            auto dDeriv = M_PI * M_PI * srval * freq;
+            this->blep.add(dDeriv, 2, this->csip(samplesInPast));
+            this->sphase -= 1;
+        }
+
         // this turns us around externally
         if (this->phase >= 1)
         {
@@ -360,18 +375,6 @@ struct EBApproxSemiSin : EBOscillatorBase<EBApproxSemiSin<SmoothingStrategy>, Sm
             }
             this->phase -= 1;
             this->sphase = this->phase * srval;
-        }
-        else if (this->sphase >= 1)
-        {
-            this->sphase -= 1;
-
-            // so at this point we are moving from pi/2 sin(pi x) the derivative
-            // of which is pi^2/2 cos(pi x) so the deriv goes from -pi^2/2 to pi^2/2 or
-            // a change of pi^2
-
-            float samplesInPast = (this->sphase - 0.75) / (srval * freq);
-            auto dDeriv = M_PI * M_PI * srval * freq;
-            this->blep.add(dDeriv, 2, this->csip(samplesInPast));
         }
 
         float result = valueAt(this->sphase); // naive sawtooth

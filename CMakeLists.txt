@@ -102,3 +102,7 @@ if (NOT TARGET sst-cpputils)
 else()
     target_link_libraries(${PROJECT_NAME} INTERFACE sst-cpputils)
 endif()
+
+if (${PROJECT_IS_TOP_LEVEL})
+    add_subdirectory(utils)
+endif()
