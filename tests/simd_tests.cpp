@@ -27,6 +27,7 @@
 #include "catch2.hpp"
 
 #include "sst/basic-blocks/simd/setup.h"
+#include "sst/basic-blocks/simd/wrap_simd_f32x4.h"
 #include "sst/basic-blocks/mechanics/simd-ops.h"
 
 #include <iostream>
@@ -55,4 +56,40 @@ TEST_CASE("Sums", "[simd]")
     res[3] = 0.4;
     auto val = SIMD_MM(load_ps)(res);
     REQUIRE(sst::basic_blocks::mechanics::sum_ps_to_float(val) == Approx(1.0).margin(0.00001));
+}
+
+TEST_CASE("F32x4", "[simd]")
+{
+    float pack1 alignas(16)[4];
+    float pack2 alignas(16)[4];
+    using F32x4 = sst::basic_blocks::simd::F32x4;
+    F32x4 f32x4;
+    f32x4.copyToRawArray(pack1);
+    for (int i = 0; i < 4; ++i)
+        REQUIRE(pack1[i] == 0.f);
+
+    f32x4 = 3.14;
+    f32x4.copyToRawArray(pack1);
+    for (int i = 0; i < 4; ++i)
+        REQUIRE(pack1[i] == 3.14f);
+
+    f32x4 = f32x4 + 1.f;
+    f32x4.copyToRawArray(pack1);
+    for (int i = 0; i < 4; ++i)
+        REQUIRE(pack1[i] == Approx(4.14f).margin(1e-6));
+
+    pack2[0] = 1.f;
+    pack2[1] = 0.2f;
+    pack2[2] = 1.5f;
+    pack2[3] = 2.5f;
+
+    auto newF = F32x4(pack2);
+    newF.copyToRawArray(pack1);
+    for (int i = 0; i < 4; ++i)
+        REQUIRE(pack1[i] == pack2[i]);
+
+    auto q = newF + f32x4;
+    q.copyToRawArray(pack1);
+    for (int i = 0; i < 4; ++i)
+        REQUIRE(pack1[i] == Approx(pack2[i] + 4.14).margin(1e-6));
 }
