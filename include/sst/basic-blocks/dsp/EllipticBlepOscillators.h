@@ -37,6 +37,7 @@
 #include "elliptic-blep/elliptic-blep.h"
 #include "SmoothingStrategies.h"
 #include <unordered_map>
+#include <algorithm>
 
 namespace sst::basic_blocks::dsp
 {
