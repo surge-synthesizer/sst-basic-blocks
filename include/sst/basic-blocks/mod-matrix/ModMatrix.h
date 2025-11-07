@@ -241,6 +241,7 @@ template <typename ModMatrixTraits> struct FixedMatrix : ModMatrix<ModMatrixTrai
         bool *active{nullptr};
         float *source{nullptr}, *sourceVia{nullptr}, *depth{nullptr}, *target{nullptr};
         float depthScale{1.f};
+        bool isSelfMod{false};
         float maxVal{std::numeric_limits<float>::max()}, minVal{std::numeric_limits<float>::min()};
         std::function<float(float)> curveFn;
 
@@ -258,6 +259,7 @@ template <typename ModMatrixTraits> struct FixedMatrix : ModMatrix<ModMatrixTrai
         LagStyle sourceLagStyle{NONE}, sourceViaLagStyle{NONE};
     };
     std::array<RoutingValuePointers, TR::FixedMatrixSize> routingValuePointers{};
+    std::array<size_t, TR::FixedMatrixSize> routingValuePointersProcessOrder{};
 
     std::unordered_map<typename TR::TargetIdentifier, bool> isOutputMapped;
     std::unordered_map<typename TR::TargetIdentifier, size_t> targetToOutputIndex;
@@ -363,6 +365,7 @@ template <typename ModMatrixTraits> struct FixedMatrix : ModMatrix<ModMatrixTrai
                 if (TR::isTargetModMatrixDepth(*(r.target)))
                 {
                     depthMaps.insert(*(r.target));
+                    rv.isSelfMod = true;
                 }
             }
 
@@ -392,6 +395,23 @@ template <typename ModMatrixTraits> struct FixedMatrix : ModMatrix<ModMatrixTrai
                 this->baseValues.insert_or_assign(m, rt.routes[depthIndex].depth);
             }
         }
+
+        std::fill(routingValuePointersProcessOrder.begin(), routingValuePointersProcessOrder.end(),
+                  -1);
+        int pos{0};
+        for (auto &smv : {true, false})
+        {
+            int ri{0};
+            for (auto &r : routingValuePointers)
+            {
+                if (r.isSelfMod == smv)
+                {
+                    routingValuePointersProcessOrder[pos] = ri;
+                    pos++;
+                }
+                ri++;
+            }
+        }
     }
 
     void process()
@@ -409,8 +429,10 @@ template <typename ModMatrixTraits> struct FixedMatrix : ModMatrix<ModMatrixTrai
                 matrixOutputs[outIdx] = 0.f;
             }
         }
-        for (auto &r : routingValuePointers)
+        for (auto &ri : routingValuePointersProcessOrder)
         {
+            assert(ri >= 0 && ri < routingValuePointers.size());
+            auto &r = routingValuePointers[ri];
             if (!r.source || !r.target)
                 continue;
 
