@@ -1009,6 +1009,15 @@ inline std::optional<std::string> ParamMetaData::valueToString(float val,
 
     if (type == INT)
     {
+        for (auto &det : customValueLabelsWithAccuracy)
+        {
+            auto dv = std::get<1>(det);
+            auto da = std::get<2>(det);
+
+            if (fabs(val - dv) < da * (maxVal - minVal))
+                return std::get<0>(det);
+        }
+
         auto iv = (int)std::round(val);
         if (displayScale == UNORDERED_MAP)
         {
