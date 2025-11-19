@@ -1802,11 +1802,53 @@ ParamMetaData::modulationNaturalFromString(std::string_view deltaNatural, float 
         }
         catch (const std::exception &e)
         {
+            errMsg = "Unable to convert " + std::string(deltaNatural) + " to a float";
+            return std::nullopt;
+        }
+    }
+    break;
+    case CUBED_AS_DECIBEL:
+    {
+        try
+        {
+            auto bv = naturalBaseVal * naturalBaseVal * naturalBaseVal * svA;
+            auto db = 20 * std::log10(bv);
+            auto mv = std::stof(std::string(deltaNatural));
+            auto rv = db + mv;
+            auto av = std::cbrt(pow(10.f, rv / 20) / svA);
+            return (av - naturalBaseVal);
+        }
+        catch (const std::exception &e)
+        {
+            errMsg = "Unable to convert " + std::string(deltaNatural) + " to a float";
+            return std::nullopt;
+        }
+    }
+    break;
+    case SCALED_OFFSET_EXP:
+    {
+        try
+        {
+            auto nv = std::clamp(naturalBaseVal, 0.f, 1.f);
+            auto v = (exp(svA + nv * (svB - svA)) - svC) / svD;
+            auto mv = std::stof(std::string(deltaNatural));
+            auto rv = v + mv;
+            // See comment in valueFromString for the algebra here
+            auto drc = std::max((float)(svD * rv - svC), 0.00000001f);
+            auto xv = (std::log(drc) - svA) / (svB - svA);
+            auto dist = xv - naturalBaseVal;
+            return dist;
+        }
+        catch (const std::exception &e)
+        {
+            errMsg = "Unable to convert " + std::string(deltaNatural) + " to a float";
             return std::nullopt;
         }
     }
     break;
     default:
+        errMsg = "Display scale " + std::to_string(displayScale) +
+                 " not supported in modulation from string";
         break;
     }
     return std::nullopt;
