@@ -1834,7 +1834,7 @@ ParamMetaData::modulationNaturalFromString(std::string_view deltaNatural, float 
             auto mv = std::stof(std::string(deltaNatural));
             auto rv = v + mv;
             // See comment in valueFromString for the algebra here
-            auto drc = std::max(svD * rv - svC, 0.00000001f);
+            auto drc = std::max((float)(svD * rv - svC), 0.00000001f);
             auto xv = (std::log(drc) - svA) / (svB - svA);
             auto dist = xv - naturalBaseVal;
             return dist;
@@ -1844,7 +1844,6 @@ ParamMetaData::modulationNaturalFromString(std::string_view deltaNatural, float 
             errMsg = "Unable to convert " + std::string(deltaNatural) + " to a float";
             return std::nullopt;
         }
-
     }
     break;
     default:
