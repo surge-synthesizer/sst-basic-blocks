@@ -219,6 +219,7 @@ struct ParamMetaData
         SUPPORTS_MULTIPLICATIVE_MODULATION = 1ULL << 0,
         BELOW_ONE_IS_INVERSE_FRACTION = 1ULL << 1,
         ALLOW_FRACTIONAL_TYPEINS = 1ULL << 2,
+        ALLOW_TUNING_FRACTION_TYPEINS = 1ULL << 3,
 
         USER_FEATURE_0 = 1ULL << 32
     };
@@ -658,6 +659,11 @@ struct ParamMetaData
 
     ParamMetaData withDimensionlessFormatting() { return withLinearScaleFormatting(""); }
 
+    ParamMetaData withSemitoneFormatting()
+    {
+        return withLinearScaleFormatting("semitones")
+            .withFeature(Features::ALLOW_TUNING_FRACTION_TYPEINS);
+    }
     ParamMetaData withLogarithmicFormating(std::string units, float scale = 1,
                                            float basis = std::exp(0), float offset = 0)
     {
@@ -1278,21 +1284,26 @@ inline std::optional<float> ParamMetaData::valueFromString(std::string_view v, s
             auto r = 1.0;
             auto vs = std::string(v);
 
-            if ((features & (uint64_t)Features::ALLOW_FRACTIONAL_TYPEINS) &&
-                vs.find("/") != std::string::npos)
+            auto isFrac = (features & (uint64_t)Features::ALLOW_FRACTIONAL_TYPEINS);
+            auto isTunFrac = (features & (uint64_t)Features::ALLOW_TUNING_FRACTION_TYPEINS);
+            if ((isFrac || isTunFrac) && vs.find("/") != std::string::npos)
             {
                 auto ps = vs.find("/");
                 auto num = vs.substr(0, ps);
                 auto den = vs.substr(ps + 1);
                 auto uv = std::stof(num);
                 auto dv = std::stof(den);
-                if (uv == 0 || dv == 0)
-                    r = std::stof(std::string(v));
-                else
+                r = std::stof(std::string(v));
+                if (isFrac && uv != 0 && dv != 0)
+                {
                     r = uv / dv;
+                }
+                if (isTunFrac && dv != 0 && uv / dv > 0)
+                {
+                    r = 12 * log2(uv / dv);
+                }
             }
             else
-
             {
                 r = std::stof(std::string(v));
             }
