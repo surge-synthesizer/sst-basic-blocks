@@ -116,6 +116,12 @@ struct SSESincDelayLine
         return buffer[RPP];
     }
 
+    inline float readNaivelyAt(int posn)
+    {
+        posn = std::clamp(posn, 0, COMB_SIZE - 1);
+        return buffer[posn];
+    }
+
     inline void clear()
     {
         memset((void *)buffer, 0, (COMB_SIZE + stp::FIRipol_N) * sizeof(float));
