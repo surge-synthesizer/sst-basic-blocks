@@ -174,6 +174,15 @@ template <size_t blockSize> inline float blockAbsMax(const float *__restrict d)
         r = std::max(r, std::fabs(d[i]));
     return r;
 }
+
+template <size_t blockSize> inline float blockAbsAvg(const float *__restrict d)
+{
+    auto r = 0.f;
+    for (auto i = 0U; i < blockSize; ++i)
+        r += std::fabs(d[i]);
+    r /= blockSize;
+    return r;
+}
 } // namespace sst::basic_blocks::mechanics
 
 #endif // SHORTCIRCUIT_BLOCK_OPS_H
