@@ -118,35 +118,9 @@ struct SSESincDelayLine
 
     inline float readNaivelyAt(int posn)
     {
-        posn = std::clamp(posn, 0, COMB_SIZE + stp::FIRipol_N);
+        posn = std::clamp(posn, 0, COMB_SIZE - 1);
         return buffer[posn];
     }
-
-    // inline float readAt(float posn)
-    // {
-    //     auto iPosn = (size_t)posn;
-    //     auto fracPosn = posn - iPosn;
-    //
-    //     auto sincTableOffset = (int)(fracPosn * stp::FIRipol_M) * stp::FIRipol_N * 2;
-    //     int readPtr = iPosn - (stp::FIRipol_N >> 1) & (COMB_SIZE - 1);
-    //
-    //     auto a = SIMD_MM(loadu_ps)(&buffer[readPtr]);
-    //     auto b = SIMD_MM(loadu_ps)(&sinctable[sincTableOffset]);
-    //     auto o = SIMD_MM(mul_ps)(a, b);
-    //
-    //     a = SIMD_MM(loadu_ps)(&buffer[readPtr + 4]);
-    //     b = SIMD_MM(loadu_ps)(&sinctable[sincTableOffset + 4]);
-    //     o = SIMD_MM(add_ps)(o, SIMD_MM(mul_ps)(a, b));
-    //
-    //     a = SIMD_MM(loadu_ps)(&buffer[readPtr + 8]);
-    //     b = SIMD_MM(loadu_ps)(&sinctable[sincTableOffset + 8]);
-    //     o = SIMD_MM(add_ps)(o, SIMD_MM(mul_ps)(a, b));
-    //
-    //     float res;
-    //     SIMD_MM(store_ss)(&res, sst::basic_blocks::mechanics::sum_ps_to_ss(o));
-    //
-    //     return res;
-    // }
 
     inline void clear()
     {
