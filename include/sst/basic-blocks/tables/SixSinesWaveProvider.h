@@ -86,7 +86,7 @@ struct SixSinesWaveProvider
     inline static float linterpCoefficients[2][nPoints];
 
     inline static SIMD_M128 simdFullQuad alignas(
-        16)[NUM_WAVEFORMS][nQuadrants * nPoints];    // for each quad it is q, q+1, dq + 1
+        16)[NUM_WAVEFORMS][nQuadrants * nPoints];           // for each quad it is q, q+1, dq + 1
     inline static SIMD_M128 simdCubic alignas(16)[nPoints]; // it is cq, cq+1, cdq, cd1+1
     inline static bool staticsInitialized;
     inline static bool butOnlyForSine;
