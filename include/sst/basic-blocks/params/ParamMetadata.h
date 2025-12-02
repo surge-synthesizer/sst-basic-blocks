@@ -635,13 +635,19 @@ struct ParamMetaData
         return res;
     }
 
-    ParamMetaData withSemitoneZeroAt400Formatting()
+    [[deprecated]] ParamMetaData withSemitoneZeroAt400Formatting()
     {
-        return withATwoToTheBFormatting(440, 1.0 / 12.0, "Hz");
+        return withSemitoneZeroAt440Formatting();
+    }
+
+    ParamMetaData withSemitoneZeroAt440Formatting()
+    {
+        return withATwoToTheBFormatting(440, 1.0 / 12.0, "Hz").withIntegerQuantization();
     }
     ParamMetaData withSemitoneZeroAtMIDIZeroFormatting()
     {
-        return withATwoToTheBFormatting(440.f * pow(2.f, -69 / 12), 1.0 / 12.0, "Hz");
+        return withATwoToTheBFormatting(440.f * pow(2.f, -69 / 12), 1.0 / 12.0, "Hz")
+            .withIntegerQuantization();
     }
     ParamMetaData withLog2SecondsFormatting() { return withATwoToTheBFormatting(1, 1, "s"); }
 
@@ -662,6 +668,7 @@ struct ParamMetaData
     ParamMetaData withSemitoneFormatting()
     {
         return withLinearScaleFormatting("semitones")
+            .withIntegerQuantization()
             .withFeature(Features::ALLOW_TUNING_FRACTION_TYPEINS);
     }
     ParamMetaData withLogarithmicFormating(std::string units, float scale = 1,
@@ -903,7 +910,7 @@ struct ParamMetaData
 
     ParamMetaData asAudibleFrequency()
     {
-        return withType(FLOAT).withRange(-60, 70).withDefault(0).withSemitoneZeroAt400Formatting();
+        return withType(FLOAT).withRange(-60, 70).withDefault(0).withSemitoneZeroAt440Formatting();
     }
 
     /**
