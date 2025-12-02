@@ -164,6 +164,26 @@ struct ParamMetaData
                 return lv;
             }
             break;
+            case SCALED_OFFSET_EXP:
+            {
+                auto dval = (std::exp(svA + f * (svB - svA)) + svC) / svD;
+                auto quantLev = 10.f;
+                if (dval < 0.1)
+                    quantLev = 0.01;
+                else if (dval < 1)
+                    quantLev = 0.1;
+                else if (dval < 100)
+                    quantLev = 1.f;
+                auto qval = quantLev * std::round(dval / quantLev);
+                if (qval == 0.f)
+                    return 0.f;
+
+                auto drc = std::max(svD * qval - svC, 0.00000001f);
+                auto xv = (std::log(drc) - svA) / (svB - svA);
+
+                return std::clamp(xv, minVal, maxVal);
+            }
+            break;
             default:
             {
                 auto dI = quantization == Quantization::CUSTOM_INTERVAL
@@ -904,6 +924,8 @@ struct ParamMetaData
         return withType(FLOAT)
             .withRange(0, 1)
             .withDefault(0.1)
+            .withQuantizedInterval(
+                0.025) // this is kinda ignored though. See custom code in quantize
             .withScaledOffsetExpFormatting(0.6931471824646, 10.1267113685608, -2.0, 1000.0, "s")
             .withMilisecondsBelowOneSecond();
     }
