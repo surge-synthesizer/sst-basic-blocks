@@ -58,7 +58,7 @@ inline void scale_accumulate_from_to(const float *__restrict src, float scale,
 }
 
 template <size_t blocksize>
-inline void scale_accumulate_from_to(const float *__restrict srcL, float *__restrict srcR,
+inline void scale_accumulate_from_to(const float *__restrict srcL, const float *__restrict srcR,
                                      float scale, float *__restrict dstL, float *__restrict dstR)
 {
     for (auto i = 0U; i < blocksize; ++i)
