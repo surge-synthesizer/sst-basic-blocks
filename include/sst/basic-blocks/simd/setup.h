@@ -28,10 +28,10 @@
 #define INCLUDE_SST_BASIC_BLOCKS_SIMD_SETUP_H
 
 /**
- * \page the sst/basic-blocks/simd/setup.h header providces a set of macros and defines
+ * \page the sst/basic-blocks/simd/setup.h header provides a set of macros and defines
  * for simd inclusion which we can use across all of our properties, which conditionally
  * sets up the https://github.com/simd-everywhere/simde in various ways, and defines some
- * macros which, especiall with the introduction of windows arm64ec builds (which define
+ * macros which, especially with the introduction of windows arm64ec builds (which define
  * the sse intrinsics, but define them as emulation points) allows us to actually get
  * native code on all platforms
  *
@@ -45,7 +45,7 @@
  * SIMD_MM(x) -> creates the appropriate function. Replace SIMD_MM(set1_ps)(2.f) with
  * SIMD_MM(set1_ps)(2.f)
  *
- * from pre-existing _mm code youc an use scripts/fix_simd.pl on a directory
+ * from pre-existing _mm code you can use scripts/fix_simd.pl on a directory
  *
  * Conditions:
  * SST_SIMD_NATIVE_X86  - you are on an x86 / sse2 hardware platform
