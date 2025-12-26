@@ -240,6 +240,7 @@ struct ParamMetaData
         BELOW_ONE_IS_INVERSE_FRACTION = 1ULL << 1,
         ALLOW_FRACTIONAL_TYPEINS = 1ULL << 2,
         ALLOW_TUNING_FRACTION_TYPEINS = 1ULL << 3,
+        ALLOW_MIDI_NOTENAMES = 1ULL << 4,
 
         USER_FEATURE_0 = 1ULL << 32
     };
@@ -332,7 +333,7 @@ struct ParamMetaData
      * If this parameter supports that it will return a string value from this API. Surge uses
      * this in the left side of the tooltip.
      */
-    std::optional<std::string> valueToAlternateString(float val) const;
+    std::optional<std::string> valueToAlternateString(float val, const FeatureState &fs = {}) const;
 
     /*
      * Convert a value to a string; if the optional is empty populate the error message.
@@ -391,7 +392,6 @@ struct ParamMetaData
     std::unordered_map<int, std::string> discreteValues;
     int decimalPlaces{2};
     inline static int defaultMidiNoteOctaveOffset{0};
-    int midiNoteOctaveOffset{defaultMidiNoteOctaveOffset};
 
     float svA{0.f}, svB{0.f}, svC{0.f}, svD{0.f}; // for various functional forms
     float exA{1.f}, exB{0.f};
@@ -662,7 +662,9 @@ struct ParamMetaData
 
     ParamMetaData withSemitoneZeroAt440Formatting()
     {
-        return withATwoToTheBFormatting(440, 1.0 / 12.0, "Hz").withIntegerQuantization();
+        return withATwoToTheBFormatting(440, 1.0 / 12.0, "Hz")
+            .withIntegerQuantization()
+            .withFeature(Features::ALLOW_MIDI_NOTENAMES);
     }
     ParamMetaData withSemitoneZeroAtMIDIZeroFormatting()
     {
@@ -704,13 +706,12 @@ struct ParamMetaData
         return res;
     }
 
-    ParamMetaData withMidiNoteFormatting(int octave)
+    ParamMetaData withMidiNoteFormatting()
     {
         auto res = *this;
         res.unit = "semitones";
         res.displayScale = MIDI_NOTE;
         res.supportsStringConversion = true;
-        res.midiNoteOctaveOffset = octave;
         return res;
     }
     // Scan defaults to false because it needs to iterate through the map to find the value
@@ -878,15 +879,12 @@ struct ParamMetaData
             .withIntegerQuantization()
             .withDecimalPlaces(0);
     }
-    ParamMetaData asMIDINote(int octave = 1000)
+    ParamMetaData asMIDINote()
     {
-        if (octave > 2 || octave < -2)
-            octave = defaultMidiNoteOctaveOffset;
-
         return withType(INT)
             .withRange(0, 127)
             .withDefault(60)
-            .withMidiNoteFormatting(octave)
+            .withMidiNoteFormatting()
             .withIntegerQuantization()
             .withDecimalPlaces(0);
     }
@@ -1004,6 +1002,8 @@ struct ParamMetaData
     std::optional<float> valueFromTemposyncNotation(const std::string &s) const;
     float snapToTemposync(float f) const;
 
+    std::optional<int> noteNameToNoteNumber(const std::string &s) const;
+
     /*
      * OK so I'm doing something a bit tricky here. I want to be able to project
      * a PMD onto a clap_param_info * but I don't want to couple this low level library
@@ -1065,7 +1065,7 @@ inline std::optional<std::string> ParamMetaData::valueToString(float val,
             if (iv < 0)
                 return "";
             auto n = iv;
-            auto o = n / 12 - 1 + midiNoteOctaveOffset;
+            auto o = n / 12 - 1 + defaultMidiNoteOctaveOffset;
             auto ni = n % 12;
             static std::array<std::string, 12> nn{"C",  "C#", "D",  "D#", "E",  "F",
                                                   "F#", "G",  "G#", "A",  "A#", "B"};
@@ -1243,6 +1243,32 @@ inline std::optional<std::string> ParamMetaData::valueToString(float val,
     return std::nullopt;
 }
 
+inline std::optional<int> ParamMetaData::noteNameToNoteNumber(const std::string &s) const
+{
+    char c{' '};
+    for (auto sc : s)
+    {
+        if (sc != ' ')
+        {
+            c = sc;
+            break;
+        }
+    }
+    auto c0 = std::toupper(c);
+    if (c0 >= 'A' && c0 <= 'G')
+    {
+        auto n0 = c0 - 'A';
+        auto sharp = s[1] == '#';
+        auto flat = s[1] == 'b';
+        auto oct = std::atoi(s.c_str() + 1 + (sharp ? 1 : 0) + (flat ? 1 : 0));
+
+        std::array<int, 7> noteToPosition{9, 11, 0, 2, 4, 5, 7};
+        auto res = noteToPosition[n0] + sharp - flat + (oct + 1 - defaultMidiNoteOctaveOffset) * 12;
+        return res;
+    }
+    return std::nullopt;
+}
+
 inline std::optional<float> ParamMetaData::valueFromString(std::string_view v, std::string &errMsg,
                                                            const FeatureState &fs) const
 {
@@ -1258,17 +1284,10 @@ inline std::optional<float> ParamMetaData::valueFromString(std::string_view v, s
         if (displayScale == MIDI_NOTE)
         {
             auto s = std::string(v);
-            auto c0 = std::toupper(s[0]);
-            if (c0 >= 'A' && c0 <= 'G')
+            auto nn = noteNameToNoteNumber(s);
+            if (nn.has_value())
             {
-                auto n0 = c0 - 'A';
-                auto sharp = s[1] == '#';
-                auto flat = s[1] == 'b';
-                auto oct = std::atoi(s.c_str() + 1 + (sharp ? 1 : 0) + (flat ? 1 : 0));
-
-                std::array<int, 7> noteToPosition{9, 11, 0, 2, 4, 5, 7};
-                auto res =
-                    noteToPosition[n0] + sharp - flat + (oct + 1 + midiNoteOctaveOffset) * 12;
+                auto res = *nn;
                 if (res >= minVal && res <= maxVal)
                     return (float)res;
             }
@@ -1378,8 +1397,15 @@ inline std::optional<float> ParamMetaData::valueFromString(std::string_view v, s
         {
             auto r = 1.0;
             auto vs = std::string(v);
-            if ((features & (uint64_t)Features::ALLOW_FRACTIONAL_TYPEINS) &&
-                vs.find("/") != std::string::npos)
+
+            if ((features & (uint64_t)Features::ALLOW_MIDI_NOTENAMES) &&
+                noteNameToNoteNumber(vs).has_value())
+            {
+                r = *noteNameToNoteNumber(vs);
+                r = 440 * pow(2.0, (r - 69) / 12);
+            }
+            else if ((features & (uint64_t)Features::ALLOW_FRACTIONAL_TYPEINS) &&
+                     vs.find("/") != std::string::npos)
             {
                 auto ps = vs.find("/");
                 auto num = vs.substr(0, ps);
@@ -1535,8 +1561,26 @@ inline std::optional<float> ParamMetaData::valueFromString(std::string_view v, s
     return std::nullopt;
 }
 
-inline std::optional<std::string> ParamMetaData::valueToAlternateString(float) const
+inline std::optional<std::string>
+ParamMetaData::valueToAlternateString(float f, const FeatureState &fs) const
 {
+    if ((type == FLOAT) && (displayScale == A_TWO_TO_THE_B) &&
+        (features & (uint64_t)Features::ALLOW_MIDI_NOTENAMES))
+    {
+        auto val = svA * pow(2.f, (svB * f + svC)) + svD;
+        // OK so 440 * pow(2, (n-69)/12) = val
+        // log2(val / 440) * 12 + 69 = n;
+        auto n = (log2(val / 440.f) * 12.f + 69.f);
+        auto note = (int)std::round(n);
+        auto ni = (note + 1200) % 12;
+        auto no = note / 12 - 1 + defaultMidiNoteOctaveOffset;
+
+        auto na = std::vector<std::string>{"C",  "C#", "D",  "D#", "E",  "F",
+                                           "F#", "G",  "G#", "A",  "A#", "B"};
+
+        auto approx = std::fabs(f - std::round(f)) < 1e-5 ? "" : "~";
+        return approx + na[ni] + std::to_string(no);
+    }
     return std::nullopt;
 }
 
