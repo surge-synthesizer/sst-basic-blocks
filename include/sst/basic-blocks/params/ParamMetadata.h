@@ -899,11 +899,7 @@ struct ParamMetaData
     }
     ParamMetaData asSemitoneRange(float lower = -96, float upper = 96)
     {
-        return withType(FLOAT)
-            .withRange(lower, upper)
-            .withDefault(0)
-            .withIntegerQuantization()
-            .withLinearScaleFormatting("semitones");
+        return withType(FLOAT).withRange(lower, upper).withDefault(0).withSemitoneFormatting();
     }
     ParamMetaData asLog2SecondsRange(float lower, float upper, float defVal = 0)
     {
