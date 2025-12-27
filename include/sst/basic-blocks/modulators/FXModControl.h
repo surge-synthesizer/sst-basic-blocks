@@ -32,9 +32,16 @@
 
 #include "sst/basic-blocks/dsp/BlockInterpolators.h"
 #include "sst/basic-blocks/dsp/RNG.h"
+#include "sst/basic-blocks/simd/setup.h"
 
 namespace sst::basic_blocks::modulators
 {
+
+#define ADD(a, b) SIMD_MM(add_ps)(a, b)
+#define SUB(a, b) SIMD_MM(sub_ps)(a, b)
+#define DIV(a, b) SIMD_MM(div_ps)(a, b)
+#define MUL(a, b) SIMD_MM(mul_ps)(a, b)
+#define SETALL(a) SIMD_MM(set1_ps)(a)
 
 template <int blockSize> struct FXModControl
 {
@@ -43,7 +50,8 @@ template <int blockSize> struct FXModControl
     FXModControl(float sr, float sri) : samplerate(sr), samplerate_inv(sri)
     {
         lfophase = 0.0f;
-        lfosandhtarget = 0.0f;
+        SnH_tgt[0] = 0.0f;
+        SnH_tgt[1] = 0.0f;
 
         for (int i = 0; i < LFO_TABLE_SIZE; ++i)
             sin_lfo_table[i] = sin(2.0 * M_PI * i / LFO_TABLE_SIZE);
@@ -68,12 +76,13 @@ template <int blockSize> struct FXModControl
         mod_square,
     };
 
-    inline void pre_process(int mwave, float rate, float depth_val, float phase_offset)
+    inline void processStartOfBlock(int mwave, float rate, float depth, float phase_offset,
+                                    float width = 0.f)
     {
         assert(samplerate > 1000);
         bool lforeset = false;
         bool rndreset = false;
-        float lfoout = lfoval.v;
+        // auto lfoout = SIMD_MM(set_ps)(0, 0, lfoValR.v, lfoValL.v);
         float phofs = fmod(fabs(phase_offset), 1.0);
         float thisrate = std::max(0.f, rate);
         float thisphase;
@@ -121,126 +130,236 @@ template <int blockSize> struct FXModControl
         {
         case mod_sine:
         {
-            float ps = thisphase * LFO_TABLE_SIZE;
-            int psi = (int)ps;
-            float psf = ps - psi;
-            int psn = (psi + 1) & LFO_TABLE_MASK;
+            float thisphaseR = fmod(thisphase + width * .5f, 1.0);
+            // float ps = thisphase * LFO_TABLE_SIZE;
+            auto psSSE =
+                SIMD_MM(set_ps)(.12345f, .12345f, thisphaseR * LFO_TABLE_SIZE, thisphase * LFO_TABLE_SIZE);
+            // int psi = (int)ps;
+            auto psiSSE = SIMD_MM(cvtps_epi32(psSSE));
+            // int psn = (psi + 1) & LFO_TABLE_MASK;
+            auto psnSSE = SIMD_MM(and_si128)(
+                SIMD_MM(add_epi32)(psiSSE, SIMD_MM(set1_epi32)(1)), LFO_TABLE_MASK_SSE);
+            // float psf = ps - psi;
+            auto psfSSE = SUB(psSSE, SIMD_MM(cvtepi32_ps)(psiSSE));
 
-            lfoout = sin_lfo_table[psi] * (1.0 - psf) + psf * sin_lfo_table[psn];
+            int idxi[4], idxn[4];
+            SIMD_MM(storeu_si32)(idxi, psiSSE);
+            SIMD_MM(storeu_si32)(idxn, psnSSE);
 
-            lfoval.newValue(lfoout);
+            auto v = SIMD_MM(set_ps)(0, 0, sin_lfo_table[idxi[0]], sin_lfo_table[idxi[1]]);
+            auto vn = SIMD_MM(set_ps)(0, 0, sin_lfo_table[idxn[0]], sin_lfo_table[idxi[1]]);
+
+            // lfoout = sin_lfo_table[psi] * (1.0 - psf) + psf * sin_lfo_table[psn];
+            auto sineish = ADD(MUL(v, SUB(oneSSE, psfSSE)), MUL(psfSSE, vn));
+
+            float res alignas(16)[4];
+            SIMD_MM(store_ps)(res, sineish);
+            lfoValL.newValue(res[0]);
+            lfoValR.newValue(res[1]);
 
             break;
         }
         case mod_tri:
         {
-            lfoout = (2.f * fabs(2.f * thisphase - 1.f) - 1.f);
+            float thisphaseR = fmod(thisphase + width * .5f, 1.0);
+            auto ph = SIMD_MM(set_ps)(0, 0, thisphaseR, thisphase);
 
-            lfoval.newValue(lfoout);
+            // (2.f * fabs(2.f * phase - 1.f) - 1.f);
+            ph = SIMD_MM(andnot_ps)(signMask, SUB(MUL(twoSSE, ph), oneSSE));
+            auto trianglish = SUB(MUL(twoSSE, ph), oneSSE);
+
+            float res alignas(16)[4];
+            SIMD_MM(store_ps)(res, trianglish);
+            lfoValL.newValue(res[0]);
+            lfoValR.newValue(res[1]);
 
             break;
         }
         case mod_saw: // Gentler than a pure saw, more like a heavily skewed triangle
         {
-            auto cutAt = 0.98f;
-            float usephase;
+            float thisphaseR = fmod(thisphase + width * .5f, 1.0);
+            auto ph = SIMD_MM(set_ps)(0, 0, thisphaseR, thisphase);
 
-            if (thisphase < cutAt)
-            {
-                usephase = thisphase / cutAt;
-                lfoout = usephase * 2.0f - 1.f;
-            }
-            else
-            {
-                usephase = (thisphase - cutAt) / (1.0 - cutAt);
-                lfoout = (1.0 - usephase) * 2.f - 1.f;
-            }
+            // (thisphase / cutAt) * 2.0f - 1.f;
+            auto rise = SUB(MUL(DIV(ph, sawCutSSE), twoSSE), oneSSE);
+            auto fall = SUB(
+                MUL(twoSSE, SUB(oneSSE, DIV(SUB(ph, sawCutSSE), SUB(oneSSE, sawCutSSE)))), oneSSE);
 
-            lfoval.newValue(lfoout);
+            // if phase < the cut point rise, else fall
+            auto sawish = SIMD_MM(blendv_ps)(rise, fall, SIMD_MM(cmpgt_ps)(ph, sawCutSSE));
 
+            float res alignas(16)[4];
+            SIMD_MM(store_ps)(res, sawish);
+            lfoValL.newValue(res[0]);
+            lfoValR.newValue(res[1]);
             break;
         }
         case mod_square: // Gentler than a pure square, more like a trapezoid
         {
-            auto cutOffset = 0.02f;
-            auto m = 2.f / cutOffset;
-            auto c2 = cutOffset / 2.f;
+            /*
+             * This one is a little trickier. There are four segments, delineated by the beforeHalf
+             * etc members. We set up masks that are true for the current segment only, compute
+             * the values for all, and use the masks to select the right value. May seem a bit
+             * wasteful since we're throwing away some mults/adds/subs in about 98% of blocks
+             * but before there was a bunch of branching here so this is probably still better
+             *
+             * Also we used to do these divides anew every time but they are now const and expressed
+             * differently in the private section below:
+             * auto cutOffset = 0.02f;
+             * auto m = 2.f / cutOffset;
+             * auto c2 = cutOffset / 2.f;
+             *
+             * The rise and fall were also different lengths. The difference was small so I decided
+             * to just fix it when I wrote the SSE version.
+             */
 
-            if (thisphase < 0.5f - c2)
-            {
-                lfoout = 1.f;
-            }
-            else if ((thisphase >= 0.5 + c2) && (thisphase <= 1.f - cutOffset))
-            {
-                lfoout = -1.f;
-            }
-            else if ((thisphase > 0.5 - c2) && (thisphase < 0.5 + c2))
-            {
-                lfoout = -m * thisphase + (m / 2);
-            }
-            else
-            {
-                lfoout = (m * thisphase) - (2 * m) + m + 1;
-            }
+            float thisphaseR = fmod(thisphase + width * .5f, 1.0);
+            auto ph = SIMD_MM(set_ps)(0, 0, thisphaseR, thisphase);
 
-            lfoval.newValue(lfoout);
+            auto maskA = SIMD_MM(cmplt_ps)(ph, beforeHalf);
+            auto maskB = SIMD_MM(andnot_ps)(maskA, SIMD_MM(cmple_ps)(ph, halfSSE));
+            auto maskC =
+                SIMD_MM(and_ps)(SIMD_MM(cmpgt_ps)(ph, halfSSE), SIMD_MM(cmplt_ps)(ph, beforeOne));
+            auto maskD = SIMD_MM(cmpge_ps)(ph, beforeOne);
+
+            auto squarish = SIMD_MM(set1_ps)(0.f);
+            // 1.f
+            squarish = SIMD_MM(blendv_ps)(squarish, oneSSE, maskA);
+            // -m * phase + (m / 2);
+            squarish =
+                SIMD_MM(blendv_ps)(squarish, ADD(MUL(negmSSE, ph), DIV(mSSE, twoSSE)), maskB);
+            // -1.f
+            squarish = SIMD_MM(blendv_ps)(squarish, negoneSSE, maskC);
+            // m * thisphase - m + 1;
+            squarish = SIMD_MM(blendv_ps)(squarish, ADD(SUB(MUL(mSSE, ph), mSSE), oneSSE), maskD);
+
+            float res alignas(16)[4];
+            SIMD_MM(store_ps)(res, squarish);
+            lfoValL.newValue(res[0]);
+            lfoValR.newValue(res[1]);
 
             break;
         }
-        case mod_snh:   // Sample & Hold random
+        case mod_snh: // Sample & Hold random
+        {
+            /*
+             * Ok this one has a different strategy. Instead of phase offsets for stereo, we
+             * use different random values left and right, and make the width average them out.
+             * No SIMD here. Don't see a way where it would help much. It's fine.
+             */
+
+            if (lforeset)
+            {
+                SnH_tgt[0] = rng.unifPM1();
+                SnH_tgt[1] = rng.unifPM1();
+            }
+
+            auto wih = (width * width * width * -1.f + 1.f) * .5f;
+            auto lrdistance = wih * (SnH_tgt[1] - SnH_tgt[0]);
+            auto left = SnH_tgt[0] + lrdistance;
+            auto right = SnH_tgt[1] - lrdistance;
+
+            lfoValL.newValue(left);
+            lfoValR.newValue(right);
+            break;
+        }
         case mod_noise: // noise (Sample & Glide smoothed random)
         {
             if (lforeset)
             {
-                lfosandhtarget = rng.unifPM1();
+                SnH_tgt[0] = rng.unifPM1();
+                SnH_tgt[1] = rng.unifPM1();
             }
 
-            if (mwave == mod_noise)
+            auto wih = (width * width * width * -1.f + 1.f) * .5f;
+            auto lrdistance = wih * (SnH_tgt[1] - SnH_tgt[0]);
+            auto left = SnH_tgt[0] + lrdistance;
+            auto right = SnH_tgt[1] - lrdistance;
+
+            // FIXME - exponential creep up. We want to get there in time related to our rate
+            auto cvL = lfoValL.v;
+            auto cvR = lfoValR.v;
+
+            // thisphase * 0.98 prevents a glitch when LFO rate is disabled
+            // and phase offset is 1, which constantly retriggers S&G
+            thisrate = (rate == 0) ? thisphase * 0.98 : thisrate;
+            float diffL = (left - cvL) * thisrate * 2;
+            float diffR = (right - cvR) * thisrate * 2;
+
+            if (thisrate >= 0.98f) // this means we skip all the time
             {
-                // FIXME - exponential creep up. We want to get there in time related to our rate
-                auto cv = lfoval.v;
-
-                // thisphase * 0.98 prevents a glitch when LFO rate is disabled
-                // and phase offset is 1, which constantly retriggers S&G
-                thisrate = (rate == 0) ? thisphase * 0.98 : thisrate;
-
-                auto diff = (lfosandhtarget - cv) * thisrate * 2;
-
-                if (thisrate >= 0.98f) // this means we skip all the time
-                    lfoval.newValue(lfosandhtarget);
-                else
-                    lfoval.newValue(std::clamp(cv + diff, -1.f, 1.f));
+                lfoValL.newValue(left);
+                lfoValR.newValue(right);
             }
             else
             {
-                lfoval.newValue(lfosandhtarget);
+                lfoValL.newValue(std::clamp(cvL + diffL, -1.f, 1.f));
+                lfoValR.newValue(std::clamp(cvR + diffR, -1.f, 1.f));
             }
 
             break;
         }
         }
 
-        depth.newValue(depth_val);
+        depthLerp.newValue(depth);
     }
 
-    inline float value() const noexcept { return lfoval.v * depth.v; }
-
-    inline void post_process()
+    inline float value() const noexcept { return lfoValL.v * depthLerp.v; }
+    inline std::array<float, 2> valueStereo() const noexcept
     {
-        lfoval.process();
-        depth.process();
+        std::array res = {lfoValL.v * depthLerp.v, lfoValR.v * depthLerp.v};
+        return res;
+    }
+
+    inline void processSampleOfBlock()
+    {
+        lfoValL.process();
+        lfoValR.process();
+        depthLerp.process();
+    }
+    float getNextValue()
+    {
+        auto res = this->value();
+        processSampleOfBlock();
+        return res;
     }
 
   private:
-    dsp::lipol<float, blockSize, true> lfoval{};
-    dsp::lipol<float, blockSize, true> depth{};
+    bool first{true};
+    dsp::lipol<float, blockSize, true> lfoValL{};
+    dsp::lipol<float, blockSize, true> lfoValR{};
+    dsp::lipol<float, blockSize, true> depthLerp{};
+
     float lfophase;
-    float lfosandhtarget;
+    float SnH_tgt[2];
 
     static constexpr int LFO_TABLE_SIZE = 8192;
     static constexpr int LFO_TABLE_MASK = LFO_TABLE_SIZE - 1;
     float sin_lfo_table[LFO_TABLE_SIZE]{};
+
+    SIMD_M128 signMask{SETALL(-0.f)};
+    SIMD_M128 oneSSE{SETALL(1.0)};
+    SIMD_M128 negoneSSE{SETALL(-1.0)};
+    SIMD_M128 twoSSE{SETALL(2.0)};
+    SIMD_M128 negtwoSSE{SETALL(-2.0)};
+
+    SIMD_M128I LFO_TABLE_MASK_SSE = SIMD_MM(set_epi32)(LFO_TABLE_MASK, LFO_TABLE_MASK, LFO_TABLE_MASK, LFO_TABLE_MASK);
+    SIMD_M128 sawCutSSE = SETALL(0.98f);
+
+    SIMD_M128 squareCutSSE = SETALL(0.01f);
+    SIMD_M128 halfSSE{SETALL(0.5)};
+    SIMD_M128 beforeHalf = SUB(halfSSE, squareCutSSE);
+    SIMD_M128 beforeOne = SUB(oneSSE, squareCutSSE);
+
+    SIMD_M128 mSSE = DIV(oneSSE, squareCutSSE);
+    SIMD_M128 negmSSE = MUL(mSSE, negoneSSE);
 };
+
+#undef ADD
+#undef SUB
+#undef DIV
+#undef MUL
+#undef SETALL
 } // namespace sst::basic_blocks::modulators
 
 #endif // SURGE_FXMODCONTROL_H
