@@ -27,14 +27,6 @@
 #ifndef INCLUDE_SST_BASIC_BLOCKS_MODULATORS_FXMODCONTROL_H
 #define INCLUDE_SST_BASIC_BLOCKS_MODULATORS_FXMODCONTROL_H
 
-#if defined(__SSE2__) || defined(_M_AMD64) || defined(_M_X64) ||                                   \
-(defined(_M_IX86_FP) && _M_IX86_FP >= 2)
-#include <emmintrin.h>
-#else
-#define SIMDE_ENABLE_NATIVE_ALIASES
-#include "simde/x86/sse4.2.h"
-#endif
-
 #include <cmath>
 #include <utility>
 

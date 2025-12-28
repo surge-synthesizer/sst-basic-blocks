@@ -77,6 +77,7 @@
 #ifdef SST_SIMD_NATIVE_X86
 #include <emmintrin.h>
 #include <pmmintrin.h>
+#include <smmintrin.h>
 #endif
 
 /*
@@ -94,6 +95,7 @@
 #endif
 
 #include "simde/x86/sse4.2.h"
+
 #endif
 
 #if defined(SST_SIMD_NATIVE_X86) || defined(SIMDE_UNAVAILABLE)
