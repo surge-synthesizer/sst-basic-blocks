@@ -77,7 +77,6 @@
 #ifdef SST_SIMD_NATIVE_X86
 #include <emmintrin.h>
 #include <pmmintrin.h>
-#include <smmintrin.h>
 #endif
 
 /*
