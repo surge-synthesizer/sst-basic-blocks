@@ -33,6 +33,7 @@
 #include "sst/basic-blocks/dsp/BlockInterpolators.h"
 #include "sst/basic-blocks/dsp/RNG.h"
 #include "sst/basic-blocks/simd/setup.h"
+#include "sst/basic-blocks/mechanics/simd-ops.h"
 
 namespace sst::basic_blocks::modulators
 {
@@ -71,9 +72,10 @@ template <int blockSize> struct FXModControl
         mod_sine = 0,
         mod_tri,
         mod_saw,
+        mod_ramp,
+        mod_square,
         mod_noise,
         mod_snh,
-        mod_square,
     };
 
     inline void processStartOfBlock(int mwave, float rate, float depth, float phase_offset,
@@ -86,6 +88,8 @@ template <int blockSize> struct FXModControl
         float phofs = fmod(fabs(phase_offset), 1.0);
         float thisrate = std::max(0.f, rate);
         float thisphase;
+        float thiswidth = std::clamp(width, 0.f, 1.f);
+        thiswidth = thiswidth * thiswidth * thiswidth;
 
         if (thisrate > 0)
         {
@@ -130,24 +134,23 @@ template <int blockSize> struct FXModControl
         {
         case mod_sine:
         {
-            float thisphaseR = fmod(thisphase + width * .5f, 1.0);
+            float thisphaseR = fmod(thisphase + thiswidth * .5f, 1.0);
             // float ps = thisphase * LFO_TABLE_SIZE;
             auto psSSE =
-                SIMD_MM(set_ps)(.12345f, .12345f, thisphaseR * LFO_TABLE_SIZE, thisphase * LFO_TABLE_SIZE);
+                SIMD_MM(set_ps)(0.f, 0.f, thisphaseR * LFO_TABLE_SIZE, thisphase * LFO_TABLE_SIZE);
+
             // int psi = (int)ps;
             auto psiSSE = SIMD_MM(cvtps_epi32(psSSE));
             // int psn = (psi + 1) & LFO_TABLE_MASK;
-            auto psnSSE = SIMD_MM(and_si128)(
-                SIMD_MM(add_epi32)(psiSSE, SIMD_MM(set1_epi32)(1)), LFO_TABLE_MASK_SSE);
+            auto psnSSE = SIMD_MM(and_si128)(SIMD_MM(add_epi32)(psiSSE, SIMD_MM(set1_epi32)(1)),
+                                             LFO_TABLE_MASK_SSE);
             // float psf = ps - psi;
             auto psfSSE = SUB(psSSE, SIMD_MM(cvtepi32_ps)(psiSSE));
 
-            int idxi[4], idxn[4];
-            SIMD_MM(storeu_si32)(idxi, psiSSE);
-            SIMD_MM(storeu_si32)(idxn, psnSSE);
-
-            auto v = SIMD_MM(set_ps)(0, 0, sin_lfo_table[idxi[0]], sin_lfo_table[idxi[1]]);
-            auto vn = SIMD_MM(set_ps)(0, 0, sin_lfo_table[idxn[0]], sin_lfo_table[idxi[1]]);
+            auto v = SIMD_MM(set_ps)(0, 0, sin_lfo_table[SIMD_MM(extract_epi32)(psiSSE, 0)],
+                                     sin_lfo_table[SIMD_MM(extract_epi32)(psiSSE, 1)]);
+            auto vn = SIMD_MM(set_ps)(0, 0, sin_lfo_table[SIMD_MM(extract_epi32)(psnSSE, 0)],
+                                      sin_lfo_table[SIMD_MM(extract_epi32)(psnSSE, 1)]);
 
             // lfoout = sin_lfo_table[psi] * (1.0 - psf) + psf * sin_lfo_table[psn];
             auto sineish = ADD(MUL(v, SUB(oneSSE, psfSSE)), MUL(psfSSE, vn));
@@ -161,12 +164,12 @@ template <int blockSize> struct FXModControl
         }
         case mod_tri:
         {
-            float thisphaseR = fmod(thisphase + width * .5f, 1.0);
+            namespace mech = sst::basic_blocks::mechanics;
+            float thisphaseR = fmod(thisphase + thiswidth * .5f, 1.0);
             auto ph = SIMD_MM(set_ps)(0, 0, thisphaseR, thisphase);
 
             // (2.f * fabs(2.f * phase - 1.f) - 1.f);
-            ph = SIMD_MM(andnot_ps)(signMask, SUB(MUL(twoSSE, ph), oneSSE));
-            auto trianglish = SUB(MUL(twoSSE, ph), oneSSE);
+            auto trianglish = SUB(MUL(twoSSE, mech::abs_ps(SUB(MUL(twoSSE, ph), oneSSE))), oneSSE);
 
             float res alignas(16)[4];
             SIMD_MM(store_ps)(res, trianglish);
@@ -177,11 +180,12 @@ template <int blockSize> struct FXModControl
         }
         case mod_saw: // Gentler than a pure saw, more like a heavily skewed triangle
         {
-            float thisphaseR = fmod(thisphase + width * .5f, 1.0);
+            float thisphaseR = fmod(thisphase + thiswidth * .5f, 1.0);
             auto ph = SIMD_MM(set_ps)(0, 0, thisphaseR, thisphase);
 
             // (thisphase / cutAt) * 2.0f - 1.f;
             auto rise = SUB(MUL(DIV(ph, sawCutSSE), twoSSE), oneSSE);
+            // (1 - ((thisphase - cutAt) / (1.0 - cutAt))) * 2.0f - 1.f
             auto fall = SUB(
                 MUL(twoSSE, SUB(oneSSE, DIV(SUB(ph, sawCutSSE), SUB(oneSSE, sawCutSSE)))), oneSSE);
 
@@ -194,26 +198,46 @@ template <int blockSize> struct FXModControl
             lfoValR.newValue(res[1]);
             break;
         }
+        case mod_ramp:
+        {
+            float thisphaseR = fmod(thisphase + thiswidth * .5f, 1.0);
+            auto ph = SIMD_MM(set_ps)(0, 0, thisphaseR, thisphase);
+
+            // (thisphase / cutAt) * 2.0f - 1.f;
+            auto rise = SUB(MUL(DIV(ph, sawCutSSE), twoSSE), oneSSE);
+            // (1 - ((thisphase - cutAt) / (1.0 - cutAt))) * 2.0f - 1.f
+            auto fall = SUB(
+                MUL(twoSSE, SUB(oneSSE, DIV(SUB(ph, sawCutSSE), SUB(oneSSE, sawCutSSE)))), oneSSE);
+
+            // if phase < the cut point rise, else fall
+            auto sawish = SIMD_MM(blendv_ps)(rise, fall, SIMD_MM(cmpgt_ps)(ph, sawCutSSE));
+
+            float res alignas(16)[4];
+            SIMD_MM(store_ps)(res, sawish);
+            lfoValL.newValue(-res[0]);
+            lfoValR.newValue(-res[1]);
+            break;
+        }
         case mod_square: // Gentler than a pure square, more like a trapezoid
         {
-            /*
-             * This one is a little trickier. There are four segments, delineated by the beforeHalf
+            /* This one is a little trickier. There are four segments, delineated by the beforeHalf
              * etc members. We set up masks that are true for the current segment only, compute
              * the values for all, and use the masks to select the right value. May seem a bit
-             * wasteful since we're throwing away some mults/adds/subs in about 98% of blocks
-             * but before there was a bunch of branching here so this is probably still better
+             * wasteful of those mults/adds/subs which we only need about 2% of blocks, and we
+             * gotta blend 4 times... but like, before the update there was a bunch of
+             * branching instead so this is probably about as good
              *
-             * Also we used to do these divides anew every time but they are now const and expressed
-             * differently in the private section below:
+             * Also we used to do these divides anew every block but they are now const and
+             * expressed differently in the private section below:
              * auto cutOffset = 0.02f;
              * auto m = 2.f / cutOffset;
              * auto c2 = cutOffset / 2.f;
              *
-             * The rise and fall were also different lengths. The difference was small so I decided
-             * to just fix it when I wrote the SSE version.
+             * The rise and fall stages were also different lengths. The difference was small
+             * so I decided to just fix it when I wrote the SSE version.
              */
 
-            float thisphaseR = fmod(thisphase + width * .5f, 1.0);
+            float thisphaseR = fmod(thisphase + thiswidth * .5f, 1.0);
             auto ph = SIMD_MM(set_ps)(0, 0, thisphaseR, thisphase);
 
             auto maskA = SIMD_MM(cmplt_ps)(ph, beforeHalf);
@@ -254,7 +278,7 @@ template <int blockSize> struct FXModControl
                 SnH_tgt[1] = rng.unifPM1();
             }
 
-            auto wih = (width * width * width * -1.f + 1.f) * .5f;
+            auto wih = (thiswidth * -1.f + 1.f) * .5f;
             auto lrdistance = wih * (SnH_tgt[1] - SnH_tgt[0]);
             auto left = SnH_tgt[0] + lrdistance;
             auto right = SnH_tgt[1] - lrdistance;
@@ -271,7 +295,7 @@ template <int blockSize> struct FXModControl
                 SnH_tgt[1] = rng.unifPM1();
             }
 
-            auto wih = (width * width * width * -1.f + 1.f) * .5f;
+            auto wih = (thiswidth * -1.f + 1.f) * .5f;
             auto lrdistance = wih * (SnH_tgt[1] - SnH_tgt[0]);
             auto left = SnH_tgt[0] + lrdistance;
             auto right = SnH_tgt[1] - lrdistance;
@@ -310,18 +334,23 @@ template <int blockSize> struct FXModControl
         std::array res = {lfoValL.v * depthLerp.v, lfoValR.v * depthLerp.v};
         return res;
     }
-
-    inline void processSampleOfBlock()
+    inline float nextValueInBlock()
+    {
+        auto res = this->value();
+        process();
+        return res;
+    }
+    inline std::array<float, 2> nextStereoValueInBlock()
+    {
+        auto res = this->valueStereo();
+        process();
+        return res;
+    }
+    inline void process()
     {
         lfoValL.process();
         lfoValR.process();
         depthLerp.process();
-    }
-    float getNextValue()
-    {
-        auto res = this->value();
-        processSampleOfBlock();
-        return res;
     }
 
   private:
@@ -330,29 +359,29 @@ template <int blockSize> struct FXModControl
     dsp::lipol<float, blockSize, true> lfoValR{};
     dsp::lipol<float, blockSize, true> depthLerp{};
 
+    const SIMD_M128 oneSSE{SETALL(1.0)};
+    const SIMD_M128 negoneSSE{SETALL(-1.0)};
+    const SIMD_M128 twoSSE{SETALL(2.0)};
+    const SIMD_M128 negtwoSSE{SETALL(-2.0)};
+
     float lfophase;
     float SnH_tgt[2];
 
     static constexpr int LFO_TABLE_SIZE = 8192;
     static constexpr int LFO_TABLE_MASK = LFO_TABLE_SIZE - 1;
+    const SIMD_M128I LFO_TABLE_MASK_SSE =
+        SIMD_MM(set_epi32)(LFO_TABLE_MASK, LFO_TABLE_MASK, LFO_TABLE_MASK, LFO_TABLE_MASK);
     float sin_lfo_table[LFO_TABLE_SIZE]{};
 
-    SIMD_M128 signMask{SETALL(-0.f)};
-    SIMD_M128 oneSSE{SETALL(1.0)};
-    SIMD_M128 negoneSSE{SETALL(-1.0)};
-    SIMD_M128 twoSSE{SETALL(2.0)};
-    SIMD_M128 negtwoSSE{SETALL(-2.0)};
+    const SIMD_M128 sawCutSSE = SETALL(0.98f);
 
-    SIMD_M128I LFO_TABLE_MASK_SSE = SIMD_MM(set_epi32)(LFO_TABLE_MASK, LFO_TABLE_MASK, LFO_TABLE_MASK, LFO_TABLE_MASK);
-    SIMD_M128 sawCutSSE = SETALL(0.98f);
+    const SIMD_M128 squareCutSSE = SETALL(0.01f);
+    const SIMD_M128 halfSSE{SETALL(0.5)};
+    const SIMD_M128 beforeHalf = SUB(halfSSE, squareCutSSE);
+    const SIMD_M128 beforeOne = SUB(oneSSE, squareCutSSE);
 
-    SIMD_M128 squareCutSSE = SETALL(0.01f);
-    SIMD_M128 halfSSE{SETALL(0.5)};
-    SIMD_M128 beforeHalf = SUB(halfSSE, squareCutSSE);
-    SIMD_M128 beforeOne = SUB(oneSSE, squareCutSSE);
-
-    SIMD_M128 mSSE = DIV(oneSSE, squareCutSSE);
-    SIMD_M128 negmSSE = MUL(mSSE, negoneSSE);
+    const SIMD_M128 mSSE = DIV(oneSSE, squareCutSSE);
+    const SIMD_M128 negmSSE = MUL(mSSE, negoneSSE);
 };
 
 #undef ADD
