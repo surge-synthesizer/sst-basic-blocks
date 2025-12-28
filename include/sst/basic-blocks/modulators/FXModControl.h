@@ -27,6 +27,7 @@
 #ifndef INCLUDE_SST_BASIC_BLOCKS_MODULATORS_FXMODCONTROL_H
 #define INCLUDE_SST_BASIC_BLOCKS_MODULATORS_FXMODCONTROL_H
 
+
 #include <cmath>
 #include <utility>
 
@@ -89,7 +90,6 @@ template <int blockSize> struct FXModControl
         float thisrate = std::max(0.f, rate);
         float thisphase;
         float thiswidth = std::clamp(width, 0.f, 1.f);
-        thiswidth = thiswidth * thiswidth * thiswidth;
 
         if (thisrate > 0)
         {
@@ -118,10 +118,7 @@ template <int blockSize> struct FXModControl
             }
         }
 
-        if (thisphase > 1)
-        {
-            thisphase = fmod(thisphase, 1.0);
-        }
+        thisphase = fmod(thisphase, 1.0);
 
         /* We want to catch the first time that thisphase trips over the threshold. There's a couple
          * of ways to do this (like have a state variable), but this should work just as well. */
@@ -165,6 +162,7 @@ template <int blockSize> struct FXModControl
         case mod_tri:
         {
             namespace mech = sst::basic_blocks::mechanics;
+
             float thisphaseR = fmod(thisphase + thiswidth * .5f, 1.0);
             auto ph = SIMD_MM(set_ps)(0, 0, thisphaseR, thisphase);
 
@@ -278,6 +276,7 @@ template <int blockSize> struct FXModControl
                 SnH_tgt[1] = rng.unifPM1();
             }
 
+            thiswidth = thiswidth * thiswidth * thiswidth;
             auto wih = (thiswidth * -1.f + 1.f) * .5f;
             auto lrdistance = wih * (SnH_tgt[1] - SnH_tgt[0]);
             auto left = SnH_tgt[0] + lrdistance;
@@ -295,6 +294,7 @@ template <int blockSize> struct FXModControl
                 SnH_tgt[1] = rng.unifPM1();
             }
 
+            thiswidth = thiswidth * thiswidth * thiswidth;
             auto wih = (thiswidth * -1.f + 1.f) * .5f;
             auto lrdistance = wih * (SnH_tgt[1] - SnH_tgt[0]);
             auto left = SnH_tgt[0] + lrdistance;
