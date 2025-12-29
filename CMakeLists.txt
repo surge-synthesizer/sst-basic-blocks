@@ -53,6 +53,10 @@ if (${SST_BASIC_BLOCKS_BUILD_TESTS})
             tests/mod_matrix_tests.cpp
             )
 
+    if (UNIX AND NOT APPLE)
+        target_compile_options(sst-basic-blocks-test PRIVATE -march=native)
+    endif()
+
 
     add_executable(sst-basic-blocks-perf-test
             tests/perf/perf_test.cpp
