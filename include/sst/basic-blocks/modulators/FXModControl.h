@@ -251,7 +251,7 @@ template <int blockSize> struct FXModControl
                 SIMD_MM(blendv_ps)(squarish, ADD(MUL(negmSSE, ph), DIV(mSSE, twoSSE)), maskB);
             // -1.f
             squarish = SIMD_MM(blendv_ps)(squarish, negoneSSE, maskC);
-            // m * thisphase - m + 1;
+            // m * phase - m + 1;
             squarish = SIMD_MM(blendv_ps)(squarish, ADD(SUB(MUL(mSSE, ph), mSSE), oneSSE), maskD);
 
             float res alignas(16)[4];
