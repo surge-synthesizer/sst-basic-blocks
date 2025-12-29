@@ -96,18 +96,6 @@ else()
     endif()
 endif ()
 
-# Enable SSE4.1 on x86 platforms.
-include(CheckCXXSourceCompiles)
-check_cxx_source_compiles("
-#if defined(__i386__) || defined(__x86_64) || defined(_M_AMD64) || defined(_M_X64)
-#else
-#error
-#endif
-int main() {}" IS_X86)
-if (IS_X86)
-    add_compile_options(-msse4.1 -mfpmath=sse)
-endif()
-
 if (NOT TARGET sst-cpputils)
     message(WARNING "SST Basic Blocks requires sst-cpputils for some features. Deactivating those")
     target_compile_definitions(${PROJECT_NAME} INTERFACE SST_CPPUTILS_UNAVAILABLE=1)
