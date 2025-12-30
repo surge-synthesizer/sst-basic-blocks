@@ -137,7 +137,7 @@ template <int blockSize> struct FXModControl
                 SIMD_MM(set_ps)(0.f, 0.f, thisphaseR * LFO_TABLE_SIZE, thisphase * LFO_TABLE_SIZE);
 
             // int psi = (int)ps;
-            auto psiSSE = SIMD_MM(cvtps_epi32(psSSE));
+            auto psiSSE = SIMD_MM(cvttps_epi32(psSSE));
             // int psn = (psi + 1) & LFO_TABLE_MASK;
             auto psnSSE = SIMD_MM(and_si128)(SIMD_MM(add_epi32)(psiSSE, SIMD_MM(set1_epi32)(1)),
                                              LFO_TABLE_MASK_SSE);
@@ -150,6 +150,8 @@ template <int blockSize> struct FXModControl
                                       sin_lfo_table[SIMD_MM(extract_epi32)(psnSSE, 1)]);
 
             // lfoout = sin_lfo_table[psi] * (1.0 - psf) + psf * sin_lfo_table[psn];
+
+            // lfoout = v * (1.0 - psf) + psf * vn;
             auto sineish = ADD(MUL(v, SUB(oneSSE, psfSSE)), MUL(psfSSE, vn));
 
             float res alignas(16)[4];
@@ -159,9 +161,9 @@ template <int blockSize> struct FXModControl
 
             if (res[0] > 1.0f || res[0] < -1.0f)
             {
-                std::cout << "overshoot at phase " << thisphase << ", value is " << res[0] << std::endl;
+                std::cout << "overshoot at phase " << thisphase << ", value is " << res[0]
+                          << std::endl;
             }
-
 
             break;
         }
