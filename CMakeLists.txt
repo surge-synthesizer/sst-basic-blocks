@@ -16,9 +16,6 @@ endif ()
 if (WIN32)
     target_compile_definitions(${PROJECT_NAME} INTERFACE _USE_MATH_DEFINES=1)
     target_compile_definitions(${PROJECT_NAME} INTERFACE NOMINMAX)
-    if ("${CMAKE_CXX_COMPILER_ID}" MATCHES "Clang")
-        target_compile_options(sst-basic-blocks-test PRIVATE -msse4.1)
-    endif ()
 endif ()
 
 
@@ -58,6 +55,10 @@ if (${SST_BASIC_BLOCKS_BUILD_TESTS})
 
     if (UNIX AND NOT APPLE)
         target_compile_options(sst-basic-blocks-test PRIVATE -march=native)
+    endif ()
+
+    if (WIN32 AND "${CMAKE_CXX_COMPILER_ID}" MATCHES "Clang")
+        target_compile_options(sst-basic-blocks-test PRIVATE -msse4.1)
     endif ()
 
 
