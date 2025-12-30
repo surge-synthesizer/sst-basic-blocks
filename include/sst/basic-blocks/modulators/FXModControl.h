@@ -29,6 +29,7 @@
 
 #include <cmath>
 #include <utility>
+#include <array>
 
 #include "sst/basic-blocks/dsp/BlockInterpolators.h"
 #include "sst/basic-blocks/dsp/RNG.h"
@@ -155,6 +156,12 @@ template <int blockSize> struct FXModControl
             SIMD_MM(store_ps)(res, sineish);
             lfoValL.newValue(res[0]);
             lfoValR.newValue(res[1]);
+
+            if (res[0] > 1.0f || res[0] < -1.0f)
+            {
+                std::cout << "overshoot at phase " << thisphase << ", value is " << res[0] << std::endl;
+            }
+
 
             break;
         }
