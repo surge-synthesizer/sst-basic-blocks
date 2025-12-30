@@ -42,7 +42,7 @@
  *
  * Programming macros:
  * SIMD_M128  -> can be used as an alias for SIMD_M128 in all code in all settings
- * SIMD_MM(x) -> creates the appropriate function. Replace SIMD_MM(set1_ps)(2.f) with
+ * SIMD_MM(x) -> creates the appropriate function. Replace _mm_set1_ps(2.f) with
  * SIMD_MM(set1_ps)(2.f)
  *
  * from pre-existing _mm code you can use scripts/fix_simd.pl on a directory
@@ -77,6 +77,7 @@
 #ifdef SST_SIMD_NATIVE_X86
 #include <emmintrin.h>
 #include <pmmintrin.h>
+#include <smmintrin.h>
 #endif
 
 /*
@@ -94,6 +95,7 @@
 #endif
 
 #include "simde/x86/sse4.2.h"
+
 #endif
 
 #if defined(SST_SIMD_NATIVE_X86) || defined(SIMDE_UNAVAILABLE)

@@ -11,12 +11,12 @@ target_include_directories(${PROJECT_NAME} INTERFACE libs)
 if (${SST_BASIC_BLOCKS_SIMD_OMIT_NATIVE_ALIASES})
     message(STATUS "CMake Omitting Native Aliases")
     target_compile_definitions(${PROJECT_NAME} INTERFACE SST_SIMD_OMIT_NATIVE_ALIASES=1)
-endif()
+endif ()
 
 if (WIN32)
     target_compile_definitions(${PROJECT_NAME} INTERFACE _USE_MATH_DEFINES=1)
     target_compile_definitions(${PROJECT_NAME} INTERFACE NOMINMAX)
-endif()
+endif ()
 
 
 if (MSVC)
@@ -31,7 +31,7 @@ if (${SST_BASIC_BLOCKS_BUILD_TESTS})
         CPMAddPackage(NAME fmt
                 GITHUB_REPOSITORY fmtlib/fmt
                 GIT_TAG master
-                )
+        )
     endif ()
 
     if (NOT TARGET sst-cpputils)
@@ -39,7 +39,7 @@ if (${SST_BASIC_BLOCKS_BUILD_TESTS})
                 GITHUB_REPOSITORY surge-synthesizer/sst-cpputils
                 GIT_TAG main
         )
-    endif()
+    endif ()
 
     add_executable(sst-basic-blocks-test
             tests/smoketest.cpp
@@ -51,7 +51,15 @@ if (${SST_BASIC_BLOCKS_BUILD_TESTS})
             tests/run_envelopes.cpp
             tests/modulator_tests.cpp
             tests/mod_matrix_tests.cpp
-            )
+    )
+
+    if (UNIX AND NOT APPLE)
+        target_compile_options(sst-basic-blocks-test PRIVATE -march=native)
+    endif ()
+
+    if (WIN32 AND "${CMAKE_CXX_COMPILER_ID}" MATCHES "Clang")
+        target_compile_options(sst-basic-blocks-test PRIVATE -msse4.1)
+    endif ()
 
 
     add_executable(sst-basic-blocks-perf-test
@@ -64,7 +72,7 @@ if (${SST_BASIC_BLOCKS_BUILD_TESTS})
         CPMAddPackage(NAME simde
                 GITHUB_REPOSITORY simd-everywhere/simde
                 VERSION 0.7.2
-                )
+        )
         target_include_directories(sst-basic-blocks-test PRIVATE
                 ${simde_SOURCE_DIR}
                 tests)
@@ -84,25 +92,25 @@ if (${SST_BASIC_BLOCKS_BUILD_TESTS})
     if ((DEFINED ${CMAKE_OSX_DEPLOYMENT_TARGET}) AND ("${CMAKE_OSX_DEPLOYMENT_TARGET}" VERSION_LESS "10.12"))
         message(STATUS "Deactivating exceptions for ${CMAKE_OSX_DEPLOYMENT_TARGET} catch library")
         target_compile_definitions(sst-basic-blocks-test PRIVATE CATCH_CONFIG_DISABLE_EXCEPTIONS=1)
-    else()
+    else ()
         message(STATUS "Keeping Catch exception handling on for more modern macOS")
-    endif()
+    endif ()
 
-else()
+else ()
     if (NOT TARGET simde)
         message(WARNING "SST Basic Blocks requires access to the 'simde' target from "
                 "https://github.com/simde-everywhere/simde. This build will only work on x86_64 architecture.")
         target_compile_definitions(${PROJECT_NAME} INTERFACE SIMDE_UNAVAILABLE=1)
-    endif()
+    endif ()
 endif ()
 
 if (NOT TARGET sst-cpputils)
     message(WARNING "SST Basic Blocks requires sst-cpputils for some features. Deactivating those")
     target_compile_definitions(${PROJECT_NAME} INTERFACE SST_CPPUTILS_UNAVAILABLE=1)
-else()
+else ()
     target_link_libraries(${PROJECT_NAME} INTERFACE sst-cpputils)
-endif()
+endif ()
 
 if (${PROJECT_IS_TOP_LEVEL})
     add_subdirectory(utils)
-endif()
+endif ()
