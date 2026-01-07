@@ -45,7 +45,23 @@ namespace sst::basic_blocks::modulators
 #define MUL(a, b) SIMD_MM(mul_ps)(a, b)
 #define SETALL(a) SIMD_MM(set1_ps)(a)
 
-template <int blockSize> struct FXModControl
+/*
+ * The SnH and Noise shapes have three behaviors:
+ * A single random number shared between all four outputs,
+ * in which case the width param controls a phase offset.
+ * 4 independent values arranged as two stereo pairs,
+ * where width = 0 averages the two values of each pair.
+ * And 4 independent values where width = 0 averages all
+ * 4 together.
+ */
+enum RandomBehavior
+{
+    rnd_single,
+    rnd_dual_stereo,
+    rnd_quad
+};
+
+template <int blockSize, RandomBehavior RB = rnd_dual_stereo> struct FXModControl
 {
   public:
     float samplerate{0}, samplerate_inv{0};
@@ -54,6 +70,8 @@ template <int blockSize> struct FXModControl
         lfophase = 0.0f;
         SnH_tgt[0] = 0.0f;
         SnH_tgt[1] = 0.0f;
+        SnH_tgt[2] = 0.0f;
+        SnH_tgt[3] = 0.0f;
 
         for (int i = 0; i < LFO_TABLE_SIZE; ++i)
             sin_lfo_table[i] = sin(2.0 * M_PI * i / LFO_TABLE_SIZE);
@@ -80,61 +98,85 @@ template <int blockSize> struct FXModControl
     };
 
     inline void processStartOfBlock(int mwave, float rate, float depth, float phase_offset,
-                                    float width = 0.f)
+                                    float width = 1.0)
     {
         assert(samplerate > 1000);
-        bool lforeset = false;
-        bool rndreset = false;
-        // auto lfoout = SIMD_MM(set_ps)(0, 0, lfoValR.v, lfoValL.v);
-        float phofs = fmod(fabs(phase_offset), 1.0);
+        bool lforeset[4] = {false, false, false, false};
+        bool rndreset[4] = {false, false, false, false};
         float thisrate = std::max(0.f, rate);
-        float thisphase;
+        std::array<float, 4> thisphase;
         float thiswidth = std::clamp(width, 0.f, 1.f);
 
         if (thisrate > 0)
         {
-            lfophase += thisrate;
-
-            if (lfophase > 1)
-            {
-                lfophase = fmod(lfophase, 1.0);
-            }
-
-            thisphase = lfophase + phofs;
+            lfophase = fmod(lfophase + thisrate, 1.0);
+            thisphase[0] = lfophase + phase_offset;
         }
         else
         {
-            thisphase = phofs;
+            thisphase[0] = phase_offset;
 
             if (mwave == mod_noise || mwave == mod_snh)
             {
-                thisphase *= 16.f;
-
-                if ((int)thisphase != (int)lfophase)
+                if constexpr (RB == rnd_single)
                 {
-                    rndreset = true;
-                    lfophase = (float)((int)thisphase);
+                    for (int i = 0; i < 4; ++i)
+                    {
+                        thisphase[i] *= 16.f;
+
+                        if ((int)thisphase[i] != (int)lfophase)
+                        {
+                            rndreset[i] = true;
+                            lfophase = (float)((int)thisphase[i]);
+                        }
+                    }
+                }
+                else
+                {
+                    thisphase[0] *= 16.f;
+
+                    if ((int)thisphase[0] != (int)lfophase)
+                    {
+                        rndreset[0] = true;
+                        lfophase = (float)((int)thisphase[0]);
+                    }
                 }
             }
         }
 
-        thisphase = fmod(thisphase, 1.0);
-
-        /* We want to catch the first time that thisphase trips over the threshold. There's a couple
-         * of ways to do this (like have a state variable), but this should work just as well. */
-        if ((thisrate > 0 && thisphase - thisrate <= 0) || (thisrate == 0 && rndreset))
+        for (int i = 0; i < 4; ++i)
         {
-            lforeset = true;
+            thisphase[i] = fmod(thisphase[0] + i * thiswidth / 4, 1.f);
+            lastKnownPhases[i] = thisphase[i];
         }
+
+        if constexpr (RB == rnd_single)
+        {
+            for (int i = 0; i < 4; ++i)
+            {
+                if ((thisrate > 0 && thisphase[i] - thisrate <= 0) ||
+                    (thisrate == 0 && rndreset[i]))
+                {
+                    lforeset[i] = true;
+                }
+            }
+        }
+        else
+        {
+            if ((thisrate > 0 && thisphase[0] - thisrate <= 0) || (thisrate == 0 && rndreset[0]))
+            {
+                lforeset[0] = true;
+            }
+        }
+
+        auto phaseSSE = SIMD_MM(set_ps)(thisphase[3], thisphase[2], thisphase[1], thisphase[0]);
 
         switch (mwave)
         {
         case mod_sine:
         {
-            float thisphaseR = fmod(thisphase + thiswidth * .5f, 1.0);
             // float ps = thisphase * LFO_TABLE_SIZE;
-            auto psSSE =
-                SIMD_MM(set_ps)(0.f, 0.f, thisphaseR * LFO_TABLE_SIZE, thisphase * LFO_TABLE_SIZE);
+            auto psSSE = MUL(phaseSSE, LFO_TABLE_SIZE_SSE);
 
             // int psi = (int)ps;
             auto psiSSE = SIMD_MM(cvttps_epi32(psSSE));
@@ -144,25 +186,23 @@ template <int blockSize> struct FXModControl
             // float psf = ps - psi;
             auto psfSSE = SUB(psSSE, SIMD_MM(cvtepi32_ps)(psiSSE));
 
-            auto v = SIMD_MM(set_ps)(0, 0, sin_lfo_table[SIMD_MM(extract_epi32)(psiSSE, 0)],
-                                     sin_lfo_table[SIMD_MM(extract_epi32)(psiSSE, 1)]);
-            auto vn = SIMD_MM(set_ps)(0, 0, sin_lfo_table[SIMD_MM(extract_epi32)(psnSSE, 0)],
-                                      sin_lfo_table[SIMD_MM(extract_epi32)(psnSSE, 1)]);
+            SIMD_M128 v = SIMD_MM(set_ps)(sin_lfo_table[SIMD_MM(extract_epi32)(psiSSE, 3)],
+                                          sin_lfo_table[SIMD_MM(extract_epi32)(psiSSE, 2)],
+                                          sin_lfo_table[SIMD_MM(extract_epi32)(psiSSE, 1)],
+                                          sin_lfo_table[SIMD_MM(extract_epi32)(psiSSE, 0)]);
+            SIMD_M128 vn = SIMD_MM(set_ps)(sin_lfo_table[SIMD_MM(extract_epi32)(psnSSE, 3)],
+                                           sin_lfo_table[SIMD_MM(extract_epi32)(psnSSE, 2)],
+                                           sin_lfo_table[SIMD_MM(extract_epi32)(psnSSE, 1)],
+                                           sin_lfo_table[SIMD_MM(extract_epi32)(psnSSE, 0)]);
 
             // lfoout = sin_lfo_table[psi] * (1.0 - psf) + psf * sin_lfo_table[psn];
-
-            // lfoout = v * (1.0 - psf) + psf * vn;
             auto sineish = ADD(MUL(v, SUB(oneSSE, psfSSE)), MUL(psfSSE, vn));
 
             float res alignas(16)[4];
             SIMD_MM(store_ps)(res, sineish);
-            lfoValL.newValue(res[0]);
-            lfoValR.newValue(res[1]);
-
-            if (res[0] > 1.0f || res[0] < -1.0f)
+            for (int i = 0; i < 4; ++i)
             {
-                std::cout << "overshoot at phase " << thisphase << ", value is " << res[0]
-                          << std::endl;
+                lfoVals[i].newValue(res[i]);
             }
 
             break;
@@ -171,57 +211,57 @@ template <int blockSize> struct FXModControl
         {
             namespace mech = sst::basic_blocks::mechanics;
 
-            float thisphaseR = fmod(thisphase + thiswidth * .5f, 1.0);
-            auto ph = SIMD_MM(set_ps)(0, 0, thisphaseR, thisphase);
-
             // (2.f * fabs(2.f * phase - 1.f) - 1.f);
-            auto trianglish = SUB(MUL(twoSSE, mech::abs_ps(SUB(MUL(twoSSE, ph), oneSSE))), oneSSE);
+            auto trianglish =
+                SUB(MUL(twoSSE, mech::abs_ps(SUB(MUL(twoSSE, phaseSSE), oneSSE))), oneSSE);
 
             float res alignas(16)[4];
             SIMD_MM(store_ps)(res, trianglish);
-            lfoValL.newValue(res[0]);
-            lfoValR.newValue(res[1]);
+            for (int i = 0; i < 4; ++i)
+            {
+                lfoVals[i].newValue(res[i]);
+            }
 
             break;
         }
         case mod_saw: // Gentler than a pure saw, more like a heavily skewed triangle
         {
-            float thisphaseR = fmod(thisphase + thiswidth * .5f, 1.0);
-            auto ph = SIMD_MM(set_ps)(0, 0, thisphaseR, thisphase);
-
             // (thisphase / cutAt) * 2.0f - 1.f;
-            auto rise = SUB(MUL(DIV(ph, sawCutSSE), twoSSE), oneSSE);
+            auto rise = SUB(MUL(DIV(phaseSSE, sawCutSSE), twoSSE), oneSSE);
             // (1 - ((thisphase - cutAt) / (1.0 - cutAt))) * 2.0f - 1.f
-            auto fall = SUB(
-                MUL(twoSSE, SUB(oneSSE, DIV(SUB(ph, sawCutSSE), SUB(oneSSE, sawCutSSE)))), oneSSE);
+            auto fall =
+                SUB(MUL(twoSSE, SUB(oneSSE, DIV(SUB(phaseSSE, sawCutSSE), SUB(oneSSE, sawCutSSE)))),
+                    oneSSE);
 
             // if phase < the cut point rise, else fall
-            auto sawish = SIMD_MM(blendv_ps)(rise, fall, SIMD_MM(cmpgt_ps)(ph, sawCutSSE));
+            auto sawish = SIMD_MM(blendv_ps)(rise, fall, SIMD_MM(cmpgt_ps)(phaseSSE, sawCutSSE));
 
             float res alignas(16)[4];
             SIMD_MM(store_ps)(res, sawish);
-            lfoValL.newValue(res[0]);
-            lfoValR.newValue(res[1]);
+            for (int i = 0; i < 4; ++i)
+            {
+                lfoVals[i].newValue(res[i]);
+            }
             break;
         }
         case mod_ramp:
         {
-            float thisphaseR = fmod(thisphase + thiswidth * .5f, 1.0);
-            auto ph = SIMD_MM(set_ps)(0, 0, thisphaseR, thisphase);
-
             // (thisphase / cutAt) * 2.0f - 1.f;
-            auto rise = SUB(MUL(DIV(ph, sawCutSSE), twoSSE), oneSSE);
+            auto rise = SUB(MUL(DIV(phaseSSE, sawCutSSE), twoSSE), oneSSE);
             // (1 - ((thisphase - cutAt) / (1.0 - cutAt))) * 2.0f - 1.f
-            auto fall = SUB(
-                MUL(twoSSE, SUB(oneSSE, DIV(SUB(ph, sawCutSSE), SUB(oneSSE, sawCutSSE)))), oneSSE);
+            auto fall =
+                SUB(MUL(twoSSE, SUB(oneSSE, DIV(SUB(phaseSSE, sawCutSSE), SUB(oneSSE, sawCutSSE)))),
+                    oneSSE);
 
             // if phase < the cut point rise, else fall
-            auto sawish = SIMD_MM(blendv_ps)(rise, fall, SIMD_MM(cmpgt_ps)(ph, sawCutSSE));
+            auto sawish = SIMD_MM(blendv_ps)(rise, fall, SIMD_MM(cmpgt_ps)(phaseSSE, sawCutSSE));
 
             float res alignas(16)[4];
             SIMD_MM(store_ps)(res, sawish);
-            lfoValL.newValue(-res[0]);
-            lfoValR.newValue(-res[1]);
+            for (int i = 0; i < 4; ++i)
+            {
+                lfoVals[i].newValue(-res[i]);
+            }
             break;
         }
         case mod_square: // Gentler than a pure square, more like a trapezoid
@@ -242,31 +282,30 @@ template <int blockSize> struct FXModControl
              * The rise and fall stages were also different lengths. The difference was small
              * so I decided to just fix it when I wrote the SSE version.
              */
-
-            float thisphaseR = fmod(thisphase + thiswidth * .5f, 1.0);
-            auto ph = SIMD_MM(set_ps)(0, 0, thisphaseR, thisphase);
-
-            auto maskA = SIMD_MM(cmplt_ps)(ph, beforeHalf);
-            auto maskB = SIMD_MM(andnot_ps)(maskA, SIMD_MM(cmple_ps)(ph, halfSSE));
-            auto maskC =
-                SIMD_MM(and_ps)(SIMD_MM(cmpgt_ps)(ph, halfSSE), SIMD_MM(cmplt_ps)(ph, beforeOne));
-            auto maskD = SIMD_MM(cmpge_ps)(ph, beforeOne);
+            auto maskA = SIMD_MM(cmplt_ps)(phaseSSE, beforeHalf);
+            auto maskB = SIMD_MM(andnot_ps)(maskA, SIMD_MM(cmple_ps)(phaseSSE, halfSSE));
+            auto maskC = SIMD_MM(and_ps)(SIMD_MM(cmpgt_ps)(phaseSSE, halfSSE),
+                                         SIMD_MM(cmplt_ps)(phaseSSE, beforeOne));
+            auto maskD = SIMD_MM(cmpge_ps)(phaseSSE, beforeOne);
 
             auto squarish = SIMD_MM(set1_ps)(0.f);
             // 1.f
             squarish = SIMD_MM(blendv_ps)(squarish, oneSSE, maskA);
             // -m * phase + (m / 2);
             squarish =
-                SIMD_MM(blendv_ps)(squarish, ADD(MUL(negmSSE, ph), DIV(mSSE, twoSSE)), maskB);
+                SIMD_MM(blendv_ps)(squarish, ADD(MUL(negmSSE, phaseSSE), DIV(mSSE, twoSSE)), maskB);
             // -1.f
             squarish = SIMD_MM(blendv_ps)(squarish, negoneSSE, maskC);
             // m * phase - m + 1;
-            squarish = SIMD_MM(blendv_ps)(squarish, ADD(SUB(MUL(mSSE, ph), mSSE), oneSSE), maskD);
+            squarish =
+                SIMD_MM(blendv_ps)(squarish, ADD(SUB(MUL(mSSE, phaseSSE), mSSE), oneSSE), maskD);
 
             float res alignas(16)[4];
             SIMD_MM(store_ps)(res, squarish);
-            lfoValL.newValue(res[0]);
-            lfoValR.newValue(res[1]);
+            for (int i = 0; i < 4; ++i)
+            {
+                lfoVals[i].newValue(res[i]);
+            }
 
             break;
         }
@@ -278,55 +317,172 @@ template <int blockSize> struct FXModControl
              * No SIMD here. Don't see a way where it would help much. It's fine.
              */
 
-            if (lforeset)
+            if constexpr (RB == rnd_quad)
             {
-                SnH_tgt[0] = rng.unifPM1();
-                SnH_tgt[1] = rng.unifPM1();
+                if (lforeset[0])
+                {
+                    SnH_sum = 0.f;
+                    for (int i = 0; i < 4; ++i)
+                    {
+                        SnH_tgt[i] = rng.unifPM1();
+                        SnH_sum += SnH_tgt[i];
+                    }
+                }
+
+                thiswidth = thiswidth * thiswidth * thiswidth;
+                auto wih = (thiswidth * -1.f + 1.f) * .5f;
+
+                auto SnH_avg = SnH_sum * .25f;
+
+                for (int i = 0; i < 4; ++i)
+                {
+                    auto diff = wih * (SnH_avg - SnH_tgt[i]);
+                    auto nv = SnH_tgt[i] + diff;
+
+                    lfoVals[i].newValue(nv);
+                }
             }
 
-            thiswidth = thiswidth * thiswidth * thiswidth;
-            auto wih = (thiswidth * -1.f + 1.f) * .5f;
-            auto lrdistance = wih * (SnH_tgt[1] - SnH_tgt[0]);
-            auto left = SnH_tgt[0] + lrdistance;
-            auto right = SnH_tgt[1] - lrdistance;
+            if constexpr (RB == rnd_dual_stereo)
+            {
+                if (lforeset[0])
+                {
+                    for (int i = 0; i < 4; ++i)
+                    {
+                        SnH_tgt[i] = rng.unifPM1();
+                    }
+                }
 
-            lfoValL.newValue(left);
-            lfoValR.newValue(right);
+                thiswidth = thiswidth * thiswidth * thiswidth;
+                auto wih = (thiswidth * -1.f + 1.f) * .5f;
+
+                for (int i = 0; i <= 2; i += 2)
+                {
+                    auto diff = wih * (SnH_tgt[i + 1] - SnH_tgt[i]);
+                    auto nvL = SnH_tgt[i] + diff;
+                    auto nvR = SnH_tgt[i + 1] - diff;
+                    lfoVals[i].newValue(nvL);
+                    lfoVals[i + 1].newValue(nvR);
+                }
+            }
+
+            if constexpr (RB == rnd_single)
+            {
+                for (int i = 0; i < 4; ++i)
+                {
+                    if (lforeset[i])
+                    {
+                        SnH_tgt[i] = rng.unifPM1();
+                    }
+
+                    lfoVals[i].newValue(SnH_tgt[i]);
+                }
+            }
+
             break;
         }
         case mod_noise: // noise (Sample & Glide smoothed random)
         {
-            if (lforeset)
-            {
-                SnH_tgt[0] = rng.unifPM1();
-                SnH_tgt[1] = rng.unifPM1();
-            }
-
-            thiswidth = thiswidth * thiswidth * thiswidth;
-            auto wih = (thiswidth * -1.f + 1.f) * .5f;
-            auto lrdistance = wih * (SnH_tgt[1] - SnH_tgt[0]);
-            auto left = SnH_tgt[0] + lrdistance;
-            auto right = SnH_tgt[1] - lrdistance;
-
-            // FIXME - exponential creep up. We want to get there in time related to our rate
-            auto cvL = lfoValL.v;
-            auto cvR = lfoValR.v;
-
             // thisphase * 0.98 prevents a glitch when LFO rate is disabled
             // and phase offset is 1, which constantly retriggers S&G
-            thisrate = (rate == 0) ? thisphase * 0.98 : thisrate;
-            float diffL = (left - cvL) * thisrate * 2;
-            float diffR = (right - cvR) * thisrate * 2;
+            thisrate = (rate == 0) ? thisphase[0] * 0.98f : thisrate;
 
-            if (thisrate >= 0.98f) // this means we skip all the time
+            if constexpr (RB == rnd_quad)
             {
-                lfoValL.newValue(left);
-                lfoValR.newValue(right);
+                if (lforeset[0])
+                {
+                    SnH_sum = 0.f;
+                    for (int i = 0; i < 4; ++i)
+                    {
+                        SnH_tgt[i] = rng.unifPM1();
+                        SnH_sum += SnH_tgt[i];
+                    }
+                }
+
+                thiswidth = thiswidth * thiswidth * thiswidth;
+                auto wih = (thiswidth * -1.f + 1.f) * .5f;
+
+                auto SnH_avg = SnH_sum * .25f;
+
+                for (int i = 0; i < 4; ++i)
+                {
+                    auto diff = wih * (SnH_avg - SnH_tgt[i]);
+                    auto nv = SnH_tgt[i] + diff;
+
+                    auto cv = lfoVals[i].v;
+                    float inc = (nv - cv) * thisrate * 2;
+
+                    if (thisrate >= 0.98f) // this means we skip all the time
+                    {
+                        lfoVals[i].newValue(nv);
+                    }
+                    else
+                    {
+                        lfoVals[i].newValue(std::clamp(cv + inc, -1.f, 1.f));
+                    }
+                }
             }
-            else
+
+            if constexpr (RB == rnd_dual_stereo)
             {
-                lfoValL.newValue(std::clamp(cvL + diffL, -1.f, 1.f));
-                lfoValR.newValue(std::clamp(cvR + diffR, -1.f, 1.f));
+                if (lforeset[0])
+                {
+                    for (int i = 0; i < 4; ++i)
+                    {
+                        SnH_tgt[i] = rng.unifPM1();
+                    }
+                }
+
+                thiswidth = thiswidth * thiswidth * thiswidth;
+                auto wih = (thiswidth * -1.f + 1.f) * .5f;
+
+                for (int i = 0; i <= 2; i += 2)
+                {
+                    auto diff = wih * (SnH_tgt[i + 1] - SnH_tgt[i]);
+                    auto nvL = SnH_tgt[i] + diff;
+                    auto nvR = SnH_tgt[i + 1] - diff;
+
+                    auto cvL = lfoVals[i].v;
+                    auto cvR = lfoVals[i + 1].v;
+
+                    float incL = (nvL - cvL) * thisrate * 2;
+                    float incR = (nvR - cvR) * thisrate * 2;
+
+                    if (thisrate >= 0.98f) // this means we skip all the time
+                    {
+                        lfoVals[i].newValue(nvL);
+                        lfoVals[i + 1].newValue(nvR);
+                    }
+                    else
+                    {
+                        lfoVals[i].newValue(std::clamp(cvL + incL, -1.f, 1.f));
+                        lfoVals[i + 1].newValue(std::clamp(cvR + incR, -1.f, 1.f));
+                    }
+                }
+            }
+
+            if constexpr (RB == rnd_single)
+            {
+                for (int i = 0; i < 4; ++i)
+                {
+                    if (lforeset[i])
+                    {
+                        SnH_tgt[i] = rng.unifPM1();
+                    }
+
+                    auto nv = SnH_tgt[i];
+                    auto cv = lfoVals[i].v;
+                    float inc = (nv - cv) * thisrate * 2;
+
+                    if (thisrate >= 0.98f) // this means we skip all the time
+                    {
+                        lfoVals[i].newValue(nv);
+                    }
+                    else
+                    {
+                        lfoVals[i].newValue(std::clamp(cv + inc, -1.f, 1.f));
+                    }
+                }
             }
 
             break;
@@ -336,16 +492,20 @@ template <int blockSize> struct FXModControl
         depthLerp.newValue(depth);
     }
 
-    inline float value() const noexcept { return lfoValL.v * depthLerp.v; }
-    inline std::array<float, 2> valueStereo() const noexcept
-    {
-        std::array res = {lfoValL.v * depthLerp.v, lfoValR.v * depthLerp.v};
-        return res;
-    }
+    inline float value() const noexcept { return lfoVals[0].v * depthLerp.v; }
     inline float nextValueInBlock()
     {
         auto res = this->value();
         process();
+        return res;
+    }
+
+    inline std::array<float, 2> valueStereo() const noexcept
+    {
+        std::array res = {
+            lfoVals[0].v * depthLerp.v,
+            lfoVals[1].v * depthLerp.v,
+        };
         return res;
     }
     inline std::array<float, 2> nextStereoValueInBlock()
@@ -354,17 +514,47 @@ template <int blockSize> struct FXModControl
         process();
         return res;
     }
+
+    inline std::array<float, 4> valueQuad() const noexcept
+    {
+        std::array res = {lfoVals[0].v * depthLerp.v, lfoVals[1].v * depthLerp.v,
+                          lfoVals[2].v * depthLerp.v, lfoVals[3].v * depthLerp.v};
+        return res;
+    }
+    inline std::array<float, 4> nextQuadValueInBlock()
+    {
+        auto res = this->valueQuad();
+        process();
+        return res;
+    }
+
+    inline SIMD_M128 valueQuadSSE() const noexcept
+    {
+        auto res = SIMD_MM(set_ps)(lfoVals[3].v, lfoVals[2].v, lfoVals[1].v, lfoVals[0].v);
+        res = MUL(res, SIMD_MM(set1_ps)(depthLerp.v));
+        return res;
+    }
+    inline SIMD_M128 nextQuadValueInBlockSSE()
+    {
+        auto res = valueQuadSSE();
+        process();
+        return res;
+    }
+
     inline void process()
     {
-        lfoValL.process();
-        lfoValR.process();
+        for (int i = 0; i < 4; ++i)
+        {
+            lfoVals[i].process();
+        }
         depthLerp.process();
     }
 
+    inline std::array<float, 4> getLastPhase() { return lastKnownPhases; }
+
   private:
     bool first{true};
-    dsp::lipol<float, blockSize, true> lfoValL{};
-    dsp::lipol<float, blockSize, true> lfoValR{};
+    std::array<dsp::lipol<float, blockSize, true>, 4> lfoVals{};
     dsp::lipol<float, blockSize, true> depthLerp{};
 
     const SIMD_M128 oneSSE{SETALL(1.0)};
@@ -373,13 +563,18 @@ template <int blockSize> struct FXModControl
     const SIMD_M128 negtwoSSE{SETALL(-2.0)};
 
     float lfophase;
-    float SnH_tgt[2];
+    float SnH_tgt[4];
+    float SnH_sum;
+    std::array<float, 4> lastKnownPhases;
 
     static constexpr int LFO_TABLE_SIZE = 8192;
     static constexpr int LFO_TABLE_MASK = LFO_TABLE_SIZE - 1;
+    float sin_lfo_table[LFO_TABLE_SIZE]{};
+
+    const SIMD_M128 LFO_TABLE_SIZE_SSE = SIMD_MM(set_ps)(
+        (float)LFO_TABLE_SIZE, (float)LFO_TABLE_SIZE, (float)LFO_TABLE_SIZE, (float)LFO_TABLE_SIZE);
     const SIMD_M128I LFO_TABLE_MASK_SSE =
         SIMD_MM(set_epi32)(LFO_TABLE_MASK, LFO_TABLE_MASK, LFO_TABLE_MASK, LFO_TABLE_MASK);
-    float sin_lfo_table[LFO_TABLE_SIZE]{};
 
     const SIMD_M128 sawCutSSE = SETALL(0.98f);
 
