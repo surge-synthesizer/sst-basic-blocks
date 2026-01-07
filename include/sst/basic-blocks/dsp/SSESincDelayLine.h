@@ -30,6 +30,7 @@
 #include "sst/basic-blocks/simd/setup.h"
 #include "sst/basic-blocks/mechanics/simd-ops.h"
 #include "sst/basic-blocks/tables/SincTableProvider.h"
+#include <array>
 
 namespace sst::basic_blocks::dsp
 {
@@ -53,7 +54,7 @@ struct SSESincDelayLine
     SSESincDelayLine(const float *st) : sinctable(st) { clear(); }
 
     /**
-     * If you ahve a long lived instance of a SurgeSincTableProvider you can initialize with that
+     * If you have a long lived instance of a SurgeSincTableProvider you can initialize with that
      * but please make sure that table has lifetime longer than this interpolator, since we take the
      * pointer address of its table
      */
@@ -128,6 +129,90 @@ struct SSESincDelayLine
         wp = 0;
     }
 };
+
+#define ADD(a, b) SIMD_MM(add_ps)(a, b)
+#define SUB(a, b) SIMD_MM(sub_epi32)(a, b)
+#define MUL(a, b) SIMD_MM(mul_ps)(a, b)
+
+// Similar to the above, but writes and reads four delay lines in parallel using SSE intrinsics
+// Linear interpolation only for now
+template <int COMB_SIZE> struct quadDelayLine
+{
+    static_assert(!(COMB_SIZE & (COMB_SIZE - 1))); // make sure we are a power of 2
+
+    float buffer alignas(16)[COMB_SIZE];
+
+    quadDelayLine() { clear(); }
+
+    static constexpr int lineSize{COMB_SIZE / 4};
+    SIMD_M128I lineSizeSSE = SIMD_MM(set1_epi32)(lineSize);
+    int wp{0};
+    const SIMD_M128I ONE = SIMD_MM(set1_epi32)(1);
+    const SIMD_M128I ZERO = SIMD_MM(setzero_si128)();
+    const SIMD_M128 ONEF = SIMD_MM(set1_ps)(1.f);
+
+    void write(SIMD_M128 val)
+    {
+        // write position is shared between all lines for now
+        // but would be easy to make independent if for
+        // some reason we wanted to
+        buffer[wp] = SIMD_MM(extract_ps)(val, 0);
+        buffer[wp + lineSize] = SIMD_MM(extract_ps)(val, 1);
+        buffer[wp + lineSize * 2] = SIMD_MM(extract_ps)(val, 2);
+        buffer[wp + lineSize * 3] = SIMD_MM(extract_ps)(val, 3);
+        wp = (wp++) & COMB_SIZE - 1;
+    }
+
+    std::array<float, 4> read(SIMD_M128 rp)
+    {
+        // we'll need the write position in a SIMD register
+        auto wpSSE = SIMD_MM(set1_epi32)(wp);
+
+        // int iPosn = (int)posn;
+        auto ip = SIMD_MM(cvttps_epi32)(rp);
+        // float frac = posn - iPosn;
+        auto frac = SIMD_MM(sub_ps)(rp, SIMD_MM(cvtepi32_ps)(ip));
+        // int RP = (wp - iDelay) & (COMB_SIZE - 1);
+        auto RP = SIMD_MM(and_si128)(SUB(wpSSE, ip), lineSizeSSE);
+        // int RPP = RP == 0 ? COMB_SIZE - 1 : RP - 1;
+        // sorry about all the casts lol, sadly there's no blendv_epi32 *shrug emoji*
+        auto RPP = SIMD_MM(castps_si128)(SIMD_MM(blendv_ps)(
+            SIMD_MM(castsi128_ps)(SUB(RP, ONE)), SIMD_MM(castsi128_ps)(SUB(lineSizeSSE, ONE)),
+            SIMD_MM(castsi128_ps)(SIMD_MM(cmpeq_epi32)(RP, ZERO))));
+
+        // read from the lines into these
+        float tmpC alignas(16)[4];
+        float tmpN alignas(16)[4];
+        // can't loop cause extract needs a const int arg
+        tmpC[0] = buffer[SIMD_MM(extract_epi32)(RP, 0)];
+        tmpC[1] = buffer[lineSize + SIMD_MM(extract_epi32)(RP, 1)];
+        tmpC[2] = buffer[2 * lineSize + SIMD_MM(extract_epi32)(RP, 2)];
+        tmpC[3] = buffer[3 * lineSize + SIMD_MM(extract_epi32)(RP, 3)];
+        tmpN[0] = buffer[SIMD_MM(extract_epi32)(RPP, 0)];
+        tmpN[1] = buffer[lineSize + SIMD_MM(extract_epi32)(RPP, 1)];
+        tmpN[2] = buffer[2 * lineSize + SIMD_MM(extract_epi32)(RPP, 2)];
+        tmpN[3] = buffer[3 * lineSize + SIMD_MM(extract_epi32)(RPP, 3)];
+        // load into fresh registers
+        auto bufRP = SIMD_MM(load_ps)(tmpC);
+        auto bufRPP = SIMD_MM(load_ps)(tmpN);
+
+        // return buffer[RP] * (1 - frac) + buffer[RPP] * frac;
+        auto resSSE = ADD(MUL(bufRP, SIMD_MM(sub_ps)(ONEF, frac)), MUL(bufRPP, frac));
+        float res alignas(16)[4];
+        SIMD_MM(store_ps)(res, resSSE);
+
+        return std::to_array<float, 4>({res[0], res[1], res[2], res[3]});
+    }
+
+    inline void clear()
+    {
+        memset((void *)buffer, 0, COMB_SIZE * sizeof(float));
+        wp = 0;
+    }
+};
+#undef ADD
+#undef SUB
+#undef MUL
 
 /*
  * This is a class which encapsulates the SSE based SINC
