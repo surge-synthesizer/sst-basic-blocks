@@ -28,12 +28,13 @@
 #define INCLUDE_SST_BASIC_BLOCKS_MECHANICS_SIMD_OPS_H
 
 #include "sst/basic-blocks/simd/setup.h"
+#include <assert.h>
 
 namespace sst::basic_blocks::mechanics
 {
 inline SIMD_M128 sum_ps_to_ss(SIMD_M128 x)
 {
-    // FIXME: With SSE 3 this can be a dual hadd
+    // hsum_ps below seems to work well now we're SSE4.1
     auto a = SIMD_MM(add_ps)(x, SIMD_MM(movehl_ps)(x, x));
     return SIMD_MM(add_ss)(a, SIMD_MM(shuffle_ps)(a, a, SIMD_MM_SHUFFLE(0, 0, 0, 1)));
 }
