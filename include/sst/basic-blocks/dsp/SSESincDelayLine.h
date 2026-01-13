@@ -133,6 +133,7 @@ struct SSESincDelayLine
 #define ADD(a, b) SIMD_MM(add_ps)(a, b)
 #define SUB(a, b) SIMD_MM(sub_epi32)(a, b)
 #define MUL(a, b) SIMD_MM(mul_ps)(a, b)
+#define SHUFFLE(a, b) SIMD_MM(shuffle_ps)(a, a, SIMD_MM_SHUFFLE(3 + b, 2 + b, 1 + b, 0 + b))
 
 // Similar to the above, but writes and reads four delay lines in parallel using SSE intrinsics
 // Linear interpolation only for now
@@ -145,74 +146,77 @@ template <int COMB_SIZE> struct quadDelayLine
     quadDelayLine() { clear(); }
 
     static constexpr int lineSize{COMB_SIZE / 4};
-    SIMD_M128I lineSizeSSE = SIMD_MM(set1_epi32)(lineSize);
-    int wp{0};
+    SIMD_M128I lineOffsets = SIMD_MM(set_epi32)(lineSize * 3, lineSize * 2, lineSize, 0);
+    static constexpr int combMask{COMB_SIZE - 1};
+    const SIMD_M128I combMaskSSE = SIMD_MM(set1_epi32)(combMask);
+    SIMD_M128I wpSSE = lineOffsets;
+
     const SIMD_M128I ONE = SIMD_MM(set1_epi32)(1);
     const SIMD_M128I ZERO = SIMD_MM(setzero_si128)();
     const SIMD_M128 ONEF = SIMD_MM(set1_ps)(1.f);
 
     void write(SIMD_M128 val)
     {
-        // write position is shared between all lines for now
-        // but would be easy to make independent if for
-        // some reason we wanted to
-        buffer[wp] = SIMD_MM(extract_ps)(val, 0);
-        buffer[wp + lineSize] = SIMD_MM(extract_ps)(val, 1);
-        buffer[wp + lineSize * 2] = SIMD_MM(extract_ps)(val, 2);
-        buffer[wp + lineSize * 3] = SIMD_MM(extract_ps)(val, 3);
-        wp = (wp++) & COMB_SIZE - 1;
+        // so the idea is buffer[wp[i]] = toLines[i];
+        // I wonder which of these will be fastest?
+        // option one:
+        float toLines alignas(16)[4];
+        SIMD_MM(store_ps)(toLines, val);
+
+        buffer[SIMD_MM(extract_epi32)(wpSSE, 0)] = toLines[0];
+        buffer[SIMD_MM(extract_epi32)(wpSSE, 1)] = toLines[1];
+        buffer[SIMD_MM(extract_epi32)(wpSSE, 2)] = toLines[2];
+        buffer[SIMD_MM(extract_epi32)(wpSSE, 3)] = toLines[3];
+
+        // option two:
+        // buffer[SIMD_MM(extract_epi32)(wpSSE, 3)] = SIMD_MM(cvtss_f32)(val);
+        // buffer[SIMD_MM(extract_epi32)(wpSSE, 2)] = SIMD_MM(cvtss_f32)(SHUFFLE(val, 1));
+        // buffer[SIMD_MM(extract_epi32)(wpSSE, 1)] = SIMD_MM(cvtss_f32)(SHUFFLE(val, 2));
+        // buffer[SIMD_MM(extract_epi32)(wpSSE, 0)] = SIMD_MM(cvtss_f32)(SHUFFLE(val, 3));
+        // TODO: Investigate that
+        // I woulda done it already but all the macros and stuff
+        // makes it annoying to get into godbolt
+
+        // wp = (wp + 1) & (lineSize - 1);
+        wpSSE = SIMD_MM(and_si128)(SIMD_MM(add_epi32)(wpSSE, ONE), combMaskSSE);
     }
 
-    std::array<float, 4> read(SIMD_M128 rp)
+    SIMD_M128 read(SIMD_M128 delay)
     {
-        // we'll need the write position in a SIMD register
-        auto wpSSE = SIMD_MM(set1_epi32)(wp);
-
         // int iPosn = (int)posn;
-        auto ip = SIMD_MM(cvttps_epi32)(rp);
+        auto ip = SIMD_MM(cvttps_epi32)(delay);
         // float frac = posn - iPosn;
-        auto frac = SIMD_MM(sub_ps)(rp, SIMD_MM(cvtepi32_ps)(ip));
+        auto frac = SIMD_MM(sub_ps)(delay, SIMD_MM(cvtepi32_ps)(ip));
         // int RP = (wp - iDelay) & (COMB_SIZE - 1);
-        auto RP = SIMD_MM(and_si128)(SUB(wpSSE, ip), lineSizeSSE);
+        auto RP = SIMD_MM(and_si128)(SUB(wpSSE, ip), combMaskSSE);
         // int RPP = RP == 0 ? COMB_SIZE - 1 : RP - 1;
         // sorry about all the casts lol, sadly there's no blendv_epi32 *shrug emoji*
         auto RPP = SIMD_MM(castps_si128)(SIMD_MM(blendv_ps)(
-            SIMD_MM(castsi128_ps)(SUB(RP, ONE)), SIMD_MM(castsi128_ps)(SUB(lineSizeSSE, ONE)),
+            SIMD_MM(castsi128_ps)(SUB(RP, ONE)), SIMD_MM(castsi128_ps)(SUB(combMaskSSE, ONE)),
             SIMD_MM(castsi128_ps)(SIMD_MM(cmpeq_epi32)(RP, ZERO))));
 
-        // read from the lines into these
-        float tmpC alignas(16)[4];
-        float tmpN alignas(16)[4];
-        // can't loop cause extract needs a const int arg
-        tmpC[0] = buffer[SIMD_MM(extract_epi32)(RP, 0)];
-        tmpC[1] = buffer[lineSize + SIMD_MM(extract_epi32)(RP, 1)];
-        tmpC[2] = buffer[2 * lineSize + SIMD_MM(extract_epi32)(RP, 2)];
-        tmpC[3] = buffer[3 * lineSize + SIMD_MM(extract_epi32)(RP, 3)];
-        tmpN[0] = buffer[SIMD_MM(extract_epi32)(RPP, 0)];
-        tmpN[1] = buffer[lineSize + SIMD_MM(extract_epi32)(RPP, 1)];
-        tmpN[2] = buffer[2 * lineSize + SIMD_MM(extract_epi32)(RPP, 2)];
-        tmpN[3] = buffer[3 * lineSize + SIMD_MM(extract_epi32)(RPP, 3)];
-        // load into fresh registers
-        auto bufRP = SIMD_MM(load_ps)(tmpC);
-        auto bufRPP = SIMD_MM(load_ps)(tmpN);
+        // read from the lines and load into fresh registers
+        auto bufRP = SIMD_MM(set_ps)(
+            buffer[SIMD_MM(extract_epi32)(RP, 3)], buffer[SIMD_MM(extract_epi32)(RP, 2)],
+            buffer[SIMD_MM(extract_epi32)(RP, 1)], buffer[SIMD_MM(extract_epi32)(RP, 0)]);
+        auto bufRPP = SIMD_MM(set_ps)(
+            buffer[SIMD_MM(extract_epi32)(RPP, 3)], buffer[SIMD_MM(extract_epi32)(RPP, 2)],
+            buffer[SIMD_MM(extract_epi32)(RPP, 1)], buffer[SIMD_MM(extract_epi32)(RPP, 0)]);
 
         // return buffer[RP] * (1 - frac) + buffer[RPP] * frac;
-        auto resSSE = ADD(MUL(bufRP, SIMD_MM(sub_ps)(ONEF, frac)), MUL(bufRPP, frac));
-        float res alignas(16)[4];
-        SIMD_MM(store_ps)(res, resSSE);
-
-        return std::to_array<float, 4>({res[0], res[1], res[2], res[3]});
+        return ADD(MUL(bufRP, SIMD_MM(sub_ps)(ONEF, frac)), MUL(bufRPP, frac));
     }
 
     inline void clear()
     {
         memset((void *)buffer, 0, COMB_SIZE * sizeof(float));
-        wp = 0;
+        wpSSE = lineOffsets;
     }
 };
 #undef ADD
 #undef SUB
 #undef MUL
+#undef SHUFFLE
 
 /*
  * This is a class which encapsulates the SSE based SINC

@@ -67,6 +67,16 @@ inline float rcp(float x)
     return x;
 }
 
+inline float hsum_ps(SIMD_M128 v)
+{
+    // thanks Peter Cordes! https://stackoverflow.com/a/35270026
+    SIMD_M128 shuf = SIMD_MM(movehdup_ps)(v); // broadcast elements 3,1 to 2,0
+    SIMD_M128 sums = SIMD_MM(add_ps)(v, shuf);
+    shuf = SIMD_MM(movehl_ps)(shuf, sums); // high half -> low half
+    sums = SIMD_MM(add_ss)(sums, shuf);
+    return SIMD_MM(cvtss_f32)(sums);
+}
+
 } // namespace sst::basic_blocks::mechanics
 
 #endif // SHORTCIRCUIT_SIMD_OPS_H
