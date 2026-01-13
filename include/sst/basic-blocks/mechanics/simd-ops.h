@@ -77,11 +77,11 @@ inline float hsum_ps(SIMD_M128 v)
     return SIMD_MM(cvtss_f32)(sums);
 }
 
-inline SIMD_M128 shuffle_all_ps(SIMD_M128 v, int s)
+template <int S> inline SIMD_M128 shuffle_all_ps(const SIMD_M128 v)
 {
-    assert(0 <= s && s <= 3);
+    assert(0 <= S && S <= 3);
 
-    return SIMD_MM(shuffle_ps)(v, v, SIMD_MM_SHUFFLE(3 + s, 2 + s, 1 + s, 0 + s));
+    return SIMD_MM(shuffle_ps)(v, v, SIMD_MM_SHUFFLE(3 + S, 2 + S, 1 + S, 0 + S));
 }
 
 } // namespace sst::basic_blocks::mechanics
