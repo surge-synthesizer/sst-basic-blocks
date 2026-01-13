@@ -133,7 +133,6 @@ struct SSESincDelayLine
 #define ADD(a, b) SIMD_MM(add_ps)(a, b)
 #define SUB(a, b) SIMD_MM(sub_epi32)(a, b)
 #define MUL(a, b) SIMD_MM(mul_ps)(a, b)
-#define SHUFFLE(a, b) SIMD_MM(shuffle_ps)(a, a, SIMD_MM_SHUFFLE(3 + b, 2 + b, 1 + b, 0 + b))
 
 // Similar to the above, but writes and reads four delay lines in parallel using SSE intrinsics
 // Linear interpolation only for now
@@ -168,7 +167,7 @@ template <int COMB_SIZE> struct quadDelayLine
         buffer[SIMD_MM(extract_epi32)(wpSSE, 2)] = toLines[2];
         buffer[SIMD_MM(extract_epi32)(wpSSE, 3)] = toLines[3];
 
-        // option two:
+        // option two (that shuffle macros doesn't work but...):
         // buffer[SIMD_MM(extract_epi32)(wpSSE, 3)] = SIMD_MM(cvtss_f32)(val);
         // buffer[SIMD_MM(extract_epi32)(wpSSE, 2)] = SIMD_MM(cvtss_f32)(SHUFFLE(val, 1));
         // buffer[SIMD_MM(extract_epi32)(wpSSE, 1)] = SIMD_MM(cvtss_f32)(SHUFFLE(val, 2));
@@ -216,7 +215,6 @@ template <int COMB_SIZE> struct quadDelayLine
 #undef ADD
 #undef SUB
 #undef MUL
-#undef SHUFFLE
 
 /*
  * This is a class which encapsulates the SSE based SINC
