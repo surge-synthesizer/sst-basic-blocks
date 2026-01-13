@@ -46,26 +46,28 @@ namespace sst::basic_blocks::modulators
 #define SETALL(a) SIMD_MM(set1_ps)(a)
 
 /*
- * The SnH and Noise shapes have three behaviors:
- * A single random number shared between all four outputs,
+ * The SnH and Noise shapes have four behaviors:
+ * - A single random number shared between all four outputs,
  * in which case the width param controls a phase offset.
- * 4 independent values arranged as two stereo pairs,
+ * - 4 independent values arranged as two stereo pairs,
  * where width = 0 averages the two values of each pair.
- * And 4 independent values where width = 0 averages all
+ * - 4 independent values where width = 0 averages all
  * 4 together.
  */
 enum RandomBehavior
 {
     rnd_single,
     rnd_dual_stereo,
-    rnd_quad
+    rnd_quad,
 };
 
-template <int blockSize, RandomBehavior RB = rnd_dual_stereo> struct FXModControl
+template <int blockSize, RandomBehavior RB = rnd_dual_stereo, bool externalSineTable = false>
+struct FXModControl
 {
   public:
     float samplerate{0}, samplerate_inv{0};
-    FXModControl(float sr, float sri) : samplerate(sr), samplerate_inv(sri)
+    FXModControl(float sr, float sri, float *sineTable = nullptr)
+        : samplerate(sr), samplerate_inv(sri)
     {
         lfophase = 0.0f;
         SnH_tgt[0] = 0.0f;
@@ -73,11 +75,19 @@ template <int blockSize, RandomBehavior RB = rnd_dual_stereo> struct FXModContro
         SnH_tgt[2] = 0.0f;
         SnH_tgt[3] = 0.0f;
 
-        for (int i = 0; i < LFO_TABLE_SIZE; ++i)
-            sin_lfo_table[i] = sin(2.0 * M_PI * i / LFO_TABLE_SIZE);
+        if constexpr (externalSineTable)
+        {
+            sine = sineTable;
+        }
+        else
+        {
+            for (int i = 0; i < 8192; ++i)
+                sine[i] = std::sin(2.0 * M_PI * i / 8192);
+        }
     }
-    FXModControl() : FXModControl(0, 0) {}
 
+    FXModControl() : FXModControl(0, 0, nullptr) {}
+    ~FXModControl() {}
     sst::basic_blocks::dsp::RNG rng;
 
     void setSampleRate(double sr)
@@ -146,7 +156,7 @@ template <int blockSize, RandomBehavior RB = rnd_dual_stereo> struct FXModContro
 
         for (int i = 0; i < 4; ++i)
         {
-            thisphase[i] = fmod(thisphase[0] + i * thiswidth / 4, 1.f);
+            thisphase[i] = fmod(thisphase[0] + i * thiswidth * .25f, 1.f);
             lastKnownPhases[i] = thisphase[i];
         }
 
@@ -186,14 +196,12 @@ template <int blockSize, RandomBehavior RB = rnd_dual_stereo> struct FXModContro
             // float psf = ps - psi;
             auto psfSSE = SUB(psSSE, SIMD_MM(cvtepi32_ps)(psiSSE));
 
-            SIMD_M128 v = SIMD_MM(set_ps)(sin_lfo_table[SIMD_MM(extract_epi32)(psiSSE, 3)],
-                                          sin_lfo_table[SIMD_MM(extract_epi32)(psiSSE, 2)],
-                                          sin_lfo_table[SIMD_MM(extract_epi32)(psiSSE, 1)],
-                                          sin_lfo_table[SIMD_MM(extract_epi32)(psiSSE, 0)]);
-            SIMD_M128 vn = SIMD_MM(set_ps)(sin_lfo_table[SIMD_MM(extract_epi32)(psnSSE, 3)],
-                                           sin_lfo_table[SIMD_MM(extract_epi32)(psnSSE, 2)],
-                                           sin_lfo_table[SIMD_MM(extract_epi32)(psnSSE, 1)],
-                                           sin_lfo_table[SIMD_MM(extract_epi32)(psnSSE, 0)]);
+            SIMD_M128 v = SIMD_MM(set_ps)(
+                sine[SIMD_MM(extract_epi32)(psiSSE, 3)], sine[SIMD_MM(extract_epi32)(psiSSE, 2)],
+                sine[SIMD_MM(extract_epi32)(psiSSE, 1)], sine[SIMD_MM(extract_epi32)(psiSSE, 0)]);
+            SIMD_M128 vn = SIMD_MM(set_ps)(
+                sine[SIMD_MM(extract_epi32)(psnSSE, 3)], sine[SIMD_MM(extract_epi32)(psnSSE, 2)],
+                sine[SIMD_MM(extract_epi32)(psnSSE, 1)], sine[SIMD_MM(extract_epi32)(psnSSE, 0)]);
 
             // lfoout = sin_lfo_table[psi] * (1.0 - psf) + psf * sin_lfo_table[psn];
             auto sineish = ADD(MUL(v, SUB(oneSSE, psfSSE)), MUL(psfSSE, vn));
@@ -569,7 +577,8 @@ template <int blockSize, RandomBehavior RB = rnd_dual_stereo> struct FXModContro
 
     static constexpr int LFO_TABLE_SIZE = 8192;
     static constexpr int LFO_TABLE_MASK = LFO_TABLE_SIZE - 1;
-    float sin_lfo_table[LFO_TABLE_SIZE]{};
+    using sineTableType = std::conditional<externalSineTable, float *, float[LFO_TABLE_SIZE]>::type;
+    sineTableType sine;
 
     const SIMD_M128 LFO_TABLE_SIZE_SSE = SIMD_MM(set_ps)(
         (float)LFO_TABLE_SIZE, (float)LFO_TABLE_SIZE, (float)LFO_TABLE_SIZE, (float)LFO_TABLE_SIZE);
