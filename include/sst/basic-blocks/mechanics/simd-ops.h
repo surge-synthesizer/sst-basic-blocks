@@ -28,7 +28,6 @@
 #define INCLUDE_SST_BASIC_BLOCKS_MECHANICS_SIMD_OPS_H
 
 #include "sst/basic-blocks/simd/setup.h"
-#include <assert.h>
 
 namespace sst::basic_blocks::mechanics
 {
@@ -78,11 +77,24 @@ inline float hsum_ps(SIMD_M128 v)
     return SIMD_MM(cvtss_f32)(sums);
 }
 
-template <int S> inline SIMD_M128 shuffle_all_ps(const SIMD_M128 v)
+enum ShuffleTimes
 {
-    assert(0 <= S && S <= 3);
-
-    return SIMD_MM(shuffle_ps)(v, v, SIMD_MM_SHUFFLE(3 + S, 2 + S, 1 + S, 0 + S));
+    ONCE = 1,
+    TWICE = 2,
+    THRICE = 3,
+};
+template <ShuffleTimes S> inline SIMD_M128 shuffle_all_ps(const SIMD_M128 v)
+{
+    switch (S)
+    {
+    default:
+    case ONCE:
+        return SIMD_MM(shuffle_ps)(v, v, 0 << 6 | 3 << 4 | 2 << 2 | 1);
+    case TWICE:
+        return SIMD_MM(shuffle_ps)(v, v, 1 << 6 | 0 << 4 | 3 << 2 | 2);
+    case THRICE:
+        return SIMD_MM(shuffle_ps)(v, v, 2 << 6 | 1 << 4 | 0 << 2 | 3);
+    }
 }
 
 } // namespace sst::basic_blocks::mechanics
