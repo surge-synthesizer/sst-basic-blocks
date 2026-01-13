@@ -77,6 +77,13 @@ inline float hsum_ps(SIMD_M128 v)
     return SIMD_MM(cvtss_f32)(sums);
 }
 
+inline SIMD_M128 shuffle_all_ps(SIMD_M128 v, int s)
+{
+    assert(0 <= s && s <= 3);
+
+    return SIMD_MM(shuffle_ps)(v, v, SIMD_MM_SHUFFLE(3 + s, 2 + s, 1 + s, 0 + s));
+}
+
 } // namespace sst::basic_blocks::mechanics
 
 #endif // SHORTCIRCUIT_SIMD_OPS_H
