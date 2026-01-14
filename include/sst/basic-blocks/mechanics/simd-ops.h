@@ -77,19 +77,22 @@ inline float hsum_ps(SIMD_M128 v)
     return SIMD_MM(cvtss_f32)(sums);
 }
 
-template <int S> inline SIMD_M128 shuffle_all_ps(const SIMD_M128 v) = delete;
-
-template <> inline SIMD_M128 shuffle_all_ps<1>(const SIMD_M128 v)
+template <int S>
+    requires(1 <= S && S <= 3)
+inline SIMD_M128 shuffle_all_ps(const SIMD_M128 v)
 {
-    return SIMD_MM(shuffle_ps)(v, v, 0 << 6 | 3 << 4 | 2 << 2 | 1);
-}
-template <> inline SIMD_M128 shuffle_all_ps<2>(const SIMD_M128 v)
-{
-    return SIMD_MM(shuffle_ps)(v, v, 1 << 6 | 0 << 4 | 3 << 2 | 2);
-}
-template <> inline SIMD_M128 shuffle_all_ps<3>(const SIMD_M128 v)
-{
-    return SIMD_MM(shuffle_ps)(v, v, 2 << 6 | 1 << 4 | 0 << 2 | 3);
+    if constexpr (S == 1)
+    {
+        return SIMD_MM(shuffle_ps)(v, v, 0 << 6 | 3 << 4 | 2 << 2 | 1);
+    }
+    else if constexpr (S == 2)
+    {
+        return SIMD_MM(shuffle_ps)(v, v, 1 << 6 | 0 << 4 | 3 << 2 | 2);
+    }
+    else // S == 3
+    {
+        return SIMD_MM(shuffle_ps)(v, v, 2 << 6 | 1 << 4 | 0 << 2 | 3);
+    }
 }
 
 } // namespace sst::basic_blocks::mechanics
