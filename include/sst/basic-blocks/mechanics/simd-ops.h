@@ -77,11 +77,7 @@ inline float hsum_ps(SIMD_M128 v)
     return SIMD_MM(cvtss_f32)(sums);
 }
 
-template <int S> inline SIMD_M128 shuffle_all_ps(const SIMD_M128 v)
-{
-    static_assert(false);
-    return v;
-}
+template <int S> inline SIMD_M128 shuffle_all_ps(const SIMD_M128 v) = delete;
 
 template <> inline SIMD_M128 shuffle_all_ps<1>(const SIMD_M128 v)
 {
