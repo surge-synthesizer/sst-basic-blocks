@@ -40,7 +40,6 @@
 #include <functional>
 #include <utility>
 
-#include "configuration.h"
 #include <sst/basic-blocks/simd/setup.h>
 
 namespace sst::basic_blocks::tables
