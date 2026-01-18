@@ -241,6 +241,7 @@ struct ParamMetaData
         ALLOW_FRACTIONAL_TYPEINS = 1ULL << 2,
         ALLOW_TUNING_FRACTION_TYPEINS = 1ULL << 3,
         ALLOW_MIDI_NOTENAMES = 1ULL << 4,
+        MULTIPLICATIVE_MODULATION_OFF_BY_DEFAULT = 1ULL << 5,
 
         USER_FEATURE_0 = 1ULL << 32
     };
@@ -264,9 +265,20 @@ struct ParamMetaData
     {
         return withFeature(Features::SUPPORTS_MULTIPLICATIVE_MODULATION);
     }
+
+    ParamMetaData withMultiplicativeModulationOffByDefault() const
+    {
+        return withFeature(Features::MULTIPLICATIVE_MODULATION_OFF_BY_DEFAULT);
+    }
+
     bool hasSupportsMultiplicativeModulation() const
     {
         return hasFeature(Features::SUPPORTS_MULTIPLICATIVE_MODULATION);
+    }
+
+    bool hasMultiplicativeModulationOffByDefault() const
+    {
+        return hasFeature(Features::MULTIPLICATIVE_MODULATION_OFF_BY_DEFAULT);
     }
 
     /*
