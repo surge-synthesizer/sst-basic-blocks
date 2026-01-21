@@ -47,8 +47,8 @@ struct RNG
     }
 
     void reseedWithClock() { g.seed(std::chrono::system_clock::now().time_since_epoch().count()); }
-
     void reseed(uint32_t seed) { g.seed(seed); }
+    void reseedForDisplay() { dg.seed(525600 + 8675309); }
 
     inline float unif01() { return z1(g); }
     inline float unifPM1() { return pm1(g); }
@@ -71,7 +71,7 @@ struct RNG
     {
         std::uniform_int_distribution<int> intdist(min, max - 1);
         return intdist(g);
-    } // clang-format problem? Why?
+    }
 
     inline bool boolean() { return b(g); }
 
