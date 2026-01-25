@@ -91,6 +91,11 @@ struct Config
     static constexpr bool ProvidesNonZeroTargetBases{true};
 };
 
+struct ConfigWithRanges : public Config
+{
+    static constexpr bool providesTargetRanges{true};
+};
+
 template <> struct std::hash<Config::SourceIdentifier>
 {
     std::size_t operator()(const Config::SourceIdentifier &s) const noexcept
@@ -394,8 +399,8 @@ TEST_CASE("Routing Via", "[mod-matrix]")
 
 TEST_CASE("Multiplicative vs Additive", "[mod-matrix]")
 {
-    FixedMatrix<Config> m;
-    FixedMatrix<Config>::RoutingTable rt;
+    FixedMatrix<ConfigWithRanges> m;
+    FixedMatrix<ConfigWithRanges>::RoutingTable rt;
 
     auto srcS = Config::SourceIdentifier{Config::SourceIdentifier::SI::BAR, 2, 3};
 
@@ -410,6 +415,9 @@ TEST_CASE("Multiplicative vs Additive", "[mod-matrix]")
     rt.updateRoutingAt(0, srcS, tg3T, 0.3);
 
     m.prepare(rt, 48000, 16);
+    m.routingValuePointers[0].minVal = 0.f;
+    m.routingValuePointers[0].maxVal = 1.f;
+
     m.process();
     auto t3P = m.getTargetValuePointer(tg3T);
     REQUIRE(t3P);
