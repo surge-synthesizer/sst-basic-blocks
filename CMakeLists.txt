@@ -96,6 +96,9 @@ if (${SST_BASIC_BLOCKS_BUILD_TESTS})
         message(STATUS "Keeping Catch exception handling on for more modern macOS")
     endif ()
 
+    set_target_properties(sst-basic-blocks-test PROPERTIES UNITY_BUILD OFF)
+    set_target_properties(sst-basic-blocks-perf-test PROPERTIES UNITY_BUILD OFF)
+
 else ()
     if (NOT TARGET simde)
         message(WARNING "SST Basic Blocks requires access to the 'simde' target from "
