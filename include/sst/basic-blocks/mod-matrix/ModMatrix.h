@@ -495,14 +495,20 @@ template <typename ModMatrixTraits> struct FixedMatrix : ModMatrix<ModMatrixTrai
                     offs = r.curveFn(offs);
                 }
             }
-            switch (r.applicationMode)
+            auto am = r.applicationMode;
+            if constexpr (!ModMatrix<ModMatrixTraits>::hasProvidesTargetRanges)
+            {
+                // Without ranges we can't do multiplicative since we cant make
+                // target 0...1
+                am = ApplicationMode::ADDITIVE;
+            }
+            switch (am)
             {
             case ApplicationMode::ADDITIVE:
                 *(r.target) += *(r.depth) * r.depthScale * offs;
                 break;
             case ApplicationMode::MULTIPLICATIVE:
             {
-                // TODO - a bit more thoughtful about this clamp I bet
                 offs = std::clamp(std::fabs(offs), 0.f, 1.f);
                 auto dep = *r.depth;
                 auto mulfac = 0.f;
@@ -514,9 +520,13 @@ template <typename ModMatrixTraits> struct FixedMatrix : ModMatrix<ModMatrixTrai
                 {
                     mulfac = 1 + dep * offs;
                 }
-                assert(mulfac >= 0 && mulfac <= 1.f);
 
-                *(r.target) *= mulfac;
+                // Multiplcation assumes 0...1 scaling of the target and depth.
+                auto t = *r.target;
+                auto t01 = (t - r.minVal) / (r.maxVal - r.minVal);
+                auto tmul = t01 * mulfac;
+                auto tres = tmul * (r.maxVal - r.minVal) + r.minVal;
+                *(r.target) = tres;
             }
             break;
             }
