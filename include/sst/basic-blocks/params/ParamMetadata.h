@@ -242,6 +242,7 @@ struct ParamMetaData
         ALLOW_TUNING_FRACTION_TYPEINS = 1ULL << 3,
         ALLOW_MIDI_NOTENAMES = 1ULL << 4,
         MULTIPLICATIVE_MODULATION_OFF_BY_DEFAULT = 1ULL << 5,
+        FLOAT_ALWAYS_QUANTIZES = 1ULL << 6,
 
         USER_FEATURE_0 = 1ULL << 32
     };
@@ -271,6 +272,11 @@ struct ParamMetaData
         return withFeature(Features::MULTIPLICATIVE_MODULATION_OFF_BY_DEFAULT);
     }
 
+    ParamMetaData withFloatAlwaysQuantizes() const
+    {
+        return withFeature(Features::FLOAT_ALWAYS_QUANTIZES);
+    }
+
     bool hasSupportsMultiplicativeModulation() const
     {
         return hasFeature(Features::SUPPORTS_MULTIPLICATIVE_MODULATION);
@@ -280,6 +286,8 @@ struct ParamMetaData
     {
         return hasFeature(Features::MULTIPLICATIVE_MODULATION_OFF_BY_DEFAULT);
     }
+
+    bool hasFloatAlwaysQuantizes() const { return hasFeature(Features::FLOAT_ALWAYS_QUANTIZES); }
 
     /*
      * To String and From String conversion functions require information about the
