@@ -68,6 +68,7 @@
 
 #include <fmt/core.h>
 #include <array>
+#include <functional>
 
 namespace sst::basic_blocks::params
 {
@@ -411,6 +412,10 @@ struct ParamMetaData
 
     std::unordered_map<int, std::string> discreteValues;
     int decimalPlaces{2};
+    using ValueToStringFunc = std::function<std::optional<std::string>(float)>;
+    ValueToStringFunc customValueToStringFunc;
+    using StringToValueFunc = std::function<std::optional<float>(std::string_view)>;
+    StringToValueFunc customStringToValueFunc;
     inline static int defaultMidiNoteOctaveOffset{0};
 
     float svA{0.f}, svB{0.f}, svC{0.f}, svD{0.f}; // for various functional forms
@@ -692,6 +697,18 @@ struct ParamMetaData
             .withIntegerQuantization();
     }
     ParamMetaData withLog2SecondsFormatting() { return withATwoToTheBFormatting(1, 1, "s"); }
+
+    ParamMetaData withUserProvidedFormatting(std::string units, ValueToStringFunc valueToString,
+                                             StringToValueFunc stringToValue)
+    {
+        auto res = *this;
+        res.customValueToStringFunc = valueToString;
+        res.customStringToValueFunc = stringToValue;
+        res.unit = units;
+        res.displayScale = USER_PROVIDED;
+        res.supportsStringConversion = true;
+        return res;
+    }
 
     ParamMetaData withLinearScaleFormatting(std::string units, float scale = 1.f,
                                             float offset = 0.f)
@@ -1046,6 +1063,15 @@ struct ParamMetaData
 inline std::optional<std::string> ParamMetaData::valueToString(float val,
                                                                const FeatureState &fs) const
 {
+    if (customValueToStringFunc)
+    {
+        auto r = customValueToStringFunc(val);
+        if (r)
+        {
+            return *r + unitSeparator + unit;
+        }
+        return std::nullopt;
+    }
     if (type == BOOL)
     {
         for (auto &v : customValueLabelsWithAccuracy)
@@ -1288,6 +1314,10 @@ inline std::optional<int> ParamMetaData::noteNameToNoteNumber(const std::string 
 inline std::optional<float> ParamMetaData::valueFromString(std::string_view v, std::string &errMsg,
                                                            const FeatureState &fs) const
 {
+    if (customStringToValueFunc)
+    {
+        return customStringToValueFunc(v);
+    }
     if (type == BOOL)
     {
         if (v == "On" || v == "on" || v == "1" || v == "true" || v == "True")
