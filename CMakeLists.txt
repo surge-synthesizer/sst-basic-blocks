@@ -28,13 +28,15 @@ if (${SST_BASIC_BLOCKS_BUILD_TESTS})
     include(cmake/CPM.cmake)
 
     if (NOT TARGET fmt)
+        message(STATUS "Adding FMT library with CPM")
         CPMAddPackage(NAME fmt
                 GITHUB_REPOSITORY fmtlib/fmt
-                GIT_TAG master
+                GIT_TAG 10.2.1
         )
     endif ()
 
     if (NOT TARGET sst-cpputils)
+        message(STATUS "Adding CPPUTILS library with CPM")
         CPMAddPackage(NAME sst-cpputils
                 GITHUB_REPOSITORY surge-synthesizer/sst-cpputils
                 GIT_TAG main
