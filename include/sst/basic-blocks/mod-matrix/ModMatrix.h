@@ -103,10 +103,22 @@ struct ModMatrix : details::CheckModMatrixConstraints<ModMatrixTraits>
     using TR = ModMatrixTraits;
 
     std::unordered_map<typename TR::TargetIdentifier, float &> baseValues;
+    std::unordered_map<typename TR::TargetIdentifier, float &> unmodulatedValues;
     void bindTargetBaseValue(const typename TR::TargetIdentifier &t, float &f)
     {
         baseValues.erase(t);
         baseValues.insert_or_assign(t, f);
+        unmodulatedValues.erase(t);
+        unmodulatedValues.insert_or_assign(t, f);
+    }
+
+    void bindTargetBaseValueWithDistinctUnmodulatedValue(const typename TR::TargetIdentifier &t,
+                                                         float &base, float &unmod)
+    {
+        baseValues.erase(t);
+        baseValues.insert_or_assign(t, base);
+        unmodulatedValues.erase(t);
+        unmodulatedValues.insert_or_assign(t, unmod);
     }
 
     std::unordered_map<typename TR::SourceIdentifier, float &> sourceValues;
@@ -542,7 +554,7 @@ template <typename ModMatrixTraits> struct FixedMatrix : ModMatrix<ModMatrixTrai
         auto f = isOutputMapped.find(s);
         if (f == isOutputMapped.end() || !f->second)
         {
-            return &this->baseValues.at(s);
+            return &this->unmodulatedValues.at(s);
         }
         else
         {
