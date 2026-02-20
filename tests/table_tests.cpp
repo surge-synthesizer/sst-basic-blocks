@@ -30,6 +30,7 @@
 #include "sst/basic-blocks/tables/DbToLinearProvider.h"
 #include "sst/basic-blocks/tables/EqualTuningProvider.h"
 #include "sst/basic-blocks/tables/TwoToTheXProvider.h"
+#include "sst/basic-blocks/tables/ExpTimeProvider.h"
 
 namespace tabl = sst::basic_blocks::tables;
 
@@ -67,5 +68,49 @@ TEST_CASE("Two to the X Provider", "[tables]")
     for (float x = -10; x < 10; x += 0.0173)
     {
         REQUIRE(twox.twoToThe(x) == Approx(pow(2.0, x)).margin(1e-5));
+    }
+}
+
+TEST_CASE("ExpTimeProvider TwentyFiveSecondExpTable", "[tables]")
+{
+    tabl::TwentyFiveSecondExpTable expTime;
+    expTime.init();
+
+    tabl::TwoToTheXProvider twox;
+    twox.init();
+
+    SECTION("timeInSecondsFromParam matches expected formula")
+    {
+        for (double p = 0.0; p <= 1.0; p += 0.05)
+        {
+            double A = expTime.A, B = expTime.B, C = expTime.C, D = expTime.D;
+            double expected = (std::exp(A + p * (B - A)) + C) / D;
+            REQUIRE(expTime.timeInSecondsFromParam(p) == Approx(expected).margin(1e-12));
+        }
+    }
+
+    SECTION("LUT rate lookup matches direct computation")
+    {
+        for (float x = 0.01f; x < 1.0f; x += 0.01f)
+        {
+            auto timeInSeconds = expTime.timeInSecondsFromParam(x);
+            double expectedRate = 1.0 / timeInSeconds;
+            float lutRate = expTime.lookupRate(x, twox);
+            // Allow small relative error from LUT interpolation
+            REQUIRE(lutRate == Approx(expectedRate).epsilon(0.01));
+        }
+    }
+
+    SECTION("Boundary values are reasonable")
+    {
+        // At p=0, time should be small (fast envelope)
+        auto t0 = expTime.timeInSecondsFromParam(0.0);
+        REQUIRE(t0 < 0.01);
+        REQUIRE(t0 > 0.0);
+
+        // At p=1, time should be around 25 seconds
+        auto t1 = expTime.timeInSecondsFromParam(1.0);
+        REQUIRE(t1 > 20.0);
+        REQUIRE(t1 < 30.0);
     }
 }
