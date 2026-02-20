@@ -31,6 +31,8 @@
 #include "sst/basic-blocks/modulators/FXModControl.h"
 #include "sst/basic-blocks/modulators/SimpleLFO.h"
 #include "sst/basic-blocks/modulators/StepLFO.h"
+#include "sst/basic-blocks/modulators/AHDSRShapedSC.h"
+#include "sst/basic-blocks/tables/ExpTimeProvider.h"
 
 namespace smod = sst::basic_blocks::modulators;
 
@@ -111,3 +113,51 @@ TEST_CASE("Random SimpleLFO is Bounded")
     }
 }
 #endif
+
+TEST_CASE("AHDSRShapedSC TwentyFiveSecondExp dPhase matches ExpTimeProvider", "[mod]")
+{
+    using namespace sst::basic_blocks;
+
+    static constexpr int blockSize{8};
+    struct TestSRProvider
+    {
+        double sampleRate{48000};
+        double sampleRateInv{1.0 / 48000};
+        float envelope_rate_linear_nowrap(float f) const
+        {
+            return blockSize * sampleRateInv * std::pow(2.f, -f);
+        }
+        const tables::TwoToTheXProvider &twoToTheXProvider() const
+        {
+            static tables::TwoToTheXProvider t;
+            if (!t.isInit)
+                t.init();
+            return t;
+        }
+    };
+
+    TestSRProvider sr;
+
+    using env_t =
+        modulators::AHDSRShapedSC<TestSRProvider, blockSize, modulators::TwentyFiveSecondExp>;
+    env_t env(&sr);
+
+    tables::TwentyFiveSecondExpTable expTable;
+    expTable.init();
+
+    // For each parameter value x in (0,1], dPhase from the envelope should imply
+    // the same time in seconds as the ExpTimeProvider table.
+    // dPhase = blockSize * sampleRateInv * (1/timeInSeconds)
+    // => timeInSeconds = blockSize * sampleRateInv / dPhase
+    for (float x = 0.01f; x <= 1.0f; x += 0.01f)
+    {
+        auto dp = env.dPhase(x);
+        REQUIRE(dp > 0.f);
+
+        double envTimeSeconds = blockSize * sr.sampleRateInv / dp;
+        double tableTimeSeconds = expTable.timeInSecondsFromParam(x);
+
+        INFO("At x=" << x << " envTime=" << envTimeSeconds << " tableTime=" << tableTimeSeconds);
+        REQUIRE(envTimeSeconds == Approx(tableTimeSeconds).epsilon(0.01));
+    }
+}
