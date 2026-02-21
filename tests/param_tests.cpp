@@ -252,6 +252,28 @@ TEST_CASE("Alternate Scales Above and Below", "[param]")
         REQUIRE(*(p.valueFromString("200.00 ms", em)) == Approx(0.2f));
         REQUIRE(*(p.valueFromString("1.20 s", em)) == Approx(1.2f));
         REQUIRE(*(p.valueFromString("4.20 s", em)) == Approx(4.2f));
+        REQUIRE(*(p.valueFromString("4.20", em)) == Approx(4.2f));
+    }
+
+    SECTION("Linear alternate below with typein default")
+    {
+        auto p = pmd::ParamMetaData()
+                     .asFloat()
+                     .withRange(0, 10)
+                     .withLinearScaleFormatting("s")
+                     .withDisplayRescalingBelow(1.f, 1000.f, "ms")
+                     .withAlternateAsDefaultFromStringUnit(true);
+
+        REQUIRE(*(p.valueToString(0.2)) == "200.00 ms");
+        REQUIRE(*(p.valueToString(1.2)) == "1.20 s");
+        REQUIRE(*(p.valueToString(4.2)) == "4.20 s");
+
+        std::string em;
+        REQUIRE(*(p.valueFromString("0.20 s", em)) == Approx(0.2f));
+        REQUIRE(*(p.valueFromString("200.00 ms", em)) == Approx(0.2f));
+        REQUIRE(*(p.valueFromString("1.20 s", em)) == Approx(1.2f));
+        REQUIRE(*(p.valueFromString("4.20 s", em)) == Approx(4.2f));
+        REQUIRE(*(p.valueFromString("200", em)) == Approx(0.2f));
     }
 
     SECTION("Linear alternate above")
@@ -387,13 +409,33 @@ TEST_CASE("Alternate Scales Above and Below", "[param]")
 
         REQUIRE(*(p.valueToString(0.0)) == "1.00 s");
         REQUIRE(*(p.valueToString(2.0)) == "4.00 s");
-        REQUIRE(*(p.valueToString(-1.0)) == "500.00 ms");
+        REQUIRE(*(p.valueToString(-1.0)) == "500.0 ms");
 
         std::string em;
         REQUIRE(*(p.valueFromString("1.00 s", em)) == Approx(0.0f));
         REQUIRE(*(p.valueFromString("4.00 0s", em)) == Approx(2.f));
         REQUIRE(*(p.valueFromString("0.50 s", em)) == Approx(-1.f));
         REQUIRE(*(p.valueFromString("500.00 ms", em)) == Approx(-1.f));
+    }
+
+    SECTION("With Mlliseconds")
+    {
+        auto p = pmd::ParamMetaData()
+                     .asFloat()
+                     .withRange(0, 5)
+                     .withLinearScaleFormatting("s")
+                     .withMilisecondsBelowOneSecond();
+
+        REQUIRE(*(p.valueToString(0.2)) == "200.0 ms"); // alternate decimal places
+        REQUIRE(*(p.valueToString(1.2)) == "1.20 s");
+        REQUIRE(*(p.valueToString(4.2)) == "4.20 s");
+
+        std::string em;
+        REQUIRE(*(p.valueFromString("0.20 s", em)) == Approx(0.2f));
+        REQUIRE(*(p.valueFromString("200.00 ms", em)) == Approx(0.2f));
+        REQUIRE(*(p.valueFromString("1.20 s", em)) == Approx(1.2f));
+        REQUIRE(*(p.valueFromString("4.20 s", em)) == Approx(4.2f));
+        REQUIRE(*(p.valueFromString("173", em)) == Approx(0.173f));
     }
 }
 
@@ -403,7 +445,7 @@ TEST_CASE("25 Second Exp", "[param]")
     {
         auto p = pmd::ParamMetaData().as25SecondExpTime();
         REQUIRE(*(p.valueToString(0.8)) == "3.79 s");
-        REQUIRE(*(p.valueToString(0.5)) == "221.62 ms");
+        REQUIRE(*(p.valueToString(0.5)) == "221.6 ms");
     }
 
     SECTION("From String")
@@ -414,6 +456,7 @@ TEST_CASE("25 Second Exp", "[param]")
         REQUIRE(*(p.valueFromString("3.79 s", em)) == Approx(0.8f).margin(0.01));
         REQUIRE(*(p.valueFromString("0.22162 s", em)) == Approx(0.5f).margin(0.01));
         REQUIRE(*(p.valueFromString("221.62 ms", em)) == Approx(0.5f).margin(0.01));
+        REQUIRE(*(p.valueFromString("221.62", em)) == Approx(0.5f).margin(0.01));
     }
 
     SECTION("Modulation")
