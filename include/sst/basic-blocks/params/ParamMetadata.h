@@ -425,6 +425,8 @@ struct ParamMetaData
 
     double alternateScaleCutoff{0.f}, alternateScaleRescaling{0.f};
     std::string alternateScaleUnits{};
+    bool alternateScaleIsDefaultFromString{false};
+    int alternateScaleDecimalPlaces{-1}; // -1 means use the decimalPlaces default
 
     float naturalToNormalized01(float naturalValue, bool useSurgeIntConvention = false) const
     {
@@ -832,6 +834,21 @@ struct ParamMetaData
         res.alternateScaleCutoff = cutoff;
         res.alternateScaleRescaling = rescale;
         res.alternateScaleUnits = units;
+        res.alternateScaleIsDefaultFromString = false;
+        return res;
+    }
+
+    ParamMetaData withAlternateAsDefaultFromStringUnit(bool b = true)
+    {
+        auto res = *this;
+        res.alternateScaleIsDefaultFromString = b;
+        return res;
+    }
+
+    ParamMetaData withAlternateDecimalPlaces(int dp)
+    {
+        auto res = *this;
+        res.alternateScaleDecimalPlaces = dp;
         return res;
     }
 
@@ -844,7 +861,10 @@ struct ParamMetaData
 
     ParamMetaData withMilisecondsBelowOneSecond()
     {
-        auto res = withDisplayRescalingBelow(1.f, 1000.f, "ms");
+        auto res = withDisplayRescalingBelow(1.f, 1000.f, "ms")
+                       .withAlternateAsDefaultFromStringUnit(true)
+                       .withAlternateDecimalPlaces(1);
+
         return res;
     }
 
@@ -1038,6 +1058,8 @@ struct ParamMetaData
         info->default_value = defaultVal;
         info->flags = flags;
     }
+
+    float applyAlternateUnscalingOnFromString(const std::string_view &, float) const;
 };
 
 /*
@@ -1146,8 +1168,9 @@ inline std::optional<std::string> ParamMetaData::valueToString(float val,
                 (alternateScaleWhen == SCALE_ABOVE && rsv > alternateScaleCutoff))
             {
                 rsv = rsv * alternateScaleRescaling;
-                return fmt::format("{:.{}f}{}{:s}", rsv,
-                                   (fs.isHighPrecision ? (decimalPlaces + 4) : decimalPlaces),
+                auto dp = (alternateScaleDecimalPlaces >= 0) ? alternateScaleDecimalPlaces
+                                                             : decimalPlaces;
+                return fmt::format("{:.{}f}{}{:s}", rsv, (fs.isHighPrecision ? (dp + 4) : dp),
                                    unitSeparator, alternateScaleUnits);
             }
             else
@@ -1191,8 +1214,10 @@ inline std::optional<std::string> ParamMetaData::valueToString(float val,
                 (alternateScaleWhen == SCALE_ABOVE && rsv > alternateScaleCutoff))
             {
                 rsv = rsv * alternateScaleRescaling;
-                return fmt::format("{:.{}f}{}{:s}", rsv,
-                                   (fs.isHighPrecision ? (decimalPlaces + 4) : decimalPlaces),
+                auto dp = (alternateScaleDecimalPlaces >= 0) ? alternateScaleDecimalPlaces
+                                                             : decimalPlaces;
+
+                return fmt::format("{:.{}f}{}{:s}", rsv, (fs.isHighPrecision ? (dp + 4) : dp),
                                    unitSeparator, alternateScaleUnits);
             }
             else
@@ -1229,14 +1254,15 @@ inline std::optional<std::string> ParamMetaData::valueToString(float val,
             (alternateScaleWhen == SCALE_BELOW && dval > alternateScaleCutoff) ||
             (alternateScaleWhen == SCALE_ABOVE && dval < alternateScaleCutoff))
         {
-            return fmt::format("{:.{}f}{}{:s}", dval,
-                               (fs.isHighPrecision ? (decimalPlaces + 4) : decimalPlaces),
+            // a bit backwards - this is the NON alternate case
+            auto dp = decimalPlaces;
+            return fmt::format("{:.{}f}{}{:s}", dval, (fs.isHighPrecision ? (dp + 4) : dp),
                                unitSeparator, unit);
         }
-        // We must be in an alternate case
+        auto dp = (alternateScaleDecimalPlaces >= 0) ? alternateScaleDecimalPlaces : decimalPlaces;
         return fmt::format("{:.{}f}{}{:s}", dval * alternateScaleRescaling,
-                           (fs.isHighPrecision ? (decimalPlaces + 4) : decimalPlaces),
-                           unitSeparator, alternateScaleUnits);
+                           (fs.isHighPrecision ? (dp + 4) : dp), unitSeparator,
+                           alternateScaleUnits);
     }
     break;
     case CUBED_AS_DECIBEL:
@@ -1375,17 +1401,7 @@ inline std::optional<float> ParamMetaData::valueFromString(std::string_view v, s
             assert(svA != 0);
             r = (r - svB) / svA;
 
-            if (alternateScaleWhen != NO_ALTERNATE)
-            {
-                auto unitSubstr = (unit.find(alternateScaleUnits) != std::string::npos);
-                auto us = (v.find(unit) != std::string::npos);
-                auto ps = (v.find(alternateScaleUnits) != std::string::npos);
-                if ((!unitSubstr && ps) || (unitSubstr && ps && !us))
-                {
-                    // We have a string containing the alternAte units
-                    r = r / alternateScaleRescaling;
-                }
-            }
+            r = applyAlternateUnscalingOnFromString(v, r);
 
             if (fs.isExtended)
             {
@@ -1451,17 +1467,7 @@ inline std::optional<float> ParamMetaData::valueFromString(std::string_view v, s
             assert(svA != 0);
             assert(svB != 0);
 
-            if (alternateScaleWhen != NO_ALTERNATE)
-            {
-                auto unitSubstr = (unit.find(alternateScaleUnits) != std::string::npos);
-                auto us = (v.find(unit) != std::string::npos);
-                auto ps = (v.find(alternateScaleUnits) != std::string::npos);
-                if ((!unitSubstr && ps) || (unitSubstr && ps && !us))
-                {
-                    // We have a string containing the alternate units
-                    r = r / alternateScaleRescaling;
-                }
-            }
+            r = applyAlternateUnscalingOnFromString(v, r);
 
             if (r < 0)
             {
@@ -1513,15 +1519,7 @@ inline std::optional<float> ParamMetaData::valueFromString(std::string_view v, s
         {
             auto r = std::stof(std::string(v));
 
-            if (alternateScaleWhen != NO_ALTERNATE)
-            {
-                auto ps = v.find(alternateScaleUnits);
-                if (ps != std::string::npos && alternateScaleRescaling != 0.f)
-                {
-                    // We have a string containing the alterante units
-                    r = r / alternateScaleRescaling;
-                }
-            }
+            r = applyAlternateUnscalingOnFromString(v, r);
 
             // OK so its R = exp(A + X (B-A)) + C)/D
             // D R - C = exp(A + X (B-a))
@@ -2132,6 +2130,39 @@ inline float ParamMetaData::snapToTemposync(float f) const
     }
 
     return a + b;
+}
+
+inline float ParamMetaData::applyAlternateUnscalingOnFromString(const std::string_view &v,
+                                                                float r) const
+{
+    if (alternateScaleWhen != NO_ALTERNATE && alternateScaleRescaling != 0.f)
+    {
+        auto altUnitIsInUnit = (unit.find(alternateScaleUnits) != std::string::npos);
+        auto typeinHasUnit = (v.find(unit) != std::string::npos);
+        auto typeinHasAltUnit = (v.find(alternateScaleUnits) != std::string::npos);
+
+        bool applyAlt = false;
+        if (alternateScaleIsDefaultFromString)
+        {
+            applyAlt = true;
+            // OK so we want to check if the typein has the unit, and the typein doesnt
+            // have the alt unit. This stops the case of "3 ms" which also matches "s".
+            if (typeinHasUnit && !typeinHasAltUnit)
+                applyAlt = false;
+        }
+        else
+        {
+            if ((!altUnitIsInUnit && typeinHasAltUnit) ||
+                (altUnitIsInUnit && !typeinHasUnit && typeinHasAltUnit))
+                applyAlt = true;
+        }
+        if (applyAlt)
+        {
+            // We have a string containing the alternAte units
+            r = r / alternateScaleRescaling;
+        }
+    }
+    return r;
 }
 
 } // namespace sst::basic_blocks::params
