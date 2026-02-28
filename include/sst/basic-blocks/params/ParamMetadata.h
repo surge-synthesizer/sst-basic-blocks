@@ -1746,13 +1746,30 @@ ParamMetaData::modulationNaturalToString(float naturalBaseVal, float modulationN
         auto deltUp = vu - v;
         auto deltDn = vd - v;
 
+        auto deltaUpUnit = unit;
+        auto deltaDnUnit = unit;
+        if (alternateScaleWhen == SCALE_BELOW)
+        {
+            if (std::fabs(deltDn) < alternateScaleCutoff)
+            {
+                deltDn *= alternateScaleRescaling;
+                deltaUpUnit = alternateScaleUnits;
+            }
+
+            if (std::fabs(deltUp) < alternateScaleCutoff)
+            {
+                deltUp *= alternateScaleRescaling;
+                deltaDnUnit = alternateScaleUnits;
+            }
+        }
+
         auto dp = (fs.isHighPrecision ? (decimalPlaces + 4) : decimalPlaces);
-        result.value = fmt::format("{:.{}f}{}{}", deltUp, dp, unitSeparator, unit);
+        result.value = fmt::format("{:.{}f}{}{}", deltUp, dp, unitSeparator, deltaUpUnit);
         if (isBipolar)
         {
             if (deltDn > 0)
             {
-                result.summary = fmt::format("+/- {:.{}f}{}{}", deltUp, dp, unitSeparator, unit);
+                result.summary = fmt::format("+{:.{}f}{}{}", deltUp, dp, unitSeparator, unit);
             }
             else
             {
@@ -1766,15 +1783,12 @@ ParamMetaData::modulationNaturalToString(float naturalBaseVal, float modulationN
         result.changeUp = fmt::format("{:.{}f}", deltUp, dp);
         if (isBipolar)
             result.changeDown = fmt::format("{:.{}f}", deltDn, dp);
-        result.valUp = fmt::format("{:.{}f}", vu, dp);
+        result.valUp = valueToString(nvu, fs).value_or("err");
 
         if (isBipolar)
-            result.valDown = fmt::format("{:.{}f}", vd, dp);
-        auto v2s = valueToString(naturalBaseVal, fs);
-        if (v2s.has_value())
-            result.baseValue = *v2s;
-        else
-            result.baseValue = "-ERROR-";
+            result.valDown = valueToString(nvd, fs).value_or("err");
+
+        result.baseValue = valueToString(naturalBaseVal, fs).value_or("err");
 
         if (isBipolar)
             result.singleLineModulationSummary =
