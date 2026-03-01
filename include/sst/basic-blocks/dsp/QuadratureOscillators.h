@@ -51,6 +51,14 @@ template <typename T = float> struct QuadratureOscillator
         v = v + k2 * w;
         u = w - k1 * v;
     }
+
+    inline void resetPhase(T p = 0)
+    {
+        u = 1;
+        v = 0;
+        k1 = 0;
+        k2 = 0;
+    }
 };
 
 /**
