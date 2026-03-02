@@ -27,6 +27,8 @@
 #ifndef INCLUDE_SST_BASIC_BLOCKS_DSP_QUADRATUREOSCILLATORS_H
 #define INCLUDE_SST_BASIC_BLOCKS_DSP_QUADRATUREOSCILLATORS_H
 
+#include "sst/basic-blocks/mechanics/block-ops.h"
+
 #include <cmath>
 
 namespace sst::basic_blocks::dsp
@@ -34,10 +36,14 @@ namespace sst::basic_blocks::dsp
 /**
  * The recurrence oscillator from https://vicanek.de/articles/QuadOsc.pdf
  */
-template <typename T = float> struct QuadratureOscillator
+template <typename T = float, int blockSize = 32> struct QuadratureOscillator
 {
     T u{1}, v{0}; // u == cos; v == sin
     T k1{0}, k2{0};
+    lipol_sse<blockSize> k1Lerp, k2Lerp;
+    float k1Block alignas(16)[blockSize];
+    float k2Block alignas(16)[blockSize];
+    int posInBlock{0};
 
     inline void setRate(T omega)
     {
@@ -50,6 +56,31 @@ template <typename T = float> struct QuadratureOscillator
         auto w = u - k1 * v;
         v = v + k2 * w;
         u = w - k1 * v;
+    }
+
+    // call one of these, followed by blockSize calls of blockStep()
+    inline void setRateForBlock(T omega)
+    {
+        k1Lerp.set_target(tan(omega * 0.5));
+        k2Lerp.set_target(sin(omega));
+        k1Lerp.store_block(k1Block);
+        k2Lerp.store_block(k2Block);
+        posInBlock = 0;
+    }
+    inline void maintainRateForBlock()
+    {
+        memset(k1Block, k1, blockSize * sizeof(float));
+        memset(k2Block, k2, blockSize * sizeof(float));
+        posInBlock = 0;
+    }
+
+    inline void blockStep()
+    {
+        k1 = k1Block[posInBlock];
+        k2 = k2Block[posInBlock];
+        step();
+        if (posInBlock < blockSize - 1)
+            posInBlock++;
     }
 
     inline void resetPhase(T p = 0)
