@@ -40,6 +40,13 @@ template <size_t blocksize> inline void clear_block(float *__restrict f)
 {
     memset(f, 0, blocksize * sizeof(float));
 }
+template <size_t blocksize> inline void set_block(float *__restrict dst, const float val)
+{
+    for (auto i = 0U; i < blocksize; ++i)
+    {
+        dst[i] = val;
+    }
+}
 // I checked these with clang / godbolt and they output the same SIMD I would code by hand
 // once you add the __restrict keyword
 template <size_t blocksize>

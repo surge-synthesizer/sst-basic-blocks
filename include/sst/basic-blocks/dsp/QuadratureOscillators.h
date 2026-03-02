@@ -27,6 +27,7 @@
 #ifndef INCLUDE_SST_BASIC_BLOCKS_DSP_QUADRATUREOSCILLATORS_H
 #define INCLUDE_SST_BASIC_BLOCKS_DSP_QUADRATUREOSCILLATORS_H
 
+#include "../../../../../../../cmake-build-asan/_deps/filesystem-src/include/ghc/filesystem.hpp"
 #include "sst/basic-blocks/mechanics/block-ops.h"
 
 #include <cmath>
@@ -69,8 +70,8 @@ template <typename T = float, int blockSize = 32> struct QuadratureOscillator
     }
     inline void maintainRateForBlock()
     {
-        memset(k1Block, k1, blockSize * sizeof(float));
-        memset(k2Block, k2, blockSize * sizeof(float));
+        mechanics::set_block<blockSize>(k1Block, k1);
+        mechanics::set_block<blockSize>(k2Block, k2);
         posInBlock = 0;
     }
 
