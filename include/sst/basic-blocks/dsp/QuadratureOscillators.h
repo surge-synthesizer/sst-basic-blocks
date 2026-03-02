@@ -69,8 +69,8 @@ template <typename T = float, int blockSize = 32> struct QuadratureOscillator
     }
     inline void maintainRateForBlock()
     {
-        memset(k1Block, k1, blockSize * sizeof(float));
-        memset(k2Block, k2, blockSize * sizeof(float));
+        mechanics::set_block<blockSize>(k1Block, k1);
+        mechanics::set_block<blockSize>(k2Block, k2);
         posInBlock = 0;
     }
 
