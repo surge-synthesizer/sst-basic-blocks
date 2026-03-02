@@ -27,7 +27,6 @@
 #ifndef INCLUDE_SST_BASIC_BLOCKS_DSP_QUADRATUREOSCILLATORS_H
 #define INCLUDE_SST_BASIC_BLOCKS_DSP_QUADRATUREOSCILLATORS_H
 
-#include "../../../../../../../cmake-build-asan/_deps/filesystem-src/include/ghc/filesystem.hpp"
 #include "sst/basic-blocks/mechanics/block-ops.h"
 
 #include <cmath>
