@@ -739,8 +739,6 @@ struct ParamMetaData
 
     ParamMetaData withHarmonicSeriesFormatting()
     {
-        assert(min >= 1);
-
         auto res = *this;
         res.decimalPlaces = 0;
         res.svA = 1.f;
