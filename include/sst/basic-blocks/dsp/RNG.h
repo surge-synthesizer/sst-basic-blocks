@@ -36,13 +36,13 @@ struct RNG
 {
     RNG()
         : g(std::chrono::system_clock::now().time_since_epoch().count()), dg(525600 + 8675309),
-          pm1(-1.f, 1.f), z1(0.f, 1.f), gauss(0.f, .33333f), u32(0, 0xFFFFFFFF), b(.5)
+          pm1(-1.f, 1.f), z1(0.f, 1.f), gauss(0.f, .33333f), u32(0, 0xFFFFFFFF), b(.5), tern(-1, 1)
     {
     }
 
     RNG(uint32_t seed)
         : g(seed), dg(525600 + 8675309), pm1(-1.f, 1.f), z1(0.f, 1.f), gauss(0.f, .33333f),
-          u32(0, 0xFFFFFFFF), b(.5)
+          u32(0, 0xFFFFFFFF), b(.5), tern(-1, 1)
     {
     }
 
@@ -75,6 +75,8 @@ struct RNG
 
     inline bool boolean() { return b(g); }
 
+    inline int ternary() { return tern(g); }
+
     inline float forDisplay() { return pm1(dg); }
 
   private:
@@ -84,6 +86,7 @@ struct RNG
     std::normal_distribution<float> gauss;
     std::uniform_int_distribution<uint32_t> u32;
     std::bernoulli_distribution b;
+    std::uniform_int_distribution<int8_t> tern;
 };
 } // namespace sst::basic_blocks::dsp
 
