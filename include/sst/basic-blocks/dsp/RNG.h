@@ -86,7 +86,7 @@ struct RNG
     std::normal_distribution<float> gauss;
     std::uniform_int_distribution<uint32_t> u32;
     std::bernoulli_distribution b;
-    std::uniform_int_distribution<int8_t> tern;
+    std::uniform_int_distribution<short> tern;
 };
 } // namespace sst::basic_blocks::dsp
 
