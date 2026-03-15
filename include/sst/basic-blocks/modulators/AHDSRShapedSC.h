@@ -238,6 +238,16 @@ struct AHDSRShapedSC : DiscreteStagesEnvelope<BLOCK_SIZE, RangeProvider>
         return (std::exp(scsh * p) - 1) / (std::exp(scsh) - 1);
     }
 
+    inline float crossStagePhaseScale(float priorDPhase, float dPhase)
+    {
+        /*
+         * We sometimes need to scale back the jump. If attack is super fast and
+         * decay is super short for instance we can jump too far in with just + dPhase -= 1
+         * so do this by scaling back by the relative phases. But never go further. A slow
+         * attack into a quick decay we don't need to push forwards (or it is more risk if we do)
+         */
+        return std::min(dPhase / priorDPhase, 1.f);
+    }
     inline void processCore(const float delay, const float a, const float h, const float d,
                             const float s, const float r, const float ashape, const float dshape,
                             const float rshape, const bool gateActive, bool needsCurve,
@@ -311,7 +321,8 @@ struct AHDSRShapedSC : DiscreteStagesEnvelope<BLOCK_SIZE, RangeProvider>
         {
         case base_t::s_delay:
         {
-            phase += rateMul * dPhase(delay);
+            auto dph = dPhase(delay);
+            phase += rateMul * dph;
 
             target = delayValue;
             if (phase > 1)
@@ -319,6 +330,7 @@ struct AHDSRShapedSC : DiscreteStagesEnvelope<BLOCK_SIZE, RangeProvider>
                 phase -= std::floor(phase);
                 if (a > 0.f)
                 {
+                    phase *= crossStagePhaseScale(dph, dPhase(a));
                     attackStartValue = delayValue;
                     /*
                      * If the delay is very very small (so the dphase is big)
@@ -326,17 +338,21 @@ struct AHDSRShapedSC : DiscreteStagesEnvelope<BLOCK_SIZE, RangeProvider>
                      * really isn't the intent. So make it so delay->attack start
                      * adjustment gets you at most 2% into the attack. This is just
                      * empirically set by looking at very short delays.
+                     *
+                     * The above should compensate but leave this here anyway.
                      */
                     phase = std::min(phase, 0.02f);
                     stage = base_t::s_attack;
                 }
                 else if (h > 0.f)
                 {
+                    phase *= crossStagePhaseScale(dph, dPhase(h));
                     stage = base_t::s_hold;
                     target = 1.0;
                 }
                 else if (d > 0.f)
                 {
+                    phase *= crossStagePhaseScale(dph, dPhase(d));
                     stage = base_t::s_decay;
                     // See above
                     phase = std::min(phase, 0.02f);
@@ -352,18 +368,23 @@ struct AHDSRShapedSC : DiscreteStagesEnvelope<BLOCK_SIZE, RangeProvider>
         break;
         case base_t::s_attack:
         {
-            phase += rateMul * dPhase(a);
+            auto dph = dPhase(a);
+            phase += rateMul * dph;
             if (phase > 1)
             {
+                float ndf{0.0};
                 if (h > 0)
                 {
                     stage = base_t::s_hold;
+                    ndf = dPhase(h);
                 }
                 else
                 {
                     stage = base_t::s_decay;
+                    ndf = dPhase(d);
                 }
                 phase -= std::floor(phase);
+                phase *= crossStagePhaseScale(dph, ndf);
                 target = 1.0;
             }
             else
@@ -374,19 +395,30 @@ struct AHDSRShapedSC : DiscreteStagesEnvelope<BLOCK_SIZE, RangeProvider>
         break;
         case base_t::s_hold:
         {
-            phase += rateMul * dPhase(h);
+            auto dph = dPhase(h);
+            phase += rateMul * dph;
 
             target = 1;
             if (phase > 1)
             {
-                stage = base_t::s_decay;
-                phase -= std::floor(phase);
+                if (d > 0.f)
+                {
+                    stage = base_t::s_decay;
+                    phase -= std::floor(phase);
+                    phase *= crossStagePhaseScale(dph, dPhase(d));
+                }
+                else
+                {
+                    stage = base_t::s_sustain;
+                    target = s;
+                }
             }
         }
         break;
         case base_t::s_decay:
         {
-            phase += rateMul * dPhase(d);
+            auto dph = dPhase(d);
+            phase += rateMul * dph;
             if (phase > 1)
             {
                 stage = base_t::s_sustain;

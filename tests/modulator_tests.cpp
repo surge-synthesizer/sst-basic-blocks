@@ -33,6 +33,7 @@
 #include "sst/basic-blocks/modulators/StepLFO.h"
 #include "sst/basic-blocks/modulators/AHDSRShapedSC.h"
 #include "sst/basic-blocks/tables/ExpTimeProvider.h"
+#include "test_utils.h"
 
 namespace smod = sst::basic_blocks::modulators;
 
@@ -114,27 +115,93 @@ TEST_CASE("Random SimpleLFO is Bounded")
 }
 #endif
 
+TEST_CASE("AHDSRShapedSC Stage Transitions Have Small Initial Phase", "[mod]")
+{
+    using namespace sst::basic_blocks;
+    using namespace test_utils;
+
+    TestSRProvider sr;
+
+    using env_t =
+        modulators::AHDSRShapedSC<TestSRProvider, blockSize, modulators::TwentyFiveSecondExp>;
+    using base_t = modulators::DiscreteStagesEnvelope<blockSize, modulators::TwentyFiveSecondExp>;
+
+    // When a fast stage precedes a slow stage, crossStagePhaseScale (and the explicit 0.02 cap
+    // for delay->attack and delay->decay) ensures the new stage starts with a small phase rather
+    // than jumping too far in.
+    static constexpr float phaseThreshold{0.05f};
+    static constexpr int maxBlocks{100000};
+
+    auto runUntilStage = [&](env_t &env, base_t::Stage targetStage, float delay, float a, float h,
+                             float d, float s, float r) -> bool {
+        for (int i = 0; i < maxBlocks; ++i)
+        {
+            env.processBlockWithDelay(delay, a, h, d, s, r, 0.f, 0.f, 0.f, true, false);
+            if (env.stage == targetStage)
+                return true;
+        }
+        return false;
+    };
+
+    SECTION("Short attack into long decay - small phase at decay entry")
+    {
+        // Very fast attack (0.02) into slow decay (0.8), zero hold.
+        // Without the fix this was the class of bug that caused incorrect envelopes.
+        env_t env(&sr);
+        env.attackFrom(0.f, false);
+        REQUIRE(runUntilStage(env, base_t::s_decay, 0.f, 0.02f, 0.f, 0.8f, 0.5f, 0.5f));
+        REQUIRE(env.phase < phaseThreshold);
+    }
+
+    SECTION("Short delay into attack - small phase at attack entry")
+    {
+        // delay->attack uses explicit phase = min(phase, 0.02f) cap on top of crossStagePhaseScale
+        env_t env(&sr);
+        env.attackFromWithDelay(0.f, 0.05f, 0.8f);
+        REQUIRE(runUntilStage(env, base_t::s_attack, 0.05f, 0.8f, 0.f, 0.5f, 0.5f, 0.5f));
+        REQUIRE(env.phase < phaseThreshold);
+    }
+
+    SECTION("Short delay with zero attack into hold - small phase at hold entry")
+    {
+        env_t env(&sr);
+        env.attackFromWithDelay(0.f, 0.05f, 0.f);
+        REQUIRE(runUntilStage(env, base_t::s_hold, 0.05f, 0.f, 0.8f, 0.5f, 0.5f, 0.5f));
+        REQUIRE(env.phase < phaseThreshold);
+    }
+
+    SECTION("Short delay with zero attack and hold into decay - small phase at decay entry")
+    {
+        // delay->decay also uses the explicit 0.02f cap
+        env_t env(&sr);
+        env.attackFromWithDelay(0.f, 0.05f, 0.f);
+        REQUIRE(runUntilStage(env, base_t::s_decay, 0.05f, 0.f, 0.f, 0.8f, 0.5f, 0.5f));
+        REQUIRE(env.phase < phaseThreshold);
+    }
+
+    SECTION("Short hold into decay with zero delay and attack - small phase at decay entry")
+    {
+        env_t env(&sr);
+        env.attackFrom(0.f, false);
+        REQUIRE(runUntilStage(env, base_t::s_decay, 0.f, 0.f, 0.05f, 0.8f, 0.5f, 0.5f));
+        REQUIRE(env.phase < phaseThreshold);
+    }
+
+    SECTION("Short hold into decay with long delay and attack - small phase at decay entry")
+    {
+        // With slow delay and attack (~1.5s each at param 0.8) preceding a short hold (0.05),
+        // the hold->decay transition should still land with a small initial phase.
+        env_t env(&sr);
+        env.attackFromWithDelay(0.f, 0.8f, 0.8f);
+        REQUIRE(runUntilStage(env, base_t::s_decay, 0.8f, 0.8f, 0.05f, 0.8f, 0.5f, 0.5f));
+        REQUIRE(env.phase < phaseThreshold);
+    }
+}
+
 TEST_CASE("AHDSRShapedSC TwentyFiveSecondExp dPhase matches ExpTimeProvider", "[mod]")
 {
     using namespace sst::basic_blocks;
-
-    static constexpr int blockSize{8};
-    struct TestSRProvider
-    {
-        double sampleRate{48000};
-        double sampleRateInv{1.0 / 48000};
-        float envelope_rate_linear_nowrap(float f) const
-        {
-            return blockSize * sampleRateInv * std::pow(2.f, -f);
-        }
-        const tables::TwoToTheXProvider &twoToTheXProvider() const
-        {
-            static tables::TwoToTheXProvider t;
-            if (!t.isInit)
-                t.init();
-            return t;
-        }
-    };
+    using namespace test_utils;
 
     TestSRProvider sr;
 
