@@ -262,6 +262,17 @@ struct ParamMetaData
     bool hasFeature(Features f) const { return features & (uint64_t)f; }
     bool hasFeature(uint64_t f) const { return features & (uint64_t)f; }
 
+    // This allows parameters to associate with a version of software and is primarily
+    // used to generate ordering when adding parameters in auv2.
+    uint64_t version{0};
+    uint64_t getVersion() const { return version; }
+    ParamMetaData withVersion(uint64_t v) const
+    {
+        auto res = *this;
+        res.version = v;
+        return res;
+    }
+
     ParamMetaData withSupportsMultiplicativeModulation() const
     {
         return withFeature(Features::SUPPORTS_MULTIPLICATIVE_MODULATION);
