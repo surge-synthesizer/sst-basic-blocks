@@ -49,11 +49,21 @@ struct Ballistics
         release_coeffs = coeffs;
     }
 
-    float process(float abs_x)
+    void process_sample(float abs_x, float &res)
     {
-        const auto b0 = abs_x > z ? attack_coeffs.b0 : release_coeffs.b0;
-        z += b0 * (abs_x - z);
-        return z;
+        const auto b0 = abs_x > zL ? attack_coeffs.b0 : release_coeffs.b0;
+        zL += b0 * (abs_x - zL);
+        res = zL;
+    }
+
+    void process_sample(float abs_xL, float abs_xR, float &resL, float &resR)
+    {
+        const auto b0L = abs_xL > zL ? attack_coeffs.b0 : release_coeffs.b0;
+        const auto b0R = abs_xR > zR ? attack_coeffs.b0 : release_coeffs.b0;
+        zL += b0L * (abs_xL - zL);
+        zR += b0R * (abs_xR - zR);
+        resL = zL;
+        resR = zR;
     }
 
     struct BallisticCoeffs
@@ -62,7 +72,7 @@ struct Ballistics
         float b0{};
     };
     BallisticCoeffs attack_coeffs, release_coeffs;
-    float negSampleRateInv{0.f}, z{0.f};
+    float negSampleRateInv{0.f}, zL{0.f}, zR{0.f};
 };
 } // namespace sst::basic_blocks::dsp
 #endif // INCLUDE_SST_BASIC_BLOCKS_DSP_BALLISTICS_H

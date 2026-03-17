@@ -182,6 +182,14 @@ template <size_t blockSize> inline float blockAbsMax(const float *__restrict d)
     return r;
 }
 
+template <size_t blockSize> inline float blockMax(const float *__restrict d)
+{
+    auto r = 0.f;
+    for (auto i = 0U; i < blockSize; ++i)
+        r = std::max(r, d[i]);
+    return r;
+}
+
 template <size_t blockSize> inline float blockAbsAvg(const float *__restrict d)
 {
     auto r = 0.f;
