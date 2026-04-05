@@ -817,10 +817,8 @@ TEST_CASE("Unordered Map Display", "[param]")
 
     SECTION("Custom map")
     {
-        auto p = pmd::ParamMetaData()
-                     .asInt()
-                     .withRange(0, 2)
-                     .withUnorderedMapFormatting({{0, "Slow"}, {1, "Medium"}, {2, "Fast"}});
+        auto p = pmd::ParamMetaData().asInt().withRange(0, 2).withUnorderedMapFormatting(
+            {{0, "Slow"}, {1, "Medium"}, {2, "Fast"}});
 
         REQUIRE(*(p.valueToString(0)) == "Slow");
         REQUIRE(*(p.valueToString(1)) == "Medium");
@@ -891,11 +889,11 @@ TEST_CASE("Below One Is Inverse Fraction Feature", "[param]")
                      .withDefault(0.0)
                      .withFeature(pmd::ParamMetaData::Features::BELOW_ONE_IS_INVERSE_FRACTION);
 
-        REQUIRE(*(p.valueToString(0.f)) == "1.0000 x");   // 2^0 = 1x
-        REQUIRE(*(p.valueToString(1.f)) == "2.0000 x");   // 2^1 = 2x
+        REQUIRE(*(p.valueToString(0.f)) == "1.0000 x");    // 2^0 = 1x
+        REQUIRE(*(p.valueToString(1.f)) == "2.0000 x");    // 2^1 = 2x
         REQUIRE(*(p.valueToString(-1.f)) == "1/2.0000 x"); // 2^-1 = 0.5 → shown as 1/2
         REQUIRE(*(p.valueToString(-2.f)) == "1/4.0000 x"); // 2^-2 = 0.25 → shown as 1/4
-        REQUIRE(*(p.valueToString(2.f)) == "4.0000 x");   // 2^2 = 4x
+        REQUIRE(*(p.valueToString(2.f)) == "4.0000 x");    // 2^2 = 4x
     }
 
     SECTION("From string round-trip")
@@ -928,10 +926,8 @@ TEST_CASE("isNoUnits FeatureState", "[param]")
 
     SECTION("A_TWO_TO_THE_B suppresses unit")
     {
-        auto p = pmd::ParamMetaData()
-                     .asFloat()
-                     .withRange(0, 4)
-                     .withATwoToTheBFormatting(1, 1, "Hz");
+        auto p =
+            pmd::ParamMetaData().asFloat().withRange(0, 4).withATwoToTheBFormatting(1, 1, "Hz");
         auto with = p.valueToString(2.f);
         auto without = p.valueToString(2.f, pmd::ParamMetaData::FeatureState().withNoUnits(true));
         REQUIRE(*with == "4.00 Hz");

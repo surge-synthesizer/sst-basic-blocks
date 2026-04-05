@@ -1848,8 +1848,8 @@ ParamMetaData::modulationNaturalToString(float naturalBaseVal, float modulationN
         result.baseValue = valueToString(naturalBaseVal, fs).value_or("err");
 
         if (isBipolar)
-            result.singleLineModulationSummary = fmt::format(
-                "{} < {} > {}", result.valDown, result.baseValue, result.valUp);
+            result.singleLineModulationSummary =
+                fmt::format("{} < {} > {}", result.valDown, result.baseValue, result.valUp);
         else
             result.singleLineModulationSummary =
                 fmt::format("{} > {}", result.baseValue, result.valUp);
