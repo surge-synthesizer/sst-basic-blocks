@@ -459,11 +459,56 @@ TEST_CASE("25 Second Exp", "[param]")
         REQUIRE(*(p.valueFromString("221.62", em)) == Approx(0.5f).margin(0.01));
     }
 
-    SECTION("Modulation")
+    SECTION("Modulation - large delta stays in seconds (regression: was showing ms)")
     {
         auto p = pmd::ParamMetaData().as25SecondExpTime();
-        auto md = p.modulationNaturalToString(0.5, 0.1, true, pmd::ParamMetaData::FeatureState());
+        // 100% modulation from 0: delta is ~25 s, must NOT show "25.00 ms"
+        auto md = p.modulationNaturalToString(0, 1.0, true, pmd::ParamMetaData::FeatureState());
         REQUIRE(md.has_value());
+        REQUIRE(md->value == "25.00 s");
+        REQUIRE(md->summary == "+/- 25.00 s");
+    }
+
+    SECTION("Modulation - mixed units: large up, small down")
+    {
+        // base=0.5 (~221.6ms), mod=0.3 → up=~3.57s, down=~-210ms
+        auto p = pmd::ParamMetaData().as25SecondExpTime();
+        auto md = p.modulationNaturalToString(0.5, 0.3, true, pmd::ParamMetaData::FeatureState());
+        REQUIRE(md.has_value());
+        REQUIRE(md->value == "3.57 s");
+        REQUIRE(md->summary == "+/- 3.57 s");
+        REQUIRE(md->valUp == "3.79 s");
+        REQUIRE(md->valDown == "11.2 ms");
+        REQUIRE(md->baseValue == "221.6 ms");
+        REQUIRE(md->singleLineModulationSummary == "11.2 ms < 221.6 ms > 3.79 s");
+    }
+
+    SECTION("Modulation - small delta stays in ms")
+    {
+        // base=0.5 (~221.6ms), mod=0.05 → small delta, both in ms
+        auto p = pmd::ParamMetaData().as25SecondExpTime();
+        auto md = p.modulationNaturalToString(0.5, 0.05, true, pmd::ParamMetaData::FeatureState());
+        REQUIRE(md.has_value());
+        // Check units are ms for both
+        REQUIRE(md->value.find("ms") != std::string::npos);
+        REQUIRE(md->summary.find("ms") != std::string::npos);
+    }
+
+    SECTION("Modulation from string round-trip")
+    {
+        auto p = pmd::ParamMetaData().as25SecondExpTime();
+        std::string em;
+        // modulation that takes base=0 to ~25s should decode to ~1.0 natural units
+        auto mv = p.modulationNaturalFromString("25.00 s", 0.f, em);
+        REQUIRE(mv.has_value());
+        REQUIRE(*mv == Approx(1.0f).margin(0.01f));
+
+        // modulation that takes base=0.5 by ~3.57s should decode back
+        auto md = p.modulationNaturalToString(0.5, 0.3, true);
+        REQUIRE(md.has_value());
+        auto mv2 = p.modulationNaturalFromString(md->value, 0.5f, em);
+        REQUIRE(mv2.has_value());
+        REQUIRE(*mv2 == Approx(0.3f).margin(0.01f));
     }
 }
 
@@ -581,6 +626,321 @@ TEST_CASE("Two to the X Formatting")
         REQUIRE(vc == Approx(577.59894));
         REQUIRE(v.has_value());
         REQUIRE(*v == "577.60 foo");
+    }
+}
+
+TEST_CASE("Modulation Natural To String", "[param]")
+{
+    SECTION("Linear - symmetric bipolar")
+    {
+        auto p = pmd::ParamMetaData().asPercent();
+        // base=0.5, mod=0.2 bipolar
+        auto md = p.modulationNaturalToString(0.5, 0.2, true);
+        REQUIRE(md.has_value());
+        REQUIRE(md->value == "20.00 %");
+        REQUIRE(md->summary == "+/- 20.00 %");
+        REQUIRE(md->changeUp == "20.00");
+        REQUIRE(md->changeDown == "-20.00");
+        REQUIRE(md->valUp == "70.00");
+        REQUIRE(md->valDown == "30.00");
+    }
+
+    SECTION("Linear - unipolar")
+    {
+        auto p = pmd::ParamMetaData().asPercent();
+        auto md = p.modulationNaturalToString(0.5, 0.2, false);
+        REQUIRE(md.has_value());
+        REQUIRE(md->summary == "20.00 %");
+        REQUIRE(md->changeDown.empty());
+        REQUIRE(md->valDown.empty());
+    }
+
+    SECTION("Linear from string round-trip")
+    {
+        auto p = pmd::ParamMetaData().asPercent();
+        std::string em;
+        auto mv = p.modulationNaturalFromString("20.0 %", 0.5f, em);
+        REQUIRE(mv.has_value());
+        REQUIRE(*mv == Approx(0.2f).margin(0.001f));
+
+        auto mv2 = p.modulationNaturalFromString("10.0 %", 0.5f, em);
+        REQUIRE(mv2.has_value());
+        REQUIRE(*mv2 == Approx(0.1f).margin(0.001f));
+    }
+
+    SECTION("A_TWO_TO_THE_B (envelope time) modulation display")
+    {
+        // asEnvelopeTime: 2^val seconds, val in [-8,5]
+        // val=0 -> 1s, val=-1 -> 0.5s, val=2 -> 4s
+        auto p = pmd::ParamMetaData().asEnvelopeTime();
+
+        // base=0 (1s), mod=1 bipolar -> up to 2s, down to 0.5s
+        auto md = p.modulationNaturalToString(0, 1.0, true);
+        REQUIRE(md.has_value());
+        // du = 2 - 1 = 1 s
+        REQUIRE(md->value == "1.00 s");
+        REQUIRE(md->summary == "+/- 1.00 s");
+        // valUp/valDown are raw display values (not via valueToString in this branch)
+        REQUIRE(md->valUp == "2.00");
+        REQUIRE(md->valDown == "0.50");
+        REQUIRE(md->changeUp == "1.00");
+        REQUIRE(md->changeDown == "0.50");
+    }
+
+    SECTION("A_TWO_TO_THE_B from string round-trip (envelope time)")
+    {
+        auto p = pmd::ParamMetaData().asEnvelopeTime();
+        std::string em;
+        // typing "1.00" should decode to +1 natural unit (takes 1s base to 2s)
+        auto mv = p.modulationNaturalFromString("1.00 s", 0.f, em);
+        REQUIRE(mv.has_value());
+        REQUIRE(*mv == Approx(1.0f).margin(0.01f));
+
+        // round-trip: display -> parse -> same value
+        auto md = p.modulationNaturalToString(0, 2.0, true);
+        REQUIRE(md.has_value());
+        auto mv2 = p.modulationNaturalFromString(md->value, 0.f, em);
+        REQUIRE(mv2.has_value());
+        REQUIRE(*mv2 == Approx(2.0f).margin(0.01f));
+    }
+
+    SECTION("CUBED_AS_DECIBEL modulation display")
+    {
+        auto p = pmd::ParamMetaData().asCubicDecibelAttenuation();
+        // val=1 is 0dB, val=0 is -inf
+        // base=1 (0dB), mod=0.1 bipolar
+        auto md = p.modulationNaturalToString(1.0, 0.1, true);
+        REQUIRE(md.has_value());
+        // du = 20*log10(1.1^3) - 20*log10(1.0^3) ≈ 20*3*log10(1.1) ≈ 2.49 dB
+        REQUIRE(md->value.find("dB") == std::string::npos); // unit is "dB" but raw delta uses unit
+        // Just verify it has valid content and is a decibel delta
+        auto vf = std::stof(md->value);
+        REQUIRE(vf == Approx(2.49).margin(0.1));
+    }
+
+    SECTION("CUBED_AS_DECIBEL from string round-trip")
+    {
+        auto p = pmd::ParamMetaData().asCubicDecibelAttenuation();
+        std::string em;
+        // 6dB up from base of 1.0 -> natural offset
+        auto mv = p.modulationNaturalFromString("6.0", 1.0f, em);
+        REQUIRE(mv.has_value());
+        // base=1 (0dB), +6dB → amplitude doubles → val = cbrt(2) - 1 ≈ 0.26
+        REQUIRE(*mv == Approx(std::cbrt(2.0) - 1.0).margin(0.01));
+    }
+}
+
+TEST_CASE("FeatureState withAbsolute", "[param]")
+{
+    SECTION("withAbsolute does not mutate source (regression)")
+    {
+        pmd::ParamMetaData::FeatureState fs;
+        REQUIRE(!fs.isAbsolute);
+        auto fs2 = fs.withAbsolute(true);
+        // The original must be unchanged
+        REQUIRE(!fs.isAbsolute);
+        REQUIRE(fs2.isAbsolute);
+    }
+}
+
+TEST_CASE("Logarithmic Display Scale", "[param]")
+{
+    SECTION("To String")
+    {
+        // 20*log10(val): svA=20, svB=10, svC=0
+        auto p = pmd::ParamMetaData()
+                     .asFloat()
+                     .withRange(0.01f, 1000.f)
+                     .withLogarithmicFormating("dB", 20.f, 10.f, 0.f);
+
+        REQUIRE(*(p.valueToString(1.f)) == "0.00 dB");
+        REQUIRE(*(p.valueToString(10.f)) == "20.00 dB");
+        REQUIRE(*(p.valueToString(100.f)) == "40.00 dB");
+        REQUIRE(*(p.valueToString(0.1f)) == "-20.00 dB");
+        REQUIRE(*(p.valueToString(0.f)) == "-inf");
+    }
+
+    SECTION("From String")
+    {
+        auto p = pmd::ParamMetaData()
+                     .asFloat()
+                     .withRange(0.01f, 1000.f)
+                     .withLogarithmicFormating("dB", 20.f, 10.f, 0.f);
+        std::string em;
+
+        REQUIRE(*(p.valueFromString("0.00 dB", em)) == Approx(1.f).margin(1e-4f));
+        REQUIRE(*(p.valueFromString("20.00 dB", em)) == Approx(10.f).margin(1e-4f));
+        REQUIRE(*(p.valueFromString("40.00 dB", em)) == Approx(100.f).margin(1e-4f));
+        REQUIRE(*(p.valueFromString("-20.00 dB", em)) == Approx(0.1f).margin(1e-4f));
+        REQUIRE(*(p.valueFromString("-inf", em)) == Approx(0.01f)); // clamps to minVal
+    }
+}
+
+TEST_CASE("MIDI Note Display Scale", "[param]")
+{
+    SECTION("Note names to string")
+    {
+        auto p = pmd::ParamMetaData().asMIDINote();
+
+        REQUIRE(*(p.valueToString(60)) == "C4");  // middle C
+        REQUIRE(*(p.valueToString(69)) == "A4");  // concert A
+        REQUIRE(*(p.valueToString(61)) == "C#4"); // C sharp
+        REQUIRE(*(p.valueToString(0)) == "C-1");  // lowest MIDI
+        REQUIRE(*(p.valueToString(21)) == "A0");  // piano bottom A
+        REQUIRE(*(p.valueToString(127)) == "G9"); // highest MIDI
+    }
+
+    SECTION("Note names from string")
+    {
+        auto p = pmd::ParamMetaData().asMIDINote();
+        std::string em;
+
+        REQUIRE(*(p.valueFromString("C4", em)) == 60.f);
+        REQUIRE(*(p.valueFromString("A4", em)) == 69.f);
+        REQUIRE(*(p.valueFromString("C#4", em)) == 61.f);
+        REQUIRE(*(p.valueFromString("A0", em)) == 21.f);
+    }
+}
+
+TEST_CASE("Unordered Map Display", "[param]")
+{
+    SECTION("On/Off via asOnOffBool")
+    {
+        auto p = pmd::ParamMetaData().asOnOffBool();
+
+        REQUIRE(*(p.valueToString(0)) == "Off");
+        REQUIRE(*(p.valueToString(1)) == "On");
+        // Fractional values round to nearest int
+        REQUIRE(*(p.valueToString(0.3f)) == "Off");
+        REQUIRE(*(p.valueToString(0.7f)) == "On");
+    }
+
+    SECTION("Custom map")
+    {
+        auto p = pmd::ParamMetaData().asInt().withRange(0, 2).withUnorderedMapFormatting(
+            {{0, "Slow"}, {1, "Medium"}, {2, "Fast"}});
+
+        REQUIRE(*(p.valueToString(0)) == "Slow");
+        REQUIRE(*(p.valueToString(1)) == "Medium");
+        REQUIRE(*(p.valueToString(2)) == "Fast");
+        REQUIRE(!p.valueToString(3).has_value()); // out of map → nullopt
+    }
+}
+
+TEST_CASE("Value To Alternate String", "[param]")
+{
+    SECTION("Exact note names for asAudibleFrequency")
+    {
+        auto p = pmd::ParamMetaData().asAudibleFrequency();
+
+        // Integer semitone offsets from A4=0 get exact note names (no ~ prefix)
+        REQUIRE(*(p.valueToAlternateString(0.f)) == "A4");   // 440 Hz
+        REQUIRE(*(p.valueToAlternateString(12.f)) == "A5");  // 880 Hz
+        REQUIRE(*(p.valueToAlternateString(-12.f)) == "A3"); // 220 Hz
+        REQUIRE(*(p.valueToAlternateString(3.f)) == "C5");   // C5, 3 semitones above A4
+    }
+
+    SECTION("Non-integer semitone gets ~ prefix")
+    {
+        auto p = pmd::ParamMetaData().asAudibleFrequency();
+        auto s = p.valueToAlternateString(0.5f);
+        REQUIRE(s.has_value());
+        REQUIRE(s->substr(0, 1) == "~");
+    }
+
+    SECTION("Non-qualifying param returns nullopt")
+    {
+        auto p = pmd::ParamMetaData().asPercent();
+        REQUIRE(!p.valueToAlternateString(0.5f).has_value());
+    }
+}
+
+TEST_CASE("BOOL Type Normalization", "[param]")
+{
+    SECTION("natural to normalized01")
+    {
+        auto p = pmd::ParamMetaData().asBool();
+        REQUIRE(p.naturalToNormalized01(0.f) == 0.f);
+        REQUIRE(p.naturalToNormalized01(1.f) == 1.f);
+        REQUIRE(p.naturalToNormalized01(0.3f) == 0.f); // < 0.5 → false
+        REQUIRE(p.naturalToNormalized01(0.7f) == 1.f); // > 0.5 → true
+    }
+
+    SECTION("normalized01 to natural")
+    {
+        auto p = pmd::ParamMetaData().asBool();
+        REQUIRE(p.normalized01ToNatural(0.f) == 0.f);
+        REQUIRE(p.normalized01ToNatural(1.f) == 1.f);
+        REQUIRE(p.normalized01ToNatural(0.3f) == 0.f); // ≤ 0.5 → false
+        REQUIRE(p.normalized01ToNatural(0.7f) == 1.f); // > 0.5 → true
+    }
+}
+
+TEST_CASE("Below One Is Inverse Fraction Feature", "[param]")
+{
+    // This feature is used in production for the LFO rate multiplier
+    SECTION("To string")
+    {
+        auto p = pmd::ParamMetaData()
+                     .asFloat()
+                     .withRange(-5, 5)
+                     .withATwoToTheBFormatting(1, 1, "x")
+                     .withDecimalPlaces(4)
+                     .withDefault(0.0)
+                     .withFeature(pmd::ParamMetaData::Features::BELOW_ONE_IS_INVERSE_FRACTION);
+
+        REQUIRE(*(p.valueToString(0.f)) == "1.0000 x");    // 2^0 = 1x
+        REQUIRE(*(p.valueToString(1.f)) == "2.0000 x");    // 2^1 = 2x
+        REQUIRE(*(p.valueToString(-1.f)) == "1/2.0000 x"); // 2^-1 = 0.5 → shown as 1/2
+        REQUIRE(*(p.valueToString(-2.f)) == "1/4.0000 x"); // 2^-2 = 0.25 → shown as 1/4
+        REQUIRE(*(p.valueToString(2.f)) == "4.0000 x");    // 2^2 = 4x
+    }
+
+    SECTION("From string round-trip")
+    {
+        auto p = pmd::ParamMetaData()
+                     .asFloat()
+                     .withRange(-5, 5)
+                     .withATwoToTheBFormatting(1, 1, "x")
+                     .withDecimalPlaces(4)
+                     .withDefault(0.0)
+                     .withFeature(pmd::ParamMetaData::Features::BELOW_ONE_IS_INVERSE_FRACTION);
+        std::string em;
+
+        REQUIRE(*(p.valueFromString("2.0000 x", em)) == Approx(1.f).margin(1e-4f));
+        REQUIRE(*(p.valueFromString("1/2.0000 x", em)) == Approx(-1.f).margin(1e-4f));
+        REQUIRE(*(p.valueFromString("1/4.0000 x", em)) == Approx(-2.f).margin(1e-4f));
+    }
+}
+
+TEST_CASE("isNoUnits FeatureState", "[param]")
+{
+    SECTION("LINEAR suppresses unit")
+    {
+        auto p = pmd::ParamMetaData().asPercent();
+        auto with = p.valueToString(0.5f);
+        auto without = p.valueToString(0.5f, pmd::ParamMetaData::FeatureState().withNoUnits(true));
+        REQUIRE(*with == "50.00 %");
+        REQUIRE(*without == "50.00");
+    }
+
+    SECTION("A_TWO_TO_THE_B suppresses unit")
+    {
+        auto p =
+            pmd::ParamMetaData().asFloat().withRange(0, 4).withATwoToTheBFormatting(1, 1, "Hz");
+        auto with = p.valueToString(2.f);
+        auto without = p.valueToString(2.f, pmd::ParamMetaData::FeatureState().withNoUnits(true));
+        REQUIRE(*with == "4.00 Hz");
+        REQUIRE(*without == "4.00");
+    }
+
+    SECTION("CUBED_AS_DECIBEL suppresses unit")
+    {
+        auto p = pmd::ParamMetaData().asCubicDecibelAttenuation();
+        auto with = p.valueToString(1.f);
+        auto without = p.valueToString(1.f, pmd::ParamMetaData::FeatureState().withNoUnits(true));
+        REQUIRE(with->find("dB") != std::string::npos);
+        REQUIRE(without->find("dB") == std::string::npos);
     }
 }
 
