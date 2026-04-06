@@ -942,6 +942,28 @@ TEST_CASE("isNoUnits FeatureState", "[param]")
         REQUIRE(with->find("dB") != std::string::npos);
         REQUIRE(without->find("dB") == std::string::npos);
     }
+
+    SECTION("SCALED_OFFSET_EXP suppresses unit in primary range")
+    {
+        auto p = pmd::ParamMetaData().as25SecondExpTime();
+        // val=1 -> 25 s (primary unit range)
+        auto with = p.valueToString(1.f);
+        auto without = p.valueToString(1.f, pmd::ParamMetaData::FeatureState().withNoUnits(true));
+        REQUIRE(with->find("s") != std::string::npos);
+        REQUIRE(without->find("s") == std::string::npos);
+        REQUIRE(without == "25.00");
+    }
+
+    SECTION("SCALED_OFFSET_EXP suppresses unit in alternate (ms) range")
+    {
+        auto p = pmd::ParamMetaData().as25SecondExpTime();
+        // val=0 -> 0 s, which is below the 1 s cutoff -> displays in ms
+        auto with = p.valueToString(0.f);
+        auto without = p.valueToString(0.f, pmd::ParamMetaData::FeatureState().withNoUnits(true));
+        REQUIRE(with->find("ms") != std::string::npos);
+        REQUIRE(without->find("ms") == std::string::npos);
+        REQUIRE(without == "0.0");
+    }
 }
 
 TEST_CASE("Custom Min Max and Default")

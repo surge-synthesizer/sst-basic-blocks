@@ -1311,10 +1311,15 @@ inline std::optional<std::string> ParamMetaData::valueToString(float val,
         {
             // a bit backwards - this is the NON alternate case
             auto dp = decimalPlaces;
+            if (fs.isNoUnits)
+                return fmt::format("{:.{}f}", dval, (fs.isHighPrecision ? (dp + 4) : dp));
             return fmt::format("{:.{}f}{}{:s}", dval, (fs.isHighPrecision ? (dp + 4) : dp),
                                unitSeparator, unit);
         }
         auto dp = (alternateScaleDecimalPlaces >= 0) ? alternateScaleDecimalPlaces : decimalPlaces;
+        if (fs.isNoUnits)
+            return fmt::format("{:.{}f}", dval * alternateScaleRescaling,
+                               (fs.isHighPrecision ? (dp + 4) : dp));
         return fmt::format("{:.{}f}{}{:s}", dval * alternateScaleRescaling,
                            (fs.isHighPrecision ? (dp + 4) : dp), unitSeparator,
                            alternateScaleUnits);
