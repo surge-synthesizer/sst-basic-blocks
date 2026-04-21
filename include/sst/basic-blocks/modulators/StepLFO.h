@@ -130,6 +130,22 @@ template <size_t blockSize> struct StepLFO
             wf_history[i] = storage->data[((state + storage->repeat - i) % storage->repeat) & 0x1f];
     }
 
+    void setPhaseTo(int step, float ph)
+    {
+        if (!storage || storage->repeat <= 0)
+            return;
+
+        state = ((step % storage->repeat) + storage->repeat) % storage->repeat;
+        phase = std::clamp(ph, 0.f, 1.f);
+
+        // match the 1-step interpolation lag applied in assign/retrigger
+        state = (state + 1) % storage->repeat;
+        for (int i = 0; i < 4; i++)
+            wf_history[i] = storage->data[((state + storage->repeat - i) % storage->repeat) & 0x1f];
+
+        output = std::clamp(lfo_ipol(wf_history, phase, storage->smooth, state & 1), -1.f, 1.f);
+    }
+
     void process(float rate, int triggerMode, bool ts, bool oneShot, int samples)
     {
         phase += phaseInc;
