@@ -148,6 +148,8 @@ template <size_t blockSize> struct StepLFO
 
     void process(float rate, int triggerMode, bool ts, bool oneShot, int samples)
     {
+        if (!storage)
+            return;
         phase += phaseInc;
         while (phase > 1.0)
         {
@@ -244,12 +246,12 @@ template <size_t blockSize> struct StepLFO
     }
 
   protected:
-    long state;
-    long state_tminus1;
-    double phaseInc;
-    float wf_history[4];
-    float ratemult;
-    int shuffle_id;
+    long state{0};
+    long state_tminus1{0};
+    double phaseInc{0};
+    float wf_history[4]{0.f, 0.f, 0.f, 0.f};
+    float ratemult{1.f};
+    int shuffle_id{0};
     sst::basic_blocks::modulators::Transport *td{nullptr};
     Storage *storage{nullptr};
     float priorRate{-1000};
