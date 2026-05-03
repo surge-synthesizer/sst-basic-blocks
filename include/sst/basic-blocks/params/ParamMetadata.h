@@ -1523,6 +1523,10 @@ inline std::optional<float> ParamMetaData::valueFromString(std::string_view v, s
             else
             {
                 r = std::stof(std::string(v));
+                if (r < 0 && (features & (uint64_t)Features::BELOW_ONE_IS_INVERSE_FRACTION))
+                {
+                    r = 1.0 / -r;
+                }
             }
             assert(svA != 0);
             assert(svB != 0);
