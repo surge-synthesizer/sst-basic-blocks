@@ -42,7 +42,7 @@ struct VUPeak
     float vu_peak[2]{0, 0};
 
     explicit VUPeak() {}
-    void setSampleRate(float sr)
+    void setSampleRate(float sr, float cutoffHz = 60.f)
     {
         sampleRate = sr;
 
@@ -53,7 +53,7 @@ struct VUPeak
         // sample rate we're running at, so we unrolled this into an equation to make the VU meters
         // have identical ballistics at any sample rate! We have also decided to make the meters
         // less sluggish, so we increased the cutoff to 60 Hz
-        falloff = (float)std::exp(-2 * M_PI * (60.f / sampleRate));
+        falloff = (float)std::exp(-2 * M_PI * (cutoffHz / sampleRate));
     }
 
     void process(float L, float R)
