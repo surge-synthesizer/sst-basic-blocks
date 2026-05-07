@@ -58,6 +58,17 @@ TEST_CASE("Sums", "[simd]")
     REQUIRE(sst::basic_blocks::mechanics::sum_ps_to_float(val) == Approx(1.0).margin(0.00001));
 }
 
+TEST_CASE("simd_float_extract", "[simd]")
+{
+    float vals alignas(16)[4] = {1.25f, -2.5f, 3.75f, -4.0f};
+    auto v = SIMD_MM(load_ps)(vals);
+
+    REQUIRE(sst::basic_blocks::mechanics::simd_float_extract<0>(v) == Approx(1.25f));
+    REQUIRE(sst::basic_blocks::mechanics::simd_float_extract<1>(v) == Approx(-2.5f));
+    REQUIRE(sst::basic_blocks::mechanics::simd_float_extract<2>(v) == Approx(3.75f));
+    REQUIRE(sst::basic_blocks::mechanics::simd_float_extract<3>(v) == Approx(-4.0f));
+}
+
 TEST_CASE("F32x4", "[simd]")
 {
     float pack1 alignas(16)[4];

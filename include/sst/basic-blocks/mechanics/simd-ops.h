@@ -95,6 +95,13 @@ inline SIMD_M128 shuffle_all_ps(const SIMD_M128 v)
     }
 }
 
+template <int N>
+    requires(N >= 0 && N < 4)
+inline float simd_float_extract(const SIMD_M128 x)
+{
+    return SIMD_MM(cvtss_f32)(SIMD_MM(shuffle_ps)(x, x, SIMD_MM_SHUFFLE(N, N, N, N)));
+}
+
 } // namespace sst::basic_blocks::mechanics
 
 #endif // SHORTCIRCUIT_SIMD_OPS_H
