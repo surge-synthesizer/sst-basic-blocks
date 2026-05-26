@@ -982,3 +982,33 @@ TEST_CASE("Custom Min Max and Default")
         REQUIRE(p.valueFromString("C", em).value_or(1000) == 0);
     }
 }
+
+TEST_CASE("Short Name", "[param]")
+{
+    SECTION("withName mirrors to empty shortName")
+    {
+        auto p = pmd::ParamMetaData().withName("Threshold");
+        REQUIRE(p.name == "Threshold");
+        REQUIRE(p.shortName == "Threshold");
+    }
+
+    SECTION("withShortName after withName overrides")
+    {
+        auto p = pmd::ParamMetaData().withName("Ring Modulation").withShortName("RingMod");
+        REQUIRE(p.name == "Ring Modulation");
+        REQUIRE(p.shortName == "RingMod");
+    }
+
+    SECTION("withName does not clobber existing shortName")
+    {
+        auto p = pmd::ParamMetaData().withShortName("X").withName("Y");
+        REQUIRE(p.name == "Y");
+        REQUIRE(p.shortName == "X");
+    }
+
+    SECTION("Default shortName is empty")
+    {
+        auto p = pmd::ParamMetaData();
+        REQUIRE(p.shortName.empty());
+    }
+}
