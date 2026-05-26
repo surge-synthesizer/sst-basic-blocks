@@ -85,6 +85,8 @@ struct ParamMetaData
     } type{FLOAT};
 
     std::string name;
+    std::string
+        shortName{}; // a short (typically <= 12 char) display label; mirrors name unless set
     std::string groupName{}; // optional one level grouping, like VST3, AU and CLAP.
 
     uint32_t id{0};    // optional cache of an integer ID for plugin projection.
@@ -558,6 +560,14 @@ struct ParamMetaData
     {
         auto res = *this;
         res.name = t;
+        if (res.shortName.empty())
+            res.shortName = t;
+        return res;
+    }
+    ParamMetaData withShortName(const std::string t)
+    {
+        auto res = *this;
+        res.shortName = t;
         return res;
     }
     ParamMetaData withGroupName(const std::string t)
