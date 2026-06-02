@@ -1425,12 +1425,28 @@ inline std::optional<float> ParamMetaData::valueFromString(std::string_view v, s
             return std::get<1>(det);
     };
 
-    auto rangeMsg = [this]() {
+    auto rangeMsg = [this, v]() {
         std::string em;
+        auto that = *this;
+        that.customValueLabelsWithAccuracy.clear();
+
         auto nv = valueToString(minVal);
+        auto nvNat = that.valueToString(minVal);
+        if (nvNat == nv)
+            nvNat = std::nullopt;
+        else
+            nvNat = " (" + *nvNat + ")";
+
         auto xv = valueToString(maxVal);
+        auto xvNat = that.valueToString(maxVal);
+        if (xvNat == xv)
+            xvNat = std::nullopt;
+        else
+            xvNat = " (" + *xvNat + ")";
+
         if (nv.has_value() && xv.has_value())
-            em = fmt::format("{} < val < {}", *nv, *xv);
+            em = fmt::format("{}{} < val ({}) < {}{}", *nv, nvNat.value_or(""), v, *xv,
+                             xvNat.value_or(""));
         else
             em = fmt::format("Invalid input");
         return em;
