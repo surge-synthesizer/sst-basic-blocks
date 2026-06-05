@@ -31,6 +31,7 @@
 #include "sst/basic-blocks/tables/EqualTuningProvider.h"
 #include "sst/basic-blocks/tables/TwoToTheXProvider.h"
 #include "sst/basic-blocks/tables/ExpTimeProvider.h"
+#include "sst/basic-blocks/tables/TemposyncSupport.h"
 
 namespace tabl = sst::basic_blocks::tables;
 
@@ -112,5 +113,187 @@ TEST_CASE("ExpTimeProvider TwentyFiveSecondExpTable", "[tables]")
         auto t1 = expTime.timeInSecondsFromParam(1.0);
         REQUIRE(t1 > 20.0);
         REQUIRE(t1 < 30.0);
+    }
+}
+
+TEST_CASE("Temposync ZeroOne", "[tables]")
+{
+    namespace ts = sst::basic_blocks::tables::temposync;
+    using Z = ts::ZeroOne;
+    using N = ts::Note;
+
+    SECTION("Shape and exact denominator")
+    {
+        REQUIRE(Z::nBases == 11);
+        REQUIRE(Z::nEntries == 33);
+        REQUIRE(Z::denom == 32.f); // 33 - 1, a power of two -> exact index/denom
+    }
+
+    SECTION("Entries are strictly ordered by duration")
+    {
+        for (int i = 1; i < Z::nEntries; ++i)
+        {
+            INFO("entry " << i << " vs " << (i - 1));
+            REQUIRE(Z::entries[i].beats > Z::entries[i - 1].beats);
+        }
+    }
+
+    SECTION("Note stores a consistent beats value")
+    {
+        for (int i = 0; i < Z::nEntries; ++i)
+        {
+            const auto &n = Z::entries[i];
+            REQUIRE(n.beats == Approx(N::beatsFor(n.exponent, n.modifier)));
+        }
+    }
+
+    SECTION("index -> 0..1 -> index is exact for every entry")
+    {
+        for (int i = 0; i < Z::nEntries; ++i)
+            REQUIRE(Z::indexFromZeroOne(Z::zeroOneFromIndex(i)) == i);
+    }
+
+    SECTION("Reverse map inverts baseIndexOf/modifierOf")
+    {
+        for (int i = 0; i < Z::nEntries; ++i)
+            REQUIRE(Z::indexFor(Z::baseIndexOf(i), Z::modifierOf(i)) == i);
+        for (int b = 0; b < Z::nBases; ++b)
+        {
+            for (auto mod : {N::Triplet, N::Straight, N::Dotted})
+            {
+                int idx = Z::indexFor(b, mod);
+                REQUIRE(Z::baseIndexOf(idx) == b);
+                REQUIRE(Z::modifierOf(idx) == mod);
+            }
+        }
+    }
+
+    SECTION("Quarter convention: exponent 0 == quarter == 1 beat")
+    {
+        int q = Z::indexFor(0 - Z::minExp, N::Straight); // exponent 0
+        REQUIRE(Z::entries[q].exponent == 0);
+        REQUIRE(Z::entries[q].beats == Approx(1.0));
+        REQUIRE(ts::toStringCompact(Z::entries[q]) == "1/4");
+        REQUIRE(ts::secondsFor(Z::entries[q], 60.0) == Approx(1.0));
+        REQUIRE(ts::secondsFor(Z::entries[q], 120.0) == Approx(0.5));
+    }
+
+    SECTION("Range endpoints and modifier math")
+    {
+        REQUIRE(ts::toStringCompact(Z::entries[0]) == "1/128 T");
+        REQUIRE(Z::entries[0].beats == Approx(1.0 / 48.0)); // 1/32 beat * 2/3
+        REQUIRE(ts::toStringCompact(Z::entries[Z::nEntries - 1]) == "12W");
+        REQUIRE(Z::entries[Z::nEntries - 1].beats == Approx(48.0)); // 32 beats * 3/2
+
+        int eighth = Z::indexFor(-1 - Z::minExp, N::Straight); // exponent -1 == 1/8 note
+        int eighthD = Z::indexFor(-1 - Z::minExp, N::Dotted);
+        int eighthT = Z::indexFor(-1 - Z::minExp, N::Triplet);
+        REQUIRE(ts::toStringCompact(Z::entries[eighth]) == "1/8");
+        REQUIRE(Z::entries[eighthD].beats == Approx(Z::entries[eighth].beats * 1.5));
+        REQUIRE(Z::entries[eighthT].beats == Approx(Z::entries[eighth].beats * 2.0 / 3.0));
+    }
+
+    SECTION("noteFromValue / valueFromNote round-trip on every entry")
+    {
+        for (int i = 0; i < Z::nEntries; ++i)
+        {
+            auto v = Z::zeroOneFromIndex(i);
+            REQUIRE(Z::toFloat(Z::fromFloat(v)) == Approx(v));
+        }
+    }
+
+    SECTION("snap lands on a representable 0..1 value")
+    {
+        for (float v = 0.f; v <= 1.f; v += 0.013f)
+        {
+            float sn = Z::snap(v);
+            REQUIRE(Z::zeroOneFromIndex(Z::indexFromZeroOne(sn)) == sn);
+        }
+    }
+
+    SECTION("Full notation table matches the agreed spec")
+    {
+        static const char *expectedCompact[Z::nEntries] = {
+            "1/128 T", "1/128", "1/64 T", "1/128 D", "1/64", "1/32 T", "1/64 D", "1/32", "1/16 T",
+            "1/32 D",  "1/16",  "1/8 T",  "1/16 D",  "1/8",  "1/4 T",  "1/8 D",  "1/4",  "1/2 T",
+            "1/4 D",   "1/2",   "1W T",   "1/2 D",   "1W",   "2W T",   "1W D",   "2W",   "4W T",
+            "3W",      "4W",    "8W T",   "6W",      "8W",   "12W"};
+        static const char *expectedVerbose[Z::nEntries] = {
+            "1/128 triplet",     "1/128 note",       "1/64 triplet",     "1/128 dotted",
+            "1/64 note",         "1/32 triplet",     "1/64 dotted",      "1/32 note",
+            "1/16 triplet",      "1/32 dotted",      "1/16 note",        "1/8 triplet",
+            "1/16 dotted",       "1/8 note",         "1/4 triplet",      "1/8 dotted",
+            "1/4 note",          "1/2 triplet",      "1/4 dotted",       "1/2 note",
+            "whole triplet",     "1/2 dotted",       "whole note",       "2 whole triplets",
+            "dotted whole note", "2 whole notes",    "4 whole triplets", "3 whole notes",
+            "4 whole notes",     "8 whole triplets", "6 whole notes",    "8 whole notes",
+            "12 whole notes"};
+        for (int i = 0; i < Z::nEntries; ++i)
+        {
+            INFO("idx " << i);
+            REQUIRE(ts::toStringCompact(Z::entries[i]) == expectedCompact[i]);
+            REQUIRE(ts::toString(Z::entries[i]) == expectedVerbose[i]);
+        }
+    }
+
+    SECTION("fromString(toString(n)) round-trips every entry (verbose and compact)")
+    {
+        for (int i = 0; i < Z::nEntries; ++i)
+        {
+            auto n = Z::entries[i];
+            INFO("verbose entry " << i << " '" << ts::toString(n) << "'");
+            auto v = ts::fromString(ts::toString(n));
+            REQUIRE(v.has_value());
+            REQUIRE(v->exponent == n.exponent);
+            REQUIRE(v->modifier == n.modifier);
+
+            INFO("compact entry " << i << " '" << ts::toStringCompact(n) << "'");
+            auto c = ts::fromString(ts::toStringCompact(n));
+            REQUIRE(c.has_value());
+            REQUIRE(c->exponent == n.exponent);
+            REQUIRE(c->modifier == n.modifier);
+        }
+    }
+
+    SECTION("Zero-stage mode puts a true 0 at the bottom index")
+    {
+        auto z = Z::fromFloat(0.f, true);
+        REQUIRE(z.isZero());
+        REQUIRE(ts::secondsFor(z, 120.0) == 0.0);
+        REQUIRE(ts::toString(z) == "0 s");
+        REQUIRE(ts::toStringCompact(z) == "0");
+        REQUIRE(Z::toFloat(z, true) == Approx(Z::zeroOneFromIndex(0)));
+
+        // the other 32 slots are unchanged from non-zero mode
+        for (int i = 1; i < Z::nEntries; ++i)
+        {
+            auto n = Z::fromFloat(Z::zeroOneFromIndex(i), true);
+            REQUIRE_FALSE(n.isZero());
+            REQUIRE(n.exponent == Z::entries[i].exponent);
+            REQUIRE(n.modifier == Z::entries[i].modifier);
+        }
+
+        // default mode still maps index 0 to the smallest note
+        REQUIRE_FALSE(Z::fromFloat(0.f).isZero());
+        REQUIRE(Z::fromFloat(0.f).exponent == Z::entries[0].exponent);
+
+        // "0" / "0 s" parse to the zero stage
+        REQUIRE(ts::fromString("0").has_value());
+        REQUIRE(ts::fromString("0")->isZero());
+        REQUIRE(ts::fromString("0 s")->isZero());
+
+        // beatsFromFloat: zero at the bottom, real beats elsewhere
+        REQUIRE(Z::beatsFromFloat(0.f, true) == 0.0);
+        REQUIRE(Z::beatsFromFloat(Z::zeroOneFromIndex(1), true) == Z::entries[1].beats);
+        REQUIRE(Z::beatsFromFloat(0.f, false) == Z::entries[0].beats); // non-zero mode
+
+        // inverseBeatsFromFloat: 1/beats lookup, 0 at the zero stage
+        REQUIRE(Z::inverseBeatsFromFloat(0.f, true) == 0.0);
+        for (int i = 1; i < Z::nEntries; ++i)
+        {
+            auto v = Z::zeroOneFromIndex(i);
+            REQUIRE(Z::inverseBeatsFromFloat(v, true) == Approx(1.0 / Z::entries[i].beats));
+            REQUIRE(Z::inverseBeatsFromFloat(v) == Approx(1.0 / Z::entries[i].beats));
+        }
     }
 }
