@@ -69,6 +69,8 @@
 #include <fmt/core.h>
 #include <array>
 
+#include "sst/basic-blocks/tables/TemposyncSupport.h"
+
 namespace sst::basic_blocks::params
 {
 struct ParamMetaData
@@ -96,6 +98,8 @@ struct ParamMetaData
     bool canExtend{false}, canDeform{false}, canAbsolute{false}, canTemposync{false},
         canDeactivate{false};
     float temposyncMultiplier{1.f};
+    tables::temposync::Flavor temposyncFlavor{tables::temposync::Flavor::TWO_TO_THE};
+    bool temposyncZeroStage{false}; // ZERO_ONE only: index 0 means a true 0 s
 
     int deformationCount{0};
 
@@ -615,6 +619,18 @@ struct ParamMetaData
         res.temposyncMultiplier = f;
         return res;
     }
+    ParamMetaData withTemposyncFlavor(tables::temposync::Flavor fl)
+    {
+        auto res = *this;
+        res.temposyncFlavor = fl;
+        return res;
+    }
+    ParamMetaData withTemposyncZeroStage(bool b = true)
+    {
+        auto res = *this;
+        res.temposyncZeroStage = b;
+        return res;
+    }
     ParamMetaData extendable(bool b = true)
     {
         auto res = *this;
@@ -1028,6 +1044,16 @@ struct ParamMetaData
             .withMilisecondsBelowOneSecond();
     }
 
+    // as25SecondExpTime plus blanket temposync via the ZERO_ONE note table, with a
+    // true 0 s at the bottom slot (for envelope stages that want a real zero).
+    ParamMetaData as25SecondTemposyncableEnvTime()
+    {
+        return as25SecondExpTime()
+            .temposyncable()
+            .withTemposyncFlavor(tables::temposync::Flavor::ZERO_ONE)
+            .withTemposyncZeroStage();
+    }
+
     ParamMetaData asAudibleFrequency()
     {
         return withType(FLOAT).withRange(-60, 70).withDefault(0).withSemitoneZeroAt440Formatting();
@@ -1101,6 +1127,9 @@ struct ParamMetaData
     std::string temposyncNotation(float f) const;
     std::optional<float> valueFromTemposyncNotation(const std::string &s) const;
     float snapToTemposync(float f) const;
+    // flavor dispatch: TWO_TO_THE vs ZERO_ONE share one Note currency
+    tables::temposync::Note temposyncDecode(float f) const;
+    float temposyncEncode(const tables::temposync::Note &n) const;
 
     std::optional<int> noteNameToNoteNumber(const std::string &s) const;
 
@@ -2057,184 +2086,52 @@ ParamMetaData::modulationNaturalFromString(std::string_view deltaNatural, float 
     return std::nullopt;
 }
 
+inline tables::temposync::Note ParamMetaData::temposyncDecode(float f) const
+{
+    namespace ts = tables::temposync;
+    return temposyncFlavor == ts::Flavor::ZERO_ONE ? ts::ZeroOne::fromFloat(f, temposyncZeroStage)
+                                                   : ts::TwoToThe::fromFloat(f);
+}
+
+inline float ParamMetaData::temposyncEncode(const tables::temposync::Note &n) const
+{
+    namespace ts = tables::temposync;
+    return temposyncFlavor == ts::Flavor::ZERO_ONE ? ts::ZeroOne::toFloat(n, temposyncZeroStage)
+                                                   : ts::TwoToThe::toFloat(n);
+}
+
 inline std::string ParamMetaData::temposyncNotation(float f) const
 {
     assert(type == FLOAT);
-    assert(displayScale == A_TWO_TO_THE_B);
-    assert(svD == 0.f);
-    float a, b = modff(f, &a);
-
-    if (b >= 0)
+    if (temposyncFlavor == tables::temposync::Flavor::TWO_TO_THE)
     {
-        b -= 1.0;
-        a += 1.0;
+        assert(displayScale == A_TWO_TO_THE_B);
+        assert(svD == 0.f);
     }
-
-    float d, q;
-    std::string nn, t;
-    char tmp[1024];
-
-    if (f >= 1)
-    {
-        q = std::pow(2.0f, f - 1);
-        nn = "whole";
-        if (q >= 3)
-        {
-            if (std::fabs(q - floor(q + 0.01)) < 0.01)
-            {
-                snprintf(tmp, 1024, "%d whole notes", (int)floor(q + 0.01));
-            }
-            else
-            {
-                // this is the triplet case
-                snprintf(tmp, 1024, "%d whole triplets", (int)floor(q * 3.0 / 2.0 + 0.02));
-            }
-            std::string res = tmp;
-            return res;
-        }
-        else if (q >= 2)
-        {
-            nn = "double whole";
-            q /= 2;
-        }
-
-        if (q < 1.3)
-        {
-            t = "note";
-        }
-        else if (q < 1.4)
-        {
-            t = "triplet";
-            if (nn == "whole")
-            {
-                nn = "double whole";
-            }
-            else
-            {
-                q = pow(2.0, f - 1);
-                snprintf(tmp, 1024, "%d whole triplets", (int)floor(q * 3.0 / 2.0 + 0.02));
-                std::string res = tmp;
-                return res;
-            }
-        }
-        else
-        {
-            t = "dotted";
-        }
-    }
-    else
-    {
-        d = pow(2.0, -(a - 2));
-        q = pow(2.0, (b + 1));
-
-        if (q < 1.3)
-        {
-            t = "note";
-        }
-        else if (q < 1.4)
-        {
-            t = "triplet";
-            d = d / 2;
-        }
-        else
-        {
-            t = "dotted";
-        }
-        if (d == 1)
-        {
-            nn = "whole";
-        }
-        else
-        {
-            char tmp[1024];
-            snprintf(tmp, 1024, "1/%d", (int)d);
-            nn = tmp;
-        }
-    }
-    std::string res = nn + " " + t;
-
-    return res;
+    return tables::temposync::toString(temposyncDecode(f));
 }
 
 inline std::optional<float> ParamMetaData::valueFromTemposyncNotation(const std::string &s) const
 {
-    // OK so the basic idea is marching down the string we have numbers and slashes
-    // then characters from a constrained set
-    std::string numPart;
-    std::string restPart;
-    bool inNum{true};
-    for (const auto &c : s)
-    {
-        if (inNum && ((c >= '0' && c <= '9') || c == '/' || c == ' '))
-        {
-            numPart += c;
-        }
-        else
-        {
-            inNum = false;
-            if (c != ' ')
-                restPart += std::toupper(c);
-        }
-    }
-    if (numPart.empty())
+    auto n = tables::temposync::fromString(s);
+    if (!n)
         return std::nullopt;
-
-    auto slpos = numPart.find('/');
-    auto num = 0, den = 1;
-    if (slpos == std::string::npos)
-    {
-        num = std::stoi(numPart);
-    }
-    else
-    {
-        num = std::stoi(numPart.substr(0, slpos));
-        den = std::stoi(numPart.substr(slpos + 1));
-    }
-    if (den == 0)
-        return std::nullopt;
-
-    // 1/2 should be 0, 1/4 should be 1
-    auto frac = 2.0 * num / den;
-    auto ufrac = 1.0 / frac;
-    auto pfrac = std::floor(std::log2(ufrac));
-
-    if (restPart == "T")
-        pfrac += 0.51;
-    if (restPart == "D" || restPart == ".")
-    {
-        pfrac -= 0.6;
-    }
-
-    return snapToTemposync(pfrac);
+    return temposyncEncode(*n);
 }
 
 inline float ParamMetaData::snapToTemposync(float f) const
 {
+    namespace ts = tables::temposync;
     assert(canTemposync);
     assert(type == FLOAT);
-    assert(displayScale == A_TWO_TO_THE_B);
-    float a, b = modff(f, &a);
-    if (b < 0)
+    if (temposyncFlavor == ts::Flavor::TWO_TO_THE)
     {
-        b += 1.f;
-        a -= 1.f;
+        assert(displayScale == A_TWO_TO_THE_B);
+        return ts::TwoToThe::snap(f);
     }
-    b = powf(2.0f, b);
-
-    if (b > 1.41f)
-    {
-        b = log2(1.5f);
-    }
-    else if (b > 1.167f)
-    {
-        b = log2(1.3333333333f);
-    }
-    else
-    {
-        b = 0.f;
-    }
-
-    return a + b;
+    // ZERO_ONE is a 0..1 index param by construction
+    assert(minVal == 0.f && maxVal == 1.f);
+    return ts::ZeroOne::snap(f);
 }
 
 inline float ParamMetaData::applyAlternateUnscalingOnFromString(const std::string_view &v,

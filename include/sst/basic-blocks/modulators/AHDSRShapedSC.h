@@ -29,6 +29,7 @@
 
 #include "DiscreteStagesEnvelope.h"
 #include "../tables/TwoToTheXProvider.h"
+#include "../tables/TemposyncSupport.h"
 #include <cassert>
 #include <iostream>
 #include <memory>
@@ -120,15 +121,31 @@ struct AHDSRShapedSC : DiscreteStagesEnvelope<BLOCK_SIZE, RangeProvider>
 
     float lastDPhaseX{-1234.56789}, lastDPhase{0}, lastSR{0};
 
+    // set per-block by processCore; consumed by dPhase. temposyncRatio == bpm/120.
+    bool temposyncActive{false};
+    float temposyncRatio{1.f};
+
     inline float dPhase(float x)
     {
         if constexpr (RangeProvider::phaseStrategy == DPhaseStrategies::ENVTIME_2TWOX)
         {
+            assert(!temposyncActive); // TODO - implement this
             return srProvider->envelope_rate_linear_nowrap(x * base_t::etScale + base_t::etMin);
         }
 
         if constexpr (RangeProvider::phaseStrategy == ENVTIME_EXP)
         {
+            if (temposyncActive)
+            {
+                // seconds = beats * 60 / bpm; bpm = 120 * ratio; so dPhase =
+                // BLOCK_SIZE * sampleRateInv / seconds = BLOCK_SIZE * sampleRateInv * 2 * ratio /
+                // beats.
+                auto invBeats = tables::temposync::ZeroOne::inverseBeatsFromFloat(x, true);
+                if (invBeats <= 0.0)
+                    return 1.0; // zero stage -> instant (matches the x==0 convention)
+                return BLOCK_SIZE * srProvider->sampleRateInv * 2.0 * temposyncRatio * invBeats;
+            }
+
             if (x == 0.0)
                 return 1.0;
 
@@ -251,8 +268,11 @@ struct AHDSRShapedSC : DiscreteStagesEnvelope<BLOCK_SIZE, RangeProvider>
     inline void processCore(const float delay, const float a, const float h, const float d,
                             const float s, const float r, const float ashape, const float dshape,
                             const float rshape, const bool gateActive, bool needsCurve,
-                            const float rateMul = 1.0)
+                            const float rateMul = 1.0, bool isTemposync = false,
+                            float temposyncRatio = 1.f)
     {
+        temposyncActive = isTemposync;
+        this->temposyncRatio = temposyncRatio;
         float target = 0;
 
         auto &stage = this->stage;
@@ -467,7 +487,7 @@ struct AHDSRShapedSC : DiscreteStagesEnvelope<BLOCK_SIZE, RangeProvider>
 
     inline void process(const float a, const float h, const float d, const float s, const float r,
                         const float ashape, const float dshape, const float rshape,
-                        const bool gateActive)
+                        const bool gateActive, bool isTemposync = false, float temposyncRatio = 1.f)
     {
         assert(lutsInitialized);
         if (base_t::preBlockCheck())
@@ -475,7 +495,8 @@ struct AHDSRShapedSC : DiscreteStagesEnvelope<BLOCK_SIZE, RangeProvider>
 
         if (this->current == BLOCK_SIZE)
         {
-            processCore(0.f, a, h, d, s, r, ashape, rshape, dshape, gateActive, true);
+            processCore(0.f, a, h, d, s, r, ashape, rshape, dshape, gateActive, true, 1.0,
+                        isTemposync, temposyncRatio);
         }
 
         base_t::step();
@@ -483,17 +504,21 @@ struct AHDSRShapedSC : DiscreteStagesEnvelope<BLOCK_SIZE, RangeProvider>
 
     inline void processBlock(const float a, const float h, const float d, const float s,
                              const float r, const float ashape, const float dshape,
-                             const float rshape, const bool gateActive, bool needsCurve)
+                             const float rshape, const bool gateActive, bool needsCurve,
+                             bool isTemposync = false, float temposyncRatio = 1.f)
     {
-        processCore(0.f, a, h, d, s, r, ashape, dshape, rshape, gateActive, needsCurve);
+        processCore(0.f, a, h, d, s, r, ashape, dshape, rshape, gateActive, needsCurve, 1.0,
+                    isTemposync, temposyncRatio);
     }
 
     inline void processBlockWithDelay(const float delay, const float a, const float h,
                                       const float d, const float s, const float r,
                                       const float ashape, const float dshape, const float rshape,
-                                      const bool gateActive, bool needsCurve)
+                                      const bool gateActive, bool needsCurve,
+                                      bool isTemposync = false, float temposyncRatio = 1.f)
     {
-        processCore(delay, a, h, d, s, r, ashape, dshape, rshape, gateActive, needsCurve);
+        processCore(delay, a, h, d, s, r, ashape, dshape, rshape, gateActive, needsCurve, 1.0,
+                    isTemposync, temposyncRatio);
         // std::cout << "pbwd de=" << delay << " at=" << a << " h=" << h << " d=" << d << " s=" << s
         // << "r= " << r << " ga=" << gateActive << " "; std::cout << " ph=" << phase << " sg=" <<
         // (int)base_t::stage << " re=" << base_t::outBlock0 << std::endl;
@@ -503,10 +528,13 @@ struct AHDSRShapedSC : DiscreteStagesEnvelope<BLOCK_SIZE, RangeProvider>
                                                 const float d, const float s, const float r,
                                                 const float ashape, const float dshape,
                                                 const float rshape, const float rateMul,
-                                                const bool gateActive, bool needsCurve)
+                                                const bool gateActive, bool needsCurve,
+                                                bool isTemposync = false,
+                                                float temposyncRatio = 1.f)
     {
 
-        processCore(delay, a, h, d, s, r, ashape, dshape, rshape, gateActive, needsCurve, rateMul);
+        processCore(delay, a, h, d, s, r, ashape, dshape, rshape, gateActive, needsCurve, rateMul,
+                    isTemposync, temposyncRatio);
         // std::cout << "pbwd de=" << delay << " at=" << a << " h=" << h << " d=" << d << " s=" << s
         // << "r= " << r << " ga=" << gateActive << " "; std::cout << " ph=" << phase << " sg=" <<
         // (int)base_t::stage << " re=" << base_t::outBlock0 << std::endl;

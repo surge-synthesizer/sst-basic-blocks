@@ -515,16 +515,16 @@ TEST_CASE("25 Second Exp", "[param]")
 TEST_CASE("Temposync type In")
 {
     std::vector<std::pair<std::string, std::string>> cases = {
-        {"1/32", "1/32 note"},    {"1/16", "1/16 note"},      {"1/8", "1/8 note"},
-        {"1/4", "1/4 note"},      {"1/2", "1/2 note"},        {"1", "whole note"},
-        {"1W", "whole note"},     {"2", "double whole note"}, {"2W", "double whole note"},
+        {"1/32", "1/32 note"},    {"1/16", "1/16 note"},     {"1/8", "1/8 note"},
+        {"1/4", "1/4 note"},      {"1/2", "1/2 note"},       {"1", "whole note"},
+        {"1W", "whole note"},     {"2", "2 whole notes"},    {"2W", "2 whole notes"},
 
-        {"1/4 d", "1/4 dotted"},  {"1/4 .", "1/4 dotted"},    {"1/4.", "1/4 dotted"},
+        {"1/4 d", "1/4 dotted"},  {"1/4 .", "1/4 dotted"},   {"1/4.", "1/4 dotted"},
         {"1/4d", "1/4 dotted"},
 
         {"1/8 t", "1/8 triplet"}, {"1/16t", "1/16 triplet"},
 
-        {"1/4 t", "1/4 triplet"}, {"1/4t", "1/4 triplet"},    {"1/2t", "1/2 triplet"},
+        {"1/4 t", "1/4 triplet"}, {"1/4t", "1/4 triplet"},   {"1/2t", "1/2 triplet"},
         {"1T", "whole triplet"},
     };
     for (const auto &[in, out] : cases)
@@ -539,6 +539,58 @@ TEST_CASE("Temposync type In")
             INFO("Result is " << *s << " " << *v);
             REQUIRE(*s == out);
         }
+    }
+}
+
+TEST_CASE("Temposync ZERO_ONE flavor dispatch")
+{
+    namespace ts = sst::basic_blocks::tables::temposync;
+    using Z = ts::ZeroOne;
+
+    auto p = pmd::ParamMetaData().asFloat().withRange(0.f, 1.f).temposyncable().withTemposyncFlavor(
+        ts::Flavor::ZERO_ONE);
+    auto fs = pmd::ParamMetaData::FeatureState().withTemposync(true);
+
+    SECTION("snap + notation dispatch to the ZeroOne/Note path for every grid value")
+    {
+        for (int i = 0; i < Z::nEntries; ++i)
+        {
+            float v = Z::zeroOneFromIndex(i);
+            REQUIRE(p.snapToTemposync(v) == Approx(Z::snap(v)));
+            REQUIRE(p.temposyncNotation(v) == ts::toString(Z::fromFloat(v)));
+        }
+    }
+
+    SECTION("valueToString renders the ZeroOne note (not the 2^x convention)")
+    {
+        float q = Z::zeroOneFromIndex(Z::indexFor(0 - Z::minExp, ts::Note::Straight));
+        auto s = p.valueToString(q, fs);
+        REQUIRE(s.has_value());
+        REQUIRE(*s == "1/4 note");
+    }
+
+    SECTION("typed compact note decodes through ZeroOne")
+    {
+        auto v = p.valueFromTemposyncNotation("1/8 T");
+        REQUIRE(v.has_value());
+        auto n = Z::fromFloat(*v);
+        REQUIRE(n.exponent == -1); // 1/8 == exponent -1 on the quarter==0 scale
+        REQUIRE(n.modifier == ts::Note::Triplet);
+    }
+
+    SECTION("zero-stage flavor renders index 0 as a true zero")
+    {
+        auto pz = pmd::ParamMetaData()
+                      .asFloat()
+                      .withRange(0.f, 1.f)
+                      .temposyncable()
+                      .withTemposyncFlavor(ts::Flavor::ZERO_ONE)
+                      .withTemposyncZeroStage();
+        auto fz = pmd::ParamMetaData::FeatureState().withTemposync(true);
+        REQUIRE(*pz.valueToString(0.f, fz) == "0 s");
+        REQUIRE(*pz.valueToString(Z::zeroOneFromIndex(1), fz) == ts::toString(Z::entries[1]));
+        // without the zero stage, index 0 is the smallest note
+        REQUIRE(*p.valueToString(0.f, fs) == ts::toString(Z::entries[0]));
     }
 }
 
