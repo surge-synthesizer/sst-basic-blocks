@@ -139,11 +139,12 @@ struct AHDSRShapedSC : DiscreteStagesEnvelope<BLOCK_SIZE, RangeProvider>
             {
                 // seconds = beats * 60 / bpm; bpm = 120 * ratio; so dPhase =
                 // BLOCK_SIZE * sampleRateInv / seconds = BLOCK_SIZE * sampleRateInv * 2 * ratio /
-                // beats.
-                auto invBeats = tables::temposync::ZeroOne::inverseBeatsFromFloat(x, true);
-                if (invBeats <= 0.0)
+                // beats. Use the interpolated (not snapped) beats so a modulated time glides
+                // between notes; an unmodulated, UI-snapped value still lands exactly on a note.
+                auto beats = tables::temposync::ZeroOne::interpolatedBeatsFromFloat(x, true);
+                if (beats <= 0.0)
                     return 1.0; // zero stage -> instant (matches the x==0 convention)
-                return BLOCK_SIZE * srProvider->sampleRateInv * 2.0 * temposyncRatio * invBeats;
+                return BLOCK_SIZE * srProvider->sampleRateInv * 2.0 * temposyncRatio / beats;
             }
 
             if (x == 0.0)
