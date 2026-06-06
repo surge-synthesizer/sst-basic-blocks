@@ -296,4 +296,54 @@ TEST_CASE("Temposync ZeroOne", "[tables]")
             REQUIRE(Z::inverseBeatsFromFloat(v) == Approx(1.0 / Z::entries[i].beats));
         }
     }
+
+    SECTION("ZeroOne interpolated beats")
+    {
+        using Z = ts::ZeroOne;
+
+        // Exact at every grid knot: matches the snapped beatsFromFloat there, so
+        // an unmodulated (UI-snapped) value glides nowhere.
+        for (int i = 0; i < Z::nEntries; ++i)
+        {
+            auto v = Z::zeroOneFromIndex(i);
+            REQUIRE(Z::interpolatedBeatsFromFloat(v, true) == Z::beatsFromFloat(v, true));
+            REQUIRE(Z::interpolatedBeatsFromFloat(v, false) == Z::beatsFromFloat(v, false));
+        }
+
+        // Boundaries. At 0 with zeroAtBottom it is the zero stage (0 beats); at 0
+        // without it is the smallest note; at 1 it is the largest note. All three
+        // are clamped knots, so interpolation == the table value exactly.
+        REQUIRE(Z::interpolatedBeatsFromFloat(0.f, true) == 0.0);
+        REQUIRE(Z::interpolatedBeatsFromFloat(0.f, false) == Z::entries[0].beats);
+        REQUIRE(Z::interpolatedBeatsFromFloat(1.f, true) == Z::entries[Z::nEntries - 1].beats);
+        REQUIRE(Z::interpolatedBeatsFromFloat(1.f, false) == Z::entries[Z::nEntries - 1].beats);
+        // Out of range clamps to the endpoints rather than extrapolating.
+        REQUIRE(Z::interpolatedBeatsFromFloat(-0.5f, false) == Z::entries[0].beats);
+        REQUIRE(Z::interpolatedBeatsFromFloat(1.5f, false) == Z::entries[Z::nEntries - 1].beats);
+
+        // Midpoint of a cell is the arithmetic mean of its endpoints (linear in
+        // beats), and the lowest cell ramps up from 0 under zeroAtBottom.
+        {
+            auto v0 = Z::zeroOneFromIndex(0);
+            auto v1 = Z::zeroOneFromIndex(1);
+            auto mid = 0.5f * (v0 + v1);
+            REQUIRE(Z::interpolatedBeatsFromFloat(mid, true) ==
+                    Approx(0.5 * Z::entries[1].beats)); // (0 + b1)/2
+            REQUIRE(Z::interpolatedBeatsFromFloat(mid, false) ==
+                    Approx(0.5 * (Z::entries[0].beats + Z::entries[1].beats)));
+        }
+
+        // Strictly monotonic increasing across a fine sweep: modulation always
+        // moves continuously, never flat or backward.
+        double prev = -1.0;
+        for (int k = 0; k <= 2000; ++k)
+        {
+            auto v = k / 2000.f;
+            auto b = Z::interpolatedBeatsFromFloat(v, true);
+            REQUIRE(b >= prev);
+            if (v > 0.f && v < 1.f)
+                REQUIRE(b > prev); // strictly increasing in the interior
+            prev = b;
+        }
+    }
 }

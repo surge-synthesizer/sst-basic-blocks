@@ -367,6 +367,24 @@ struct ZeroOne
         return detail::zInverseBeats[idx];
     }
 
+    // Continuous duration in beats: piecewise-linear in beats between adjacent
+    // grid notes, so a modulated value glides instead of snapping cell-to-cell.
+    // Exact at grid points (index/denom), where it equals beatsFromFloat, so an
+    // unmodulated (UI-snapped) value reproduces the snapped duration with no
+    // special case. Interpolating beats (rather than inverseBeats) keeps the
+    // zero stage well behaved: the index 0->1 cell ramps up from 0.
+    static constexpr double interpolatedBeatsFromFloat(float v, bool zeroAtBottom = false)
+    {
+        float xp = std::clamp(v, 0.f, 1.f) * denom;
+        int xpi = (int)xp;
+        if (xpi >= nEntries - 1)
+            return entries[nEntries - 1].beats;
+        float xpf = xp - xpi;
+        double b0 = (zeroAtBottom && xpi == 0) ? 0.0 : entries[xpi].beats;
+        double b1 = entries[xpi + 1].beats;
+        return (1.0 - xpf) * b0 + xpf * b1;
+    }
+
     // ---- independent base/unit editor ----
     static constexpr int baseIndexOf(int idx) { return entries[idx].exponent - minExp; } // 0..10
     static constexpr Modifier modifierOf(int idx) { return entries[idx].modifier; }
