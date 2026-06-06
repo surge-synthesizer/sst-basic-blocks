@@ -31,6 +31,7 @@
 #include <cmath>
 #include <cassert>
 #include "DiscreteStagesEnvelope.h"
+#include "../tables/TemposyncSupport.h"
 
 namespace sst::basic_blocks::modulators
 {
@@ -50,6 +51,10 @@ struct DAREnvelope : DiscreteStagesEnvelope<BLOCK_SIZE, RangeProvider>
     DAREnvelope(SRProvider *s) : srProvider(s) {}
 
     float phase{0}, start{0};
+
+    // set per-block by the process methods; consumed by dPhase. temposyncRatio == bpm/120.
+    bool temposyncActive{false};
+    float temposyncRatio{1.f};
 
     void attack(const float d)
     {
@@ -71,11 +76,24 @@ struct DAREnvelope : DiscreteStagesEnvelope<BLOCK_SIZE, RangeProvider>
     {
         if constexpr (RangeProvider::phaseStrategy == DPhaseStrategies::ENVTIME_2TWOX)
         {
+            assert(!temposyncActive); // TODO - implement this
             return srProvider->envelope_rate_linear_nowrap(x);
         }
 
         if constexpr (RangeProvider::phaseStrategy == ENVTIME_EXP)
         {
+            if (temposyncActive)
+            {
+                // seconds = beats * 60 / bpm; bpm = 120 * ratio; so dPhase =
+                // BLOCK_SIZE * sampleRateInv / seconds = BLOCK_SIZE * sampleRateInv * 2 * ratio /
+                // beats. Use the interpolated (not snapped) beats so a modulated time glides
+                // between notes; an unmodulated, UI-snapped value still lands exactly on a note.
+                auto beats = tables::temposync::ZeroOne::interpolatedBeatsFromFloat(x, true);
+                if (beats <= 0.0)
+                    return 1.0; // zero stage -> instant
+                return BLOCK_SIZE * srProvider->sampleRateInv * 2.0 * temposyncRatio / beats;
+            }
+
             auto timeInSeconds =
                 (std::exp(RangeProvider::A + x * (RangeProvider::B - RangeProvider::A)) -
                  RangeProvider::C) /
@@ -160,15 +178,20 @@ struct DAREnvelope : DiscreteStagesEnvelope<BLOCK_SIZE, RangeProvider>
         return target;
     }
 
-    inline void processBlock01AD(const float d, const float a, const float r, const bool gateActive)
+    inline void processBlock01AD(const float d, const float a, const float r, const bool gateActive,
+                                 bool isTemposync = false, float temposyncRatio = 1.f)
     {
         processBlockScaledAD(this->rateFrom01(d), this->rateFrom01(a), this->rateFrom01(r),
-                             gateActive);
+                             gateActive, isTemposync, temposyncRatio);
     }
 
     inline void processBlockScaledAD(const float d, const float a, const float r,
-                                     const bool gateActive)
+                                     const bool gateActive, bool isTemposync = false,
+                                     float temposyncRatio = 1.f)
     {
+        temposyncActive = isTemposync;
+        this->temposyncRatio = temposyncRatio;
+
         if (base_t::preBlockCheck())
             return;
 
@@ -182,8 +205,12 @@ struct DAREnvelope : DiscreteStagesEnvelope<BLOCK_SIZE, RangeProvider>
         base_t::updateBlockTo(target);
         base_t::step();
     }
-    inline void processScaledAD(const float d, const float a, const float r, const bool gateActive)
+    inline void processScaledAD(const float d, const float a, const float r, const bool gateActive,
+                                bool isTemposync = false, float temposyncRatio = 1.f)
     {
+        temposyncActive = isTemposync;
+        this->temposyncRatio = temposyncRatio;
+
         if (base_t::preBlockCheck())
             return;
 

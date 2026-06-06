@@ -32,6 +32,7 @@
 #include "sst/basic-blocks/modulators/SimpleLFO.h"
 #include "sst/basic-blocks/modulators/StepLFO.h"
 #include "sst/basic-blocks/modulators/AHDSRShapedSC.h"
+#include "sst/basic-blocks/modulators/DAREnvelope.h"
 #include "sst/basic-blocks/tables/ExpTimeProvider.h"
 #include "test_utils.h"
 
@@ -226,5 +227,42 @@ TEST_CASE("AHDSRShapedSC TwentyFiveSecondExp dPhase matches ExpTimeProvider", "[
 
         INFO("At x=" << x << " envTime=" << envTimeSeconds << " tableTime=" << tableTimeSeconds);
         REQUIRE(envTimeSeconds == Approx(tableTimeSeconds).epsilon(0.01));
+    }
+}
+
+TEST_CASE("DAREnvelope temposync dPhase lands on note durations", "[mod]")
+{
+    using namespace sst::basic_blocks;
+    using namespace test_utils;
+
+    TestSRProvider sr;
+
+    using env_t =
+        modulators::DAREnvelope<TestSRProvider, blockSize, modulators::TwentyFiveSecondExp>;
+    env_t env(&sr);
+
+    // ratio == bpm / 120
+    for (float bpm : {90.f, 120.f, 140.f})
+    {
+        float ratio = bpm / 120.f;
+        env.temposyncActive = true;
+        env.temposyncRatio = ratio;
+
+        // At each grid point the implied time should be beats * 60 / bpm.
+        for (int idx = 1; idx < tables::temposync::ZeroOne::nEntries; ++idx)
+        {
+            float x = tables::temposync::ZeroOne::zeroOneFromIndex(idx);
+            double beats = tables::temposync::ZeroOne::beatsFromFloat(x, true);
+
+            auto dp = env.dPhase(x);
+            REQUIRE(dp > 0.f);
+
+            double envTimeSeconds = blockSize * sr.sampleRateInv / dp;
+            double expectedSeconds = beats * 60.0 / bpm;
+
+            INFO("bpm=" << bpm << " idx=" << idx << " envTime=" << envTimeSeconds
+                        << " expected=" << expectedSeconds);
+            REQUIRE(envTimeSeconds == Approx(expectedSeconds).epsilon(1e-4));
+        }
     }
 }
