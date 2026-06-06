@@ -1046,7 +1046,7 @@ struct ParamMetaData
 
     // as25SecondExpTime plus blanket temposync via the ZERO_ONE note table, with a
     // true 0 s at the bottom slot (for envelope stages that want a real zero).
-    ParamMetaData as25SecondTemposyncableEnvTime()
+    ParamMetaData as25SecondTemposyncableExpTime()
     {
         return as25SecondExpTime()
             .temposyncable()
