@@ -406,8 +406,8 @@ struct ParamMetaData
                                                                bool isBipolar,
                                                                const FeatureState &fs = {}) const;
     std::optional<float> modulationNaturalFromString(std::string_view deltaNatural,
-                                                     float naturalBaseVal,
-                                                     std::string &errMsg) const;
+                                                     float naturalBaseVal, std::string &errMsg,
+                                                     const FeatureState &fs = {}) const;
 
     enum DisplayScale
     {
@@ -1725,6 +1725,44 @@ ParamMetaData::modulationNaturalToString(float naturalBaseVal, float modulationN
         return std::nullopt;
     ModulationDisplay result;
 
+    // When temposynced the natural->display map is a beat-fraction note table, so a
+    // delta in natural units (seconds) is meaningless. Show the depth as a percent of
+    // range; base/up/down stay in beat-fraction notation via valueToString.
+    if (fs.isTemposynced && canTemposync)
+    {
+        auto rng = maxVal - minVal;
+        auto pu = (rng != 0 ? modulationNatural / rng : 0.f) * 100.f;
+        auto pd = -pu;
+        auto dp = (fs.isHighPrecision ? (decimalPlaces + 4) : decimalPlaces);
+
+        result.value = fmt::format("{:.{}f} %", pu, dp);
+        if (isBipolar)
+            result.summary =
+                fmt::format("{} {:.{}f} %", pu >= 0 ? "+/-" : "-/+", std::fabs(pu), dp);
+        else
+            result.summary = fmt::format("{:.{}f} %", pu, dp);
+        result.changeUp = fmt::format("{:.{}f}", pu, dp);
+        if (isBipolar)
+            result.changeDown = fmt::format("{:.{}f}", pd, dp);
+
+        result.baseValue = valueToString(naturalBaseVal, fs).value_or("err");
+        result.valUp =
+            valueToString(std::clamp(naturalBaseVal + modulationNatural, minVal, maxVal), fs)
+                .value_or("err");
+        if (isBipolar)
+            result.valDown =
+                valueToString(std::clamp(naturalBaseVal - modulationNatural, minVal, maxVal), fs)
+                    .value_or("err");
+
+        if (isBipolar)
+            result.singleLineModulationSummary =
+                fmt::format("{} < {} > {}", result.valDown, result.baseValue, result.valUp);
+        else
+            result.singleLineModulationSummary =
+                fmt::format("{} > {}", result.baseValue, result.valUp);
+        return result;
+    }
+
     switch (displayScale)
     {
     case LINEAR:
@@ -1988,8 +2026,28 @@ ParamMetaData::modulationNaturalToString(float naturalBaseVal, float modulationN
 
 inline std::optional<float>
 ParamMetaData::modulationNaturalFromString(std::string_view deltaNatural, float naturalBaseVal,
-                                           std::string &errMsg) const
+                                           std::string &errMsg, const FeatureState &fs) const
 {
+    if (fs.isTemposynced && canTemposync)
+    {
+        try
+        {
+            auto rng = maxVal - minVal;
+            auto mv = std::stof(std::string(deltaNatural)) / 100.f * rng;
+            if (std::fabs(mv) > rng)
+            {
+                errMsg = "Maximum depth: 100 %";
+                return std::nullopt;
+            }
+            return mv;
+        }
+        catch (const std::exception &e)
+        {
+            errMsg = "Unable to convert " + std::string(deltaNatural) + " to a percent";
+            return std::nullopt;
+        }
+    }
+
     switch (displayScale)
     {
     case LINEAR:

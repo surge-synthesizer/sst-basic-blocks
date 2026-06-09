@@ -510,6 +510,40 @@ TEST_CASE("25 Second Exp", "[param]")
         REQUIRE(mv2.has_value());
         REQUIRE(*mv2 == Approx(0.3f).margin(0.01f));
     }
+
+    SECTION("Temposync modulation shows percent, not ms/s")
+    {
+        auto p = pmd::ParamMetaData().as25SecondTemposyncableExpTime();
+        auto fs = pmd::ParamMetaData::FeatureState().withTemposync(true);
+
+        // depth is a percent of the 0..1 natural range
+        auto md = p.modulationNaturalToString(0.5, 0.3, true, fs);
+        REQUIRE(md.has_value());
+        REQUIRE(md->value == "30.00 %");
+        REQUIRE(md->summary == "+/- 30.00 %");
+        REQUIRE(md->changeUp == "30.00");
+        REQUIRE(md->changeDown == "-30.00");
+        // base/up/down stay in beat-fraction notation
+        REQUIRE(md->value.find("ms") == std::string::npos);
+        REQUIRE(md->value.find('s') == std::string::npos);
+
+        // unidirectional
+        auto mdu = p.modulationNaturalToString(0.2, 0.1, false, fs);
+        REQUIRE(mdu.has_value());
+        REQUIRE(mdu->value == "10.00 %");
+        REQUIRE(mdu->summary == "10.00 %");
+
+        // from-string parses a percent back to natural depth
+        std::string em;
+        auto mv = p.modulationNaturalFromString("30", 0.5f, em, fs);
+        REQUIRE(mv.has_value());
+        REQUIRE(*mv == Approx(0.3f).margin(1e-5));
+
+        // round-trip via the displayed value
+        auto mv2 = p.modulationNaturalFromString(md->value, 0.5f, em, fs);
+        REQUIRE(mv2.has_value());
+        REQUIRE(*mv2 == Approx(0.3f).margin(1e-5));
+    }
 }
 
 TEST_CASE("Temposync type In")
