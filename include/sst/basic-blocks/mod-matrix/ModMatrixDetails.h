@@ -29,6 +29,7 @@
 
 #include <type_traits>
 #include <cstdint>
+#include <utility>
 
 namespace sst::basic_blocks::mod_matrix::details
 {
@@ -57,18 +58,18 @@ HAS_MEMBER(getTargetModMatrixElement)
 HAS_MEMBER(getCurveOperator)
 #undef HAS_MEMBER
 
-struct detailTypeNo
+// Detect whether `T == Arg` is well-formed. Done with void_t SFINAE rather than a fallback
+// namespace-scope operator==: under C++20 such a fallback becomes a candidate for every rewritten
+// != as well, which breaks unrelated comparisons (e.g. iterating a container of a type whose ADL
+// reaches this namespace, as MSVC's class-type std::array iterator does).
+template <typename T, typename Arg = T, typename = void> struct has_operator_equal : std::false_type
 {
 };
-template <typename T, typename Arg> detailTypeNo operator==(const T &, const Arg &);
 
-template <typename T, typename Arg = T> struct has_operator_equal
+template <typename T, typename Arg>
+struct has_operator_equal<T, Arg, std::void_t<decltype(std::declval<T>() == std::declval<Arg>())>>
+    : std::true_type
 {
-    enum
-    {
-        value =
-            !std::is_same<decltype(std::declval<T>() == std::declval<Arg>()), detailTypeNo>::value
-    };
 };
 
 template <typename TR> struct CheckModMatrixConstraints
