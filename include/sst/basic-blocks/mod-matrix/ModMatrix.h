@@ -38,6 +38,7 @@
 #include <cmath>
 
 #include <iostream>
+#include "sst/cpputils/small_hash_map.h"
 #include "ModMatrixDetails.h"
 #include "../dsp/Lag.h"
 
@@ -102,31 +103,26 @@ struct ModMatrix : details::CheckModMatrixConstraints<ModMatrixTraits>
 {
     using TR = ModMatrixTraits;
 
-    std::unordered_map<typename TR::TargetIdentifier, float &> baseValues;
-    std::unordered_map<typename TR::TargetIdentifier, float &> unmodulatedValues;
+    std::unordered_map<typename TR::TargetIdentifier, float *> baseValues;
+    std::unordered_map<typename TR::TargetIdentifier, float *> unmodulatedValues;
     void bindTargetBaseValue(const typename TR::TargetIdentifier &t, float &f)
     {
-        baseValues.erase(t);
-        baseValues.insert_or_assign(t, f);
-        unmodulatedValues.erase(t);
-        unmodulatedValues.insert_or_assign(t, f);
+        baseValues.insert_or_assign(t, &f);
+        unmodulatedValues.insert_or_assign(t, &f);
     }
 
     void bindTargetBaseValueWithDistinctUnmodulatedValue(const typename TR::TargetIdentifier &t,
                                                          float &base, float &unmod)
     {
-        baseValues.erase(t);
-        baseValues.insert_or_assign(t, base);
-        unmodulatedValues.erase(t);
-        unmodulatedValues.insert_or_assign(t, unmod);
+        baseValues.insert_or_assign(t, &base);
+        unmodulatedValues.insert_or_assign(t, &unmod);
     }
 
-    std::unordered_map<typename TR::SourceIdentifier, float &> sourceValues;
+    std::unordered_map<typename TR::SourceIdentifier, float *> sourceValues;
     std::unordered_map<typename TR::SourceIdentifier, float> constantPlaceholders;
     void bindSourceValue(const typename TR::SourceIdentifier &s, float &f)
     {
-        sourceValues.erase(s);
-        sourceValues.insert_or_assign(s, f);
+        sourceValues.insert_or_assign(s, &f);
     }
 
     void bindSourceConstantValue(const typename TR::SourceIdentifier &c, float value)
@@ -273,9 +269,12 @@ template <typename ModMatrixTraits> struct FixedMatrix : ModMatrix<ModMatrixTrai
     std::array<RoutingValuePointers, TR::FixedMatrixSize> routingValuePointers{};
     std::array<size_t, TR::FixedMatrixSize> routingValuePointersProcessOrder{};
 
-    std::unordered_map<typename TR::TargetIdentifier, bool> isOutputMapped;
-    std::unordered_map<typename TR::TargetIdentifier, size_t> targetToOutputIndex;
-    std::unordered_map<typename TR::SourceIdentifier, bool> isSourceUsed;
+    sst::cpputils::SmallHashMap<typename TR::TargetIdentifier, bool, TR::FixedMatrixSize>
+        isOutputMapped;
+    sst::cpputils::SmallHashMap<typename TR::TargetIdentifier, size_t, TR::FixedMatrixSize>
+        targetToOutputIndex;
+    sst::cpputils::SmallHashMap<typename TR::SourceIdentifier, bool, 2 * TR::FixedMatrixSize>
+        isSourceUsed;
 
     void updateRoutingState(const RoutingTable &rt)
     {
@@ -295,7 +294,7 @@ template <typename ModMatrixTraits> struct FixedMatrix : ModMatrix<ModMatrixTrai
 
             if (targetToOutputIndex.find(*r.target) == targetToOutputIndex.end())
             {
-                targetToOutputIndex.insert_or_assign(*r.target, outIdx);
+                targetToOutputIndex[*r.target] = outIdx;
                 outIdx++;
             }
         }
@@ -306,7 +305,7 @@ template <typename ModMatrixTraits> struct FixedMatrix : ModMatrix<ModMatrixTrai
         updateRoutingState(rt);
 
         int idx{0};
-        std::unordered_set<typename TR::TargetIdentifier> depthMaps;
+        sst::cpputils::SmallHashSet<typename TR::TargetIdentifier, TR::FixedMatrixSize> depthMaps;
         for (auto &r : rt.routes)
         {
             if (!r.source.has_value() && !r.target.has_value())
@@ -324,7 +323,7 @@ template <typename ModMatrixTraits> struct FixedMatrix : ModMatrix<ModMatrixTrai
                 continue;
             }
 
-            rv.source = &this->sourceValues.at(*r.source);
+            rv.source = this->sourceValues.at(*r.source);
             if (ModMatrix<TR>::supportsLag(*r.source) && r.sourceLagMS > 0)
             {
                 if (r.sourceLagExp)
@@ -348,7 +347,7 @@ template <typename ModMatrixTraits> struct FixedMatrix : ModMatrix<ModMatrixTrai
             }
             if (r.sourceVia.has_value())
             {
-                rv.sourceVia = &this->sourceValues.at(*(r.sourceVia));
+                rv.sourceVia = this->sourceValues.at(*(r.sourceVia));
                 if (ModMatrix<TR>::supportsLag(*r.sourceVia) && r.sourceViaLagMS > 0)
                 {
                     if (r.sourceViaLagExp)
@@ -404,7 +403,7 @@ template <typename ModMatrixTraits> struct FixedMatrix : ModMatrix<ModMatrixTrai
                 auto depthIndex = TR::getTargetModMatrixElement(m);
                 assert(depthIndex < routingValuePointers.size());
                 routingValuePointers[depthIndex].depth = &matrixOutputs[targetToOutputIndex.at(m)];
-                this->baseValues.insert_or_assign(m, rt.routes[depthIndex].depth);
+                this->baseValues.insert_or_assign(m, &rt.routes[depthIndex].depth);
             }
         }
 
@@ -434,7 +433,7 @@ template <typename ModMatrixTraits> struct FixedMatrix : ModMatrix<ModMatrixTrai
         {
             if constexpr (ModMatrixTraits::ProvidesNonZeroTargetBases)
             {
-                matrixOutputs[outIdx] = this->baseValues.at(tgt);
+                matrixOutputs[outIdx] = *this->baseValues.at(tgt);
             }
             else
             {
@@ -554,7 +553,7 @@ template <typename ModMatrixTraits> struct FixedMatrix : ModMatrix<ModMatrixTrai
         auto f = isOutputMapped.find(s);
         if (f == isOutputMapped.end() || !f->second)
         {
-            return &this->unmodulatedValues.at(s);
+            return this->unmodulatedValues.at(s);
         }
         else
         {
