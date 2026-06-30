@@ -35,7 +35,7 @@ namespace sst::basic_blocks::dsp
 
 /*
  * The one-pole family. These are deliberately tiny, allocation-free building
- * blocks; for tunable musical filtering use sst-filters 
+ * blocks; for tunable musical filtering use sst-filters
  */
 
 /*
