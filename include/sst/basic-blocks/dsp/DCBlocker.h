@@ -27,35 +27,8 @@
 #ifndef INCLUDE_SST_BASIC_BLOCKS_DSP_DCBLOCKER_H
 #define INCLUDE_SST_BASIC_BLOCKS_DSP_DCBLOCKER_H
 
-#include <cstdint>
+// DCBlocker now lives in OnePoles.h alongside OnePoleLP/OnePoleHP. Kept as a
+// forwarding include for back-compat (sst-waveshapers and others include this).
+#include "sst/basic-blocks/dsp/OnePoles.h"
 
-namespace sst::basic_blocks::dsp
-{
-template <uint32_t blocksize> struct DCBlocker
-{
-    float xN1{0}, yN1{0};
-    float fac{0.9993};
-    DCBlocker(float f = 0.9993) : fac(f) { reset(); }
-    void reset()
-    {
-        xN1 = 0.f;
-        yN1 = 0.f;
-    }
-
-    inline void filter(float *from, float *to) // BLOCK_SIZE
-    {
-        for (auto i = 0; i < blocksize; ++i)
-        {
-            auto dx = from[i] - xN1;
-            auto fv = dx + fac * yN1;
-
-            xN1 = from[i];
-            yN1 = fv;
-
-            to[i] = fv;
-        }
-    }
-};
-
-} // namespace sst::basic_blocks::dsp
-#endif // SURGE_MIDSIDE_H
+#endif // INCLUDE_SST_BASIC_BLOCKS_DSP_DCBLOCKER_H

@@ -30,6 +30,7 @@
 #include "sst/basic-blocks/simd/setup.h"
 #include "sst/basic-blocks/mechanics/simd-ops.h"
 #include "sst/basic-blocks/tables/SincTableProvider.h"
+#include "sst/basic-blocks/dsp/Interpolators.h"
 #include <array>
 
 namespace sst::basic_blocks::dsp
@@ -115,6 +116,19 @@ struct SSESincDelayLine
         int RP = (wp - iDelay) & (COMB_SIZE - 1);
         int RPP = RP == 0 ? COMB_SIZE - 1 : RP - 1;
         return buffer[RPP];
+    }
+
+    // Cubic (4-tap Hermite) fractional read, matching readLinear's delay
+    // convention: at frac 0 returns delay iDelay, at frac 1 returns iDelay+1.
+    inline float readCubic(float delay)
+    {
+        auto iDelay = (int)delay;
+        auto frac = delay - iDelay;
+        int RP = (wp - iDelay) & (COMB_SIZE - 1);
+        int Rm1 = (RP - 1) & (COMB_SIZE - 1);
+        int Rm2 = (RP - 2) & (COMB_SIZE - 1);
+        int Rp1 = (RP + 1) & (COMB_SIZE - 1);
+        return cubic_ipol(buffer[Rp1], buffer[RP], buffer[Rm1], buffer[Rm2], frac);
     }
 
     inline float readNaivelyAt(int posn)
