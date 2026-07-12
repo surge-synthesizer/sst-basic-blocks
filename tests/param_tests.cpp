@@ -1127,48 +1127,47 @@ TEST_CASE("Quanta-mode metadata is allocation-free", "[param][quanta]")
     using pmd::ParamMetaData;
 
     // A battery that exercises the allocating cases: long names (past SSO), unit formatting, and a
-    // map-formatted param with long labels. Returns numeric state so nothing is optimized away.
-    auto buildBattery = []() {
-        auto a = ParamMetaData()
-                     .asFloat()
-                     .withRange(-7.f, 7.f)
-                     .withName("A deliberately long oscillator parameter name past SSO")
-                     .withSemitoneFormatting();
-        auto b =
-            ParamMetaData()
-                .asInt()
-                .withRange(0, 4)
-                .withName("Character Selector With A Rather Long Name")
-                .withUnorderedMapFormatting({{0, "Warm"},
-                                             {1, "Normal"},
-                                             {2, "Bright"},
-                                             {3, "A fourth rather long-ish label"},
-                                             {4, "And a fifth, even longer descriptive label"}});
-        auto c = ParamMetaData().asPercent().withName("Feedback Amount, Coarse and Fine Together");
-        return a.maxVal + b.minVal + c.defaultVal + a.naturalToNormalized01(1.5f) +
-               b.normalized01ToNatural(0.5f);
+    // map-formatted param — parameterized by the name and label content. Returns numeric state so
+    // nothing is optimized away.
+    auto buildChain = [](std::string_view nm, std::string_view lbl) {
+        auto a =
+            ParamMetaData().asFloat().withRange(-7.f, 7.f).withName(nm).withSemitoneFormatting();
+        auto b = ParamMetaData().asInt().withRange(0, 2).withName(nm).withUnorderedMapFormatting(
+            {{0, lbl}, {1, lbl}, {2, lbl}});
+        return a.maxVal + b.minVal + a.naturalToNormalized01(1.5f) + b.normalized01ToNatural(0.5f);
     };
 
-    SECTION("full build allocates, quanta build does not")
-    {
-        // Sanity: the full build DOES allocate — proves the counter is live.
+    // Count heap allocations across one invocation of fn.
+    auto count = [](auto &&fn) {
         gAllocCount = 0;
         gAllocCounting = true;
-        volatile float sinkFull = buildBattery();
+        volatile float sink = fn();
         gAllocCounting = false;
-        (void)sinkFull;
-        REQUIRE(gAllocCount.load() > 0);
+        (void)sink;
+        return gAllocCount.load();
+    };
 
-        // The same body under a QuantaScope allocates nothing.
-        gAllocCount = 0;
-        gAllocCounting = true;
+    const char *longNm = "A deliberately long parameter name well past any SSO limit";
+    const char *longLbl = "A deliberately long enumerated label well past any SSO limit";
+
+    SECTION("quanta ignores string/map content; the full build allocates it")
+    {
+        // A quanta build skips the string/map stores, so its allocation count depends only on the
+        // chain's shape, not the content: long vs empty names/labels allocate identically. (We
+        // compare a delta rather than assert zero because MSVC's iterator-debug builds allocate a
+        // container proxy per std::vector/std::unordered_map member, unrelated to our stores.)
+        uint64_t quantaLong{0}, quantaEmpty{0};
         {
             ParamMetaData::QuantaScope qs;
-            volatile float sinkQuanta = buildBattery();
-            (void)sinkQuanta;
+            quantaLong = count([&] { return buildChain(longNm, longLbl); });
+            quantaEmpty = count([&] { return buildChain("", ""); });
         }
-        gAllocCounting = false;
-        REQUIRE(gAllocCount.load() == 0);
+        REQUIRE(quantaLong == quantaEmpty);
+
+        // The full build stores the long content, so it allocates strictly more than the quanta
+        // one.
+        auto fullLong = count([&] { return buildChain(longNm, longLbl); });
+        REQUIRE(fullLong > quantaLong);
     }
 
     SECTION("quanta keeps range/type, drops strings")
