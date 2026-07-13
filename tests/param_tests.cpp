@@ -29,10 +29,33 @@
 #include <cmath>
 #include <iostream>
 #include <type_traits>
+#include <atomic>
+#include <cstdlib>
+#include <new>
 
 #include "sst/basic-blocks/params/ParamMetadata.h"
 
 namespace pmd = sst::basic_blocks::params;
+
+// Heap-allocation instrumentation for the quanta-mode test below. Replacing the global operator
+// new lets us count allocations inside a tight window; it is otherwise a plain malloc wrapper, so
+// it does not change behaviour for the rest of the test binary.
+namespace
+{
+std::atomic<uint64_t> gAllocCount{0};
+bool gAllocCounting{false};
+} // namespace
+void *operator new(std::size_t n)
+{
+    if (gAllocCounting)
+        gAllocCount.fetch_add(1, std::memory_order_relaxed);
+    auto *p = std::malloc(n == 0 ? 1 : n);
+    if (!p)
+        throw std::bad_alloc();
+    return p;
+}
+void operator delete(void *p) noexcept { std::free(p); }
+void operator delete(void *p, std::size_t) noexcept { std::free(p); }
 TEST_CASE("Percent and BiPolar Percent", "[param]")
 {
     SECTION("Percent")
@@ -1096,5 +1119,101 @@ TEST_CASE("Short Name", "[param]")
     {
         auto p = pmd::ParamMetaData();
         REQUIRE(p.shortName.empty());
+    }
+}
+
+TEST_CASE("Quanta-mode metadata is allocation-free", "[param][quanta]")
+{
+    using pmd::ParamMetaData;
+
+    // A battery that exercises the allocating cases: long names (past SSO), unit formatting, and a
+    // map-formatted param — parameterized by the name and label content. Returns numeric state so
+    // nothing is optimized away.
+    auto buildChain = [](std::string_view nm, std::string_view lbl) {
+        auto a =
+            ParamMetaData().asFloat().withRange(-7.f, 7.f).withName(nm).withSemitoneFormatting();
+        auto b = ParamMetaData().asInt().withRange(0, 2).withName(nm).withUnorderedMapFormatting(
+            {{0, lbl}, {1, lbl}, {2, lbl}});
+        return a.maxVal + b.minVal + a.naturalToNormalized01(1.5f) + b.normalized01ToNatural(0.5f);
+    };
+
+    // Count heap allocations across one invocation of fn.
+    auto count = [](auto &&fn) {
+        gAllocCount = 0;
+        gAllocCounting = true;
+        volatile float sink = fn();
+        gAllocCounting = false;
+        (void)sink;
+        return gAllocCount.load();
+    };
+
+    const char *longNm = "A deliberately long parameter name well past any SSO limit";
+    const char *longLbl = "A deliberately long enumerated label well past any SSO limit";
+
+    SECTION("quanta ignores string/map content; the full build allocates it")
+    {
+        // A quanta build skips the string/map stores, so its allocation count depends only on the
+        // chain's shape, not the content: long vs empty names/labels allocate identically. (We
+        // compare a delta rather than assert zero because MSVC's iterator-debug builds allocate a
+        // container proxy per std::vector/std::unordered_map member, unrelated to our stores.)
+        uint64_t quantaLong{0}, quantaEmpty{0};
+        {
+            ParamMetaData::QuantaScope qs;
+            quantaLong = count([&] { return buildChain(longNm, longLbl); });
+            quantaEmpty = count([&] { return buildChain("", ""); });
+        }
+        REQUIRE(quantaLong == quantaEmpty);
+
+        // The full build stores the long content, so it allocates strictly more than the quanta
+        // one.
+        auto fullLong = count([&] { return buildChain(longNm, longLbl); });
+        REQUIRE(fullLong > quantaLong);
+    }
+
+    SECTION("quanta keeps range/type, drops strings")
+    {
+        auto full = ParamMetaData()
+                        .asInt()
+                        .withRange(0, 2)
+                        .withName("Character")
+                        .withUnorderedMapFormatting({{0, "Warm"}, {1, "Normal"}, {2, "Bright"}});
+        ParamMetaData q;
+        {
+            ParamMetaData::QuantaScope qs;
+            q = ParamMetaData()
+                    .asInt()
+                    .withRange(0, 2)
+                    .withName("Character")
+                    .withUnorderedMapFormatting({{0, "Warm"}, {1, "Normal"}, {2, "Bright"}});
+        }
+
+        REQUIRE(q.quantaOnly);
+        REQUIRE_FALSE(full.quantaOnly);
+        REQUIRE(q.minVal == full.minVal);
+        REQUIRE(q.maxVal == full.maxVal);
+        REQUIRE(q.type == full.type);
+        REQUIRE(q.name.empty());
+        REQUIRE(q.discreteValues.empty());
+        REQUIRE_FALSE(full.discreteValues.empty());
+        // Normalization matches despite the empty strings/map.
+        REQUIRE(q.naturalToNormalized01(1.f) == full.naturalToNormalized01(1.f));
+        REQUIRE(q.normalized01ToNatural(0.5f) == full.normalized01ToNatural(0.5f));
+
+        // String conversion declines gracefully on a quanta build (no display metadata), while
+        // the full build round-trips normally.
+        std::string err;
+        REQUIRE(full.valueToString(1.f).has_value());
+        REQUIRE_FALSE(q.valueToString(1.f).has_value());
+
+        auto pct = ParamMetaData().asPercent();
+        ParamMetaData pctQ;
+        {
+            ParamMetaData::QuantaScope qs;
+            pctQ = ParamMetaData().asPercent();
+        }
+        REQUIRE(pct.valueToString(0.5f).has_value());
+        REQUIRE_FALSE(pctQ.valueToString(0.5f).has_value());
+        REQUIRE(pct.valueFromString("50%", err).has_value());
+        REQUIRE_FALSE(pctQ.valueFromString("50%", err).has_value());
     }
 }
