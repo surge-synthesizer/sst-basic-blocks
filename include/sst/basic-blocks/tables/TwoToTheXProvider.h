@@ -27,6 +27,7 @@
 #ifndef INCLUDE_SST_BASIC_BLOCKS_TABLES_TWOTOTHEXPROVIDER_H
 #define INCLUDE_SST_BASIC_BLOCKS_TABLES_TWOTOTHEXPROVIDER_H
 
+#include <algorithm>
 #include <cmath>
 #include <iostream>
 
