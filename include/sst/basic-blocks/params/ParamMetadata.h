@@ -1413,12 +1413,36 @@ inline std::optional<int> ParamMetaData::noteNameToNoteNumber(const std::string 
 inline std::optional<float> ParamMetaData::valueFromString(std::string_view v, std::string &errMsg,
                                                            const FeatureState &fs) const
 {
+    // The UNORDERED_MAP forward direction is discreteValues[round(val)] -> label; to invert we
+    // scan the map for a matching label. Exact match first (strict inversion) then a
+    // case-insensitive fallback so typeins like "2 baRs" resolve to key "2 Bars".
+    auto fromUnorderedMap = [this, v]() -> std::optional<float> {
+        if (displayScale != UNORDERED_MAP)
+            return std::nullopt;
+        for (const auto &[k, label] : discreteValues)
+            if (label == v)
+                return (float)k;
+        auto lc = [](std::string_view s) {
+            std::string r(s);
+            std::transform(r.begin(), r.end(), r.begin(),
+                           [](unsigned char c) { return (char)std::tolower(c); });
+            return r;
+        };
+        auto target = lc(v);
+        for (const auto &[k, label] : discreteValues)
+            if (lc(label) == target)
+                return (float)k;
+        return std::nullopt;
+    };
+
     if (type == BOOL)
     {
         if (v == "On" || v == "on" || v == "1" || v == "true" || v == "True")
             return 1.f;
         if (v == "Off" || v == "off" || v == "0" || v == "false" || v == "False")
             return 0.f;
+        if (auto r = fromUnorderedMap())
+            return r;
     }
     if (type == INT)
     {
@@ -1445,6 +1469,9 @@ inline std::optional<float> ParamMetaData::valueFromString(std::string_view v, s
             if (res >= minVal && res <= maxVal)
                 return res;
         }
+        if (auto r = fromUnorderedMap())
+            return *r;
+
         return std::nullopt;
     }
 
@@ -1598,6 +1625,13 @@ inline std::optional<float> ParamMetaData::valueFromString(std::string_view v, s
              * (log2((v-svD)/svA) - svC)/svB = r
              */
             r = (log2((r - svD) / svA) - svC) / svB;
+
+            // This has a float rounding issue at the extrema
+            if (std::fabs(r - maxVal) < 1e-6 && r > maxVal)
+                return maxVal;
+            if (std::fabs(r - minVal) < 1e-6 && r < minVal)
+                return minVal;
+
             if (r < minVal || r > maxVal)
             {
                 errMsg = rangeMsg();
