@@ -934,6 +934,26 @@ TEST_CASE("Unordered Map Display", "[param]")
         REQUIRE(*(p.valueToString(2)) == "Fast");
         REQUIRE(!p.valueToString(3).has_value()); // out of map → nullopt
     }
+
+    SECTION("Inverts from string, case-insensitively")
+    {
+        auto p = pmd::ParamMetaData().asInt().withRange(-1, 3).withUnorderedMapFormatting(
+            {{-1, "Song Pos"}, {0, "Each Bar"}, {1, "2 Bars"}, {2, "4 Bars"}, {3, "On Start"}});
+
+        std::string em;
+        // strict inversion of the exact labels
+        REQUIRE(p.valueFromString("Song Pos", em).value_or(1000) == -1);
+        REQUIRE(p.valueFromString("2 Bars", em).value_or(1000) == 1);
+        REQUIRE(p.valueFromString("On Start", em).value_or(1000) == 3);
+
+        // case-insensitive typeins resolve to the same key
+        REQUIRE(p.valueFromString("2 baRs", em).value_or(1000) == 1);
+        REQUIRE(p.valueFromString("song pos", em).value_or(1000) == -1);
+        REQUIRE(p.valueFromString("EACH BAR", em).value_or(1000) == 0);
+
+        // unknown labels still fail
+        REQUIRE(!p.valueFromString("8 Bars", em).has_value());
+    }
 }
 
 TEST_CASE("Value To Alternate String", "[param]")
