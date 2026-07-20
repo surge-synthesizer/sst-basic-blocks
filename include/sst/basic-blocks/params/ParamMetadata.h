@@ -62,6 +62,8 @@
 #include <vector>
 #include <optional>
 #include <unordered_map>
+#include <initializer_list>
+#include <utility>
 #include <cassert>
 #include <cmath>
 #include <cstdint>
@@ -76,6 +78,30 @@ namespace sst::basic_blocks::params
 struct ParamMetaData
 {
     ParamMetaData() = default;
+
+    /*
+     * "Quanta" construction mode. While the ambient thread-local below is set, the string / map /
+     * vector setters skip their heap-touching stores, so a ParamMetaData constructed under it
+     * carries only its numeric range and type (min/max/kind) with no allocation. The audio thread
+     * uses this to read a morphing param's range inside process(); the same paramAt() body serves
+     * both the full (display) and quanta (range) builds. See .claude/pmd-non-allocating.md.
+     *
+     * The flag is thread-local so the main thread can build full metadata while the audio thread
+     * builds quanta concurrently. It seeds each default-constructed instance and rides the fluent
+     * chain by copy; only the root pmd() reads it.
+     */
+    static inline thread_local bool sConstructQuantaOnly{false};
+    bool quantaOnly{sConstructQuantaOnly};
+
+    // RAII: construct every ParamMetaData on this thread quanta-only for the scope's lifetime.
+    // Nestable and restoring. Warm the thread-local once on the audio thread before real time
+    // (a dlopen'd plugin's first thread-local access can allocate its TLS block).
+    struct QuantaScope
+    {
+        bool prev{sConstructQuantaOnly};
+        QuantaScope() { sConstructQuantaOnly = true; }
+        ~QuantaScope() { sConstructQuantaOnly = prev; }
+    };
 
     enum Type
     {
@@ -560,24 +586,29 @@ struct ParamMetaData
     }
     ParamMetaData asOnOffBool() { return asBool().withOnOffFormatting(); }
     ParamMetaData asStereoSwitch() { return asOnOffBool().withName("Stereo"); }
-    ParamMetaData withName(const std::string t)
+    ParamMetaData withName(std::string_view t)
     {
         auto res = *this;
-        res.name = t;
-        if (res.shortName.empty())
+        if (!res.quantaOnly)
+        {
+            res.name = t;
+            if (res.shortName.empty())
+                res.shortName = t;
+        }
+        return res;
+    }
+    ParamMetaData withShortName(std::string_view t)
+    {
+        auto res = *this;
+        if (!res.quantaOnly)
             res.shortName = t;
         return res;
     }
-    ParamMetaData withShortName(const std::string t)
+    ParamMetaData withGroupName(std::string_view t)
     {
         auto res = *this;
-        res.shortName = t;
-        return res;
-    }
-    ParamMetaData withGroupName(const std::string t)
-    {
-        auto res = *this;
-        res.groupName = t;
+        if (!res.quantaOnly)
+            res.groupName = t;
         return res;
     }
     ParamMetaData withID(const uint32_t id)
@@ -694,7 +725,8 @@ struct ParamMetaData
         res.svB = B;
         res.svC = C;
         res.svD = D;
-        res.unit = units;
+        if (!res.quantaOnly)
+            res.unit = units;
         res.displayScale = A_TWO_TO_THE_B;
         res.supportsStringConversion = true;
         return res;
@@ -712,7 +744,8 @@ struct ParamMetaData
         res.svB = B / ln2;
         res.svC = C / ln2;
         res.svD = D;
-        res.unit = units;
+        if (!res.quantaOnly)
+            res.unit = units;
         res.displayScale = A_TWO_TO_THE_B;
         res.supportsStringConversion = true;
         return res;
@@ -731,14 +764,15 @@ struct ParamMetaData
     }
 
     ParamMetaData withScaledOffsetExpFormatting(float A, float B, float C, float D,
-                                                const std::string &units)
+                                                std::string_view units)
     {
         auto res = *this;
         res.svA = A;
         res.svB = B;
         res.svC = C;
         res.svD = D;
-        res.unit = units;
+        if (!res.quantaOnly)
+            res.unit = units;
         res.displayScale = SCALED_OFFSET_EXP;
         res.supportsStringConversion = true;
         return res;
@@ -762,13 +796,14 @@ struct ParamMetaData
     }
     ParamMetaData withLog2SecondsFormatting() { return withATwoToTheBFormatting(1, 1, "s"); }
 
-    ParamMetaData withLinearScaleFormatting(std::string units, float scale = 1.f,
+    ParamMetaData withLinearScaleFormatting(std::string_view units, float scale = 1.f,
                                             float offset = 0.f)
     {
         auto res = *this;
         res.svA = scale;
         res.svB = offset;
-        res.unit = units;
+        if (!res.quantaOnly)
+            res.unit = units;
         res.displayScale = LINEAR;
         res.supportsStringConversion = true;
         return res;
@@ -782,7 +817,8 @@ struct ParamMetaData
         res.svB = 0.f;
         res.displayScale = LINEAR;
         res.supportsStringConversion = true;
-        res.unit = "harmonic";
+        if (!res.quantaOnly)
+            res.unit = "harmonic";
         res.ordinalNumbering = true;
         return res;
     }
@@ -795,14 +831,15 @@ struct ParamMetaData
             .withIntegerQuantization()
             .withFeature(Features::ALLOW_TUNING_FRACTION_TYPEINS);
     }
-    ParamMetaData withLogarithmicFormating(std::string units, float scale = 1,
+    ParamMetaData withLogarithmicFormating(std::string_view units, float scale = 1,
                                            float basis = std::exp(0), float offset = 0)
     {
         auto res = *this;
         res.svA = scale;
         res.svB = basis;
         res.svC = offset;
-        res.unit = units;
+        if (!res.quantaOnly)
+            res.unit = units;
         res.displayScale = LOGARITHMIC;
         res.supportsStringConversion = true;
         return res;
@@ -811,7 +848,8 @@ struct ParamMetaData
     ParamMetaData withMidiNoteFormatting()
     {
         auto res = *this;
-        res.unit = "semitones";
+        if (!res.quantaOnly)
+            res.unit = "semitones";
         res.displayScale = MIDI_NOTE;
         res.supportsStringConversion = true;
         return res;
@@ -822,7 +860,8 @@ struct ParamMetaData
                                              bool scanAndInitParamRange = false)
     {
         auto res = *this;
-        res.discreteValues = map;
+        if (!res.quantaOnly)
+            res.discreteValues = map;
         res.displayScale = UNORDERED_MAP;
         res.supportsStringConversion = true;
         if (scanAndInitParamRange)
@@ -837,6 +876,37 @@ struct ParamMetaData
             res.minVal = valmin;
             res.maxVal = valmax;
         }
+        res.type = INT;
+        return res;
+    }
+
+    // Braced-literal form. The initializer_list backing array is automatic storage and the values
+    // are string_views onto static literals, so the *argument* allocates nothing - which lets a
+    // quanta build (map store skipped below) stay heap-free. Braced calls prefer this overload over
+    // the unordered_map one by the list-initialization rule; callers passing a map variable still
+    // bind the overload above. Keep the numeric range/type in sync with it.
+    ParamMetaData
+    withUnorderedMapFormatting(std::initializer_list<std::pair<int, std::string_view>> vals,
+                               bool scanAndInitParamRange = false)
+    {
+        auto res = *this;
+        res.displayScale = UNORDERED_MAP;
+        res.supportsStringConversion = true;
+        if (scanAndInitParamRange)
+        {
+            auto valmax = std::numeric_limits<int>::min();
+            auto valmin = std::numeric_limits<int>::max();
+            for (const auto &[k, sv] : vals)
+            {
+                valmax = std::max(k, valmax);
+                valmin = std::min(k, valmin);
+            }
+            res.minVal = valmin;
+            res.maxVal = valmax;
+        }
+        if (!res.quantaOnly)
+            for (const auto &[k, sv] : vals)
+                res.discreteValues[k] = std::string(sv);
         res.type = INT;
         return res;
     }
@@ -856,14 +926,16 @@ struct ParamMetaData
     ParamMetaData withUnit(std::string_view s)
     {
         auto res = *this;
-        res.unit = s;
+        if (!res.quantaOnly)
+            res.unit = s;
         return res;
     }
 
     ParamMetaData withUnitSeparator(std::string_view s)
     {
         auto res = *this;
-        res.unitSeparator = s;
+        if (!res.quantaOnly)
+            res.unitSeparator = s;
         return res;
     }
 
@@ -885,35 +957,37 @@ struct ParamMetaData
         }
         return res;
     }
-    ParamMetaData withCustomMaxDisplay(const std::string &v)
+    ParamMetaData withCustomMaxDisplay(std::string_view v)
     {
         return withCustomValueDisplay(v, maxVal, 1e-6);
     }
 
-    ParamMetaData withCustomMinDisplay(const std::string &v)
+    ParamMetaData withCustomMinDisplay(std::string_view v)
     {
         return withCustomValueDisplay(v, minVal, 1e-6);
     }
-    ParamMetaData withCustomDefaultDisplay(const std::string &v)
+    ParamMetaData withCustomDefaultDisplay(std::string_view v)
     {
         return withCustomValueDisplay(v, defaultVal);
     }
 
-    ParamMetaData withCustomValueDisplay(const std::string &v, float val, float tol = 0.005)
+    ParamMetaData withCustomValueDisplay(std::string_view v, float val, float tol = 0.005)
     {
         auto res = withValueLabelRemoved(val);
-        res.customValueLabelsWithAccuracy.emplace_back(v, val, tol);
+        if (!res.quantaOnly)
+            res.customValueLabelsWithAccuracy.emplace_back(std::string(v), val, tol);
         return res;
     }
 
     ParamMetaData withDisplayRescalingBelow(const float cutoff, const float rescale,
-                                            const std::string &units)
+                                            std::string_view units)
     {
         auto res = *this;
         res.alternateScaleWhen = SCALE_BELOW;
         res.alternateScaleCutoff = cutoff;
         res.alternateScaleRescaling = rescale;
-        res.alternateScaleUnits = units;
+        if (!res.quantaOnly)
+            res.alternateScaleUnits = units;
         res.alternateScaleIsDefaultFromString = false;
         return res;
     }
@@ -949,13 +1023,14 @@ struct ParamMetaData
     }
 
     ParamMetaData withDisplayRescalingAbove(const float cutoff, const float rescale,
-                                            const std::string &units)
+                                            std::string_view units)
     {
         auto res = *this;
         res.alternateScaleWhen = SCALE_ABOVE;
         res.alternateScaleCutoff = cutoff;
         res.alternateScaleRescaling = rescale;
-        res.alternateScaleUnits = units;
+        if (!res.quantaOnly)
+            res.alternateScaleUnits = units;
         return res;
     }
 
@@ -1161,6 +1236,9 @@ struct ParamMetaData
 inline std::optional<std::string> ParamMetaData::valueToString(float val,
                                                                const FeatureState &fs) const
 {
+    // A quanta-only build carries no display strings, so it cannot render a value.
+    if (quantaOnly)
+        return std::nullopt;
     if (type == BOOL)
     {
         for (auto &v : customValueLabelsWithAccuracy)
@@ -1435,6 +1513,12 @@ inline std::optional<float> ParamMetaData::valueFromString(std::string_view v, s
         return std::nullopt;
     };
 
+    // A quanta-only build carries no display metadata, so it cannot parse a value.
+    if (quantaOnly)
+    {
+        errMsg = "no display metadata";
+        return std::nullopt;
+    }
     if (type == BOOL)
     {
         if (v == "On" || v == "on" || v == "1" || v == "true" || v == "True")

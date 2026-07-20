@@ -41,6 +41,7 @@
 #include "sst/basic-blocks/mechanics/block-ops.h"
 #include "sst/basic-blocks/tables/SincTableProvider.h"
 #include "sst/basic-blocks/dsp/SSESincDelayLine.h"
+#include "sst/basic-blocks/dsp/OnePoles.h"
 #include "sst/basic-blocks/dsp/FollowSlewAndSmooth.h"
 #include "sst/basic-blocks/dsp/OscillatorDriftUnisonCharacter.h"
 
@@ -1487,4 +1488,165 @@ TEST_CASE("Lag Collection Custom", "[dsp]")
     REQUIRE(c.updates[2] == 2);
     c.snapAllActiveToTarget();
     REQUIRE(c.activeSet.activeCount == 0);
+}
+
+TEST_CASE("OnePole family", "[dsp]")
+{
+    namespace bbd = sst::basic_blocks::dsp;
+    constexpr float sr = 48000.f;
+
+    // Steady-state peak gain of a unit-amplitude sine at f through a stepper.
+    auto sineGain = [&](auto &filt, float f) {
+        double w = 2.0 * M_PI * f / sr;
+        float peak = 0.f;
+        const int warm = 20000, meas = 20000;
+        for (int n = 0; n < warm + meas; ++n)
+        {
+            float y = filt.step((float)std::sin(w * n));
+            if (n >= warm)
+            {
+                auto ay = std::fabs(y);
+                if (ay > peak)
+                    peak = ay;
+            }
+        }
+        return peak;
+    };
+
+    SECTION("DCBlocker: step() matches filter() and removes DC")
+    {
+        constexpr uint32_t bs = 8;
+        bbd::DCBlocker<bs> viaFilter, viaStep;
+        float in[bs], out[bs];
+        for (uint32_t i = 0; i < bs; ++i)
+            in[i] = 0.3f * i - 0.5f;
+        viaFilter.filter(in, out);
+        bool same = true;
+        for (uint32_t i = 0; i < bs; ++i)
+            same = same && (out[i] == viaStep.step(in[i]));
+        REQUIRE(same);
+
+        bbd::DCBlocker<bs> dc;
+        float y = 0.f;
+        for (int i = 0; i < 200000; ++i)
+            y = dc.step(1.0f);
+        REQUIRE(std::fabs(y) < 1e-3f);
+    }
+
+    SECTION("OnePoleLP: unity DC gain, -3dB at fc, monotonic rolloff")
+    {
+        bbd::OnePoleLP lp;
+        lp.setCutoff(1000.f, sr);
+
+        lp.reset();
+        float y = 0.f;
+        for (int i = 0; i < 100000; ++i)
+            y = lp.step(1.0f);
+        REQUIRE(y == Approx(1.0f).margin(1e-4));
+
+        lp.reset();
+        auto gFc = sineGain(lp, 1000.f);
+        REQUIRE(gFc == Approx(0.70710678f).margin(0.02f));
+
+        lp.reset();
+        auto gLow = sineGain(lp, 100.f);
+        lp.reset();
+        auto gHigh = sineGain(lp, 8000.f);
+        REQUIRE(gLow == Approx(1.0f).margin(0.02f));
+        REQUIRE(gLow > gFc);
+        REQUIRE(gFc > gHigh);
+    }
+
+    SECTION("OnePoleHP: removes DC, -3dB at fc, passes highs")
+    {
+        bbd::OnePoleHP hp;
+        hp.setCutoff(1000.f, sr);
+
+        hp.reset();
+        float y = 0.f;
+        for (int i = 0; i < 100000; ++i)
+            y = hp.step(1.0f);
+        REQUIRE(std::fabs(y) < 1e-4f);
+
+        hp.reset();
+        auto gFc = sineGain(hp, 1000.f);
+        REQUIRE(gFc == Approx(0.70710678f).margin(0.02f));
+
+        hp.reset();
+        auto gHigh = sineGain(hp, 12000.f);
+        REQUIRE(gHigh > 0.9f);
+        REQUIRE(gHigh > gFc);
+    }
+
+    SECTION("reset() equals a fresh instance")
+    {
+        bbd::OnePoleLP used;
+        used.setCutoff(2000.f, sr);
+        for (int i = 0; i < 5000; ++i)
+            used.step((float)std::sin(0.03 * i));
+        used.reset();
+
+        bbd::OnePoleLP fresh;
+        fresh.setCutoff(2000.f, sr);
+
+        bool same = true;
+        for (int i = 0; i < 2000; ++i)
+        {
+            float x = (float)std::sin(0.017 * i + 0.3);
+            same = same && (used.step(x) == fresh.step(x));
+        }
+        REQUIRE(same);
+    }
+}
+
+TEST_CASE("Sinc Delay Line interpolated reads", "[dsp]")
+{
+    namespace bbd = sst::basic_blocks::dsp;
+    sst::basic_blocks::tables::SurgeSincTableProvider st;
+
+    SECTION("ramp: linear and cubic exact, zoh truncates to the integer delay")
+    {
+        float val = 0.f;
+        const float dRamp = 0.01f;
+        bbd::SSESincDelayLine<4096> dl(st.sinctable);
+        for (int i = 0; i < 10000; ++i)
+        {
+            dl.write(val);
+            val += dRamp;
+        }
+        for (int i = 0; i < 4000; ++i)
+        {
+            auto cval = val - dRamp; // most recently written value
+            for (double D : {174.3, 1732.4, 256.0})
+            {
+                // a ramp is linear, so both interpolators reproduce it exactly
+                REQUIRE(dl.readLinear((float)D) == Approx(cval - D * dRamp).epsilon(1e-3));
+                REQUIRE(dl.readCubic((float)D) == Approx(cval - D * dRamp).epsilon(1e-3));
+            }
+            // zoh holds the exact integer-delay sample, reading one sample longer
+            // than linear (readZOH(D) == readLinear(D+1) at integer D)
+            REQUIRE(dl.readZOH(256.0f) == Approx(cval - 257.0 * dRamp).epsilon(1e-3));
+            dl.write(val);
+            val += dRamp;
+        }
+    }
+
+    SECTION("cubic is closer than linear on a curved signal")
+    {
+        bbd::SSESincDelayLine<4096> dl(st.sinctable);
+        const double w = 0.05; // smooth sine, ~125-sample period
+        const int N = 6000;
+        for (int k = 0; k < N; ++k)
+            dl.write((float)std::sin(w * k));
+
+        // read(D) returns the value D samples back from the most recent write
+        double sumLin = 0, sumCub = 0;
+        for (double D = 100.25; D < 200.0; D += 1.0)
+        {
+            double truth = std::sin(w * (N - 1 - D));
+            sumLin += std::fabs(dl.readLinear((float)D) - truth);
+            sumCub += std::fabs(dl.readCubic((float)D) - truth);
+        }
+        REQUIRE(sumCub < sumLin);
+    }
 }
