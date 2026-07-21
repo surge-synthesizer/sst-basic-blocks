@@ -123,6 +123,7 @@ struct ParamMetaData
     float minVal{0.f}, maxVal{1.f}, defaultVal{0.f};
     bool canExtend{false}, canDeform{false}, canAbsolute{false}, canTemposync{false},
         canDeactivate{false};
+    bool deactivateByDefault{false}; // a deactivatable param whose reset/init state is deactivated
     float temposyncMultiplier{1.f};
     tables::temposync::Flavor temposyncFlavor{tables::temposync::Flavor::TWO_TO_THE};
     bool temposyncZeroStage{false}; // ZERO_ONE only: index 0 means a true 0 s
@@ -700,10 +701,11 @@ struct ParamMetaData
         res.canTemposync = b;
         return res;
     }
-    ParamMetaData deactivatable(bool b = true)
+    ParamMetaData deactivatable(bool b = true, bool byDefault = false)
     {
         auto res = *this;
         res.canDeactivate = b;
+        res.deactivateByDefault = byDefault;
         return res;
     }
 
