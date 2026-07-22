@@ -146,6 +146,90 @@ TEST_CASE("lipol_sse basic", "[dsp]")
     }
 }
 
+TEST_CASE("SimpleLerp", "[dsp]")
+{
+    using sst::basic_blocks::dsp::SimpleLerp;
+
+    SECTION("fill ramps start->end with the end-of-block convention")
+    {
+        constexpr int bs{16};
+        const float start{0.2f}, end{0.6f};
+        float where alignas(16)[bs];
+        SimpleLerp<bs>::fill(start, end, where);
+        for (int i = 0; i < bs; ++i)
+            REQUIRE(where[i] == Approx(start + (end - start) / bs * (i + 1)).margin(1e-5));
+        REQUIRE(where[bs - 1] == Approx(end).margin(1e-5)); // last sample lands on end
+    }
+
+    SECTION("fill works for a non-power-of-two block")
+    {
+        constexpr int bs{6};
+        const float start{-0.3f}, end{0.9f};
+        float where alignas(16)[bs];
+        SimpleLerp<bs>::fill(start, end, where);
+        for (int i = 0; i < bs; ++i)
+            REQUIRE(where[i] == Approx(start + (end - start) / bs * (i + 1)).margin(1e-5));
+    }
+
+    SECTION("multiplyAccumulate adds ramp*src into dst")
+    {
+        constexpr int bs{32};
+        const float start{0.1f}, end{0.7f};
+        float src alignas(16)[bs], dst alignas(16)[bs], seed alignas(16)[bs];
+        for (int i = 0; i < bs; ++i)
+        {
+            src[i] = std::sin(i * 0.2 * M_PI);
+            seed[i] = 0.01f * i - 0.1f; // pre-existing content it must accumulate onto
+            dst[i] = seed[i];
+        }
+        SimpleLerp<bs>::multiplyAccumulate(start, end, src, dst);
+        for (int i = 0; i < bs; ++i)
+        {
+            auto ramp = start + (end - start) / bs * (i + 1);
+            REQUIRE(dst[i] == Approx(seed[i] + ramp * src[i]).margin(1e-5));
+        }
+    }
+
+    SECTION("multiply writes ramp*src into dst (no accumulate)")
+    {
+        constexpr int bs{8};
+        const float start{0.2f}, end{0.6f};
+        float src alignas(16)[bs], dst alignas(16)[bs];
+        for (int i = 0; i < bs; ++i)
+        {
+            src[i] = std::sin(i * 0.2 * M_PI);
+            dst[i] = 12345.f; // overwritten, not accumulated
+        }
+        SimpleLerp<bs>::multiply(start, end, src, dst);
+        for (int i = 0; i < bs; ++i)
+        {
+            auto ramp = start + (end - start) / bs * (i + 1);
+            REQUIRE(dst[i] == Approx(ramp * src[i]).margin(1e-5));
+        }
+    }
+
+    SECTION("a flat ramp is a plain constant scale (steady-state identity)")
+    {
+        // start == end must reduce to a scalar multiply — the property the block-rate mixer relies
+        // on so a constant parameter renders identically to the pre-lerp code.
+        constexpr int bs{16};
+        const float level{0.42f};
+        float src alignas(16)[bs], dst alignas(16)[bs], line alignas(16)[bs];
+        for (int i = 0; i < bs; ++i)
+        {
+            src[i] = std::sin(i * 0.37);
+            dst[i] = 0.f;
+        }
+        SimpleLerp<bs>::fill(level, level, line);
+        SimpleLerp<bs>::multiplyAccumulate(level, level, src, dst);
+        for (int i = 0; i < bs; ++i)
+        {
+            REQUIRE(line[i] == Approx(level).margin(1e-6));         // ramp is flat
+            REQUIRE(dst[i] == Approx(level * src[i]).margin(1e-6)); // == plain scalar multiply
+        }
+    }
+}
+
 TEST_CASE("lipol_sse multiply_block", "[dsp]")
 {
     SECTION("Block Size 16")
