@@ -321,6 +321,47 @@ template <int maxBlockSize, bool first_run_checks = true> struct alignas(16) lip
         current = target;
     }
 };
+
+/*
+ * SimpleLerp: a stateless, block-size-templated linear ramp. Unlike lipol / lipol_sse it holds no
+ * per-instance line — you pass the two endpoints on each call and the fixed-N loop is left for the
+ * compiler to unroll and vectorize (each sample is an independent `start + dv*(s+1)`, so there is
+ * no loop-carried += to block the vectorizer). `end` is the value the final sample lands on
+ * (end-of-block convention): feed the previous block's value as `start` and this block's as `end`
+ * to ramp a per-block parameter with no zipper. The endpoints live in whatever space you hand it
+ * (e.g. cubed), so you can lerp the cube rather than cubing the lerp. blockSize need not be a power
+ * of two.
+ */
+template <int blockSize> struct SimpleLerp
+{
+    static_assert(blockSize > 0);
+
+    // dst[s] = start + (end - start) * (s + 1) / blockSize, s in [0, blockSize)
+    static inline void fill(float start, float end, float *__restrict dst)
+    {
+        const float dv = (end - start) / blockSize;
+        for (int s = 0; s < blockSize; ++s)
+            dst[s] = start + dv * (s + 1);
+    }
+
+    // dst[s] += ramp(s) * src[s]
+    static inline void multiplyAccumulate(float start, float end, const float *__restrict src,
+                                          float *__restrict dst)
+    {
+        const float dv = (end - start) / blockSize;
+        for (int s = 0; s < blockSize; ++s)
+            dst[s] += (start + dv * (s + 1)) * src[s];
+    }
+
+    // dst[s] = ramp(s) * src[s]
+    static inline void multiply(float start, float end, const float *__restrict src,
+                                float *__restrict dst)
+    {
+        const float dv = (end - start) / blockSize;
+        for (int s = 0; s < blockSize; ++s)
+            dst[s] = (start + dv * (s + 1)) * src[s];
+    }
+};
 } // namespace sst::basic_blocks::dsp
 
 #endif // SHORTCIRCUITXT_BLOCKINTERPOLATORS_H
