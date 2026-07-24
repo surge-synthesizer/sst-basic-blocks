@@ -51,6 +51,12 @@ void fromClapTransport(Transport &that, const clap_event_transport_t *t)
             that.hostTimeInBeats = 1.0 * t->song_pos_beats / CLAP_BEATTIME_FACTOR;
             that.lastBarStartInBeats = 1.0 * t->bar_start / CLAP_BEATTIME_FACTOR;
             that.timeInBeats = that.hostTimeInBeats;
+
+            if (t->flags & CLAP_TRANSPORT_HAS_SECONDS_TIMELINE)
+            {
+                that.hostTimeInSeconds = 1.0 * t->song_pos_seconds / CLAP_SECTIME_FACTOR;
+                that.timeInSeconds = that.hostTimeInSeconds;
+            }
         }
 
         that.status = Transport::STOPPED;

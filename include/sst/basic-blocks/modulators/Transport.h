@@ -62,6 +62,14 @@ struct Transport
     double hostTimeInBeats{0};
     double timeInBeats{0};
     double lastBarStartInBeats{0};
+
+    /*
+     * The same contract as the beats pair above, but on the seconds
+     * timeline. Needed by modulators whose rate is in Hz rather than
+     * in beats, so they can lock phase to song position.
+     */
+    double hostTimeInSeconds{0};
+    double timeInSeconds{0};
 };
 } // namespace sst::basic_blocks::modulators
 #endif // TRANSPORT_H
