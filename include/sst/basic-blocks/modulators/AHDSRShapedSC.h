@@ -36,7 +36,17 @@
 
 namespace sst::basic_blocks::modulators
 {
-template <typename SRProvider, int BLOCK_SIZE, typename RangeProvider = TenSecondRange>
+/*
+ * aShapePositive picks the sign convention of the attack stage's shape. The kernel treats a
+ * positive shape as convex ("mostly 0" — the stage hugs its starting value). For the rising attack
+ * that means a positive shape pushes the attack toward 0, while a positive decay/release shape
+ * pushes those falling stages toward 1 (via their 1-kernel inversion). Setting aShapePositive =
+ * true flips the attack shape internally so a positive shape pushes *every* stage toward 1, a
+ * consistent "+shape => fuller segment" feel. Default false preserves the historical
+ * per-stage-asymmetric convention.
+ */
+template <typename SRProvider, int BLOCK_SIZE, typename RangeProvider = TenSecondRange,
+          bool aShapePositive = false>
 struct AHDSRShapedSC : DiscreteStagesEnvelope<BLOCK_SIZE, RangeProvider>
 {
     using base_t = DiscreteStagesEnvelope<BLOCK_SIZE, RangeProvider>;
@@ -410,7 +420,11 @@ struct AHDSRShapedSC : DiscreteStagesEnvelope<BLOCK_SIZE, RangeProvider>
             }
             else
             {
-                target = kernel(phase, ashape) * (1 - attackStartValue) + attackStartValue;
+                // aShapePositive flips the attack shape so a positive shape pushes this rising
+                // stage toward 1 (see the class comment). Attack is the only rising stage, so it is
+                // the only one that needs the flip.
+                const float ash = aShapePositive ? -ashape : ashape;
+                target = kernel(phase, ash) * (1 - attackStartValue) + attackStartValue;
             }
         }
         break;
@@ -496,7 +510,7 @@ struct AHDSRShapedSC : DiscreteStagesEnvelope<BLOCK_SIZE, RangeProvider>
 
         if (this->current == BLOCK_SIZE)
         {
-            processCore(0.f, a, h, d, s, r, ashape, rshape, dshape, gateActive, true, 1.0,
+            processCore(0.f, a, h, d, s, r, ashape, dshape, rshape, gateActive, true, 1.0,
                         isTemposync, temposyncRatio);
         }
 
