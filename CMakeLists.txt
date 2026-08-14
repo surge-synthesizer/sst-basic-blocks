@@ -50,6 +50,7 @@ if (${SST_BASIC_BLOCKS_BUILD_TESTS})
             tests/block_tests.cpp
             tests/table_tests.cpp
             tests/param_tests.cpp
+            tests/string_ops_tests.cpp
             tests/run_envelopes.cpp
             tests/modulator_tests.cpp
             tests/mod_matrix_tests.cpp
