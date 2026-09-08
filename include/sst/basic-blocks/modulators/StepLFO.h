@@ -28,6 +28,7 @@
 #define INCLUDE_SST_BASIC_BLOCKS_MODULATORS_STEPLFO_H
 
 #include <array>
+#include <algorithm>
 #include "Transport.h"
 #include "sst/basic-blocks/dsp/RNG.h"
 #include "sst/basic-blocks/tables/EqualTuningProvider.h"
@@ -81,9 +82,10 @@ template <size_t blockSize> struct StepLFO
         }
 
         // move state one step ahead to reflect the lag in the interpolation
-        state = (state + 1) % storage->repeat;
+        auto repeat = std::max((int)storage->repeat, 1);
+        state = (state + 1) % repeat;
         for (int i = 0; i < 4; i++)
-            wf_history[i] = storage->data[((state + storage->repeat - i) % storage->repeat) & 0x1f];
+            wf_history[i] = storage->data[((state + repeat - i) % repeat) & 0x1f];
 
         UpdatePhaseIncrement(rate, tempoSync);
     }
@@ -125,9 +127,10 @@ template <size_t blockSize> struct StepLFO
         phase = 0;
 
         // Again a 1 step lag in interpolation
-        state = (state + 1) % storage->repeat;
+        auto repeat = std::max((int)storage->repeat, 1);
+        state = (state + 1) % repeat;
         for (int i = 0; i < 4; i++)
-            wf_history[i] = storage->data[((state + storage->repeat - i) % storage->repeat) & 0x1f];
+            wf_history[i] = storage->data[((state + repeat - i) % repeat) & 0x1f];
     }
 
     void setPhaseTo(int step, float ph)
