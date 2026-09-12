@@ -86,6 +86,7 @@ template <typename Impl, typename SmoothingStrategy = LagSmoothingStrategy> stru
         this->sampleRateInv = 1.0 / sampleRate;
         blep = signalsmith::blep::EllipticBlep<float>(
             CoeffHolder::getPoleDataForSampleRate(sampleRate));
+        onsetChargePending = true;
     }
 
     /**
@@ -97,6 +98,7 @@ template <typename Impl, typename SmoothingStrategy = LagSmoothingStrategy> stru
         allpass.reset();
         phase = 0;
         sphase = 0;
+        onsetChargePending = true;
         SmoothingStrategy::resetFirstRun(dphase);
         SmoothingStrategy::resetFirstRun(sratio);
     }
@@ -171,6 +173,7 @@ template <typename Impl, typename SmoothingStrategy = LagSmoothingStrategy> stru
     signalsmith::blep::EllipticBlep<float> blep;
     signalsmith::blep::EllipticBlepAllpass<float> allpass;
     float phase = 0, sphase = 0;
+    bool onsetChargePending{true};
 
     typename SmoothingStrategy::smoothValue_t sratio, dphase;
 
@@ -349,10 +352,22 @@ struct EBApproxSemiSin : EBOscillatorBase<EBApproxSemiSin<SmoothingStrategy>, Sm
         auto freq = SmoothingStrategy::getValue(this->dphase);
         auto srval = SmoothingStrategy::getValue(this->sratio);
 
+        auto dphase = srval * freq;
+        // sync hands sphase back at the phase turnaround mid flight, so we only get
+        // floor(srval) turnarounds a cycle however fast sphase itself is running
+        auto turnsPerSample = std::floor(srval) * freq;
+
+        if (this->onsetChargePending)
+            chargeOnset(dphase, turnsPerSample);
+
         this->phase += freq;
         this->sphase += freq * srval;
 
         this->blep.step();
+
+        // take the mean back out of the turnaround train, so the blep's slow poles never
+        // see a DC term to charge on however fast the pitch is moving
+        this->blep.add(-(float)(M_PI * M_PI * dphase * turnsPerSample), 2);
 
         if (this->sphase >= 1)
         {
@@ -387,6 +402,25 @@ struct EBApproxSemiSin : EBOscillatorBase<EBApproxSemiSin<SmoothingStrategy>, Sm
 
         return result;
     }
+    /*
+     * Unlike the other shapes every turnaround kicks the derivative the same way, so from
+     * cold the blep's slow poles have to charge on a train they only ever see one side of.
+     * Left alone that rings up as f^2 over the first hundred milliseconds of a note,
+     * inaudible down low and deafening up at C9. Start them where they would have settled,
+     * counting the mean removal step() feeds them for the rest of the note.
+     */
+    void chargeOnset(double dphase, double turnsPerSample)
+    {
+        this->onsetChargePending = false;
+
+        if (dphase <= 0 || turnsPerSample <= 0)
+            return;
+
+        this->blep.addPeriodic(M_PI * M_PI * dphase, 2, 1.0 / turnsPerSample,
+                               this->sphase / dphase);
+        this->blep.addConstant(-(float)(M_PI * M_PI * dphase * turnsPerSample), 2);
+    }
+
     static float valueAt(float sphase)
     {
         float sign{1.f};
