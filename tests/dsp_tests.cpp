@@ -44,6 +44,7 @@
 #include "sst/basic-blocks/dsp/OnePoles.h"
 #include "sst/basic-blocks/dsp/FollowSlewAndSmooth.h"
 #include "sst/basic-blocks/dsp/OscillatorDriftUnisonCharacter.h"
+#include "sst/basic-blocks/dsp/EllipticBlepOscillators.h"
 
 TEST_CASE("lipol_sse basic", "[dsp]")
 {
@@ -1733,4 +1734,137 @@ TEST_CASE("Sinc Delay Line interpolated reads", "[dsp]")
         }
         REQUIRE(sumCub < sumLin);
     }
+}
+TEST_CASE("Elliptic Blep Oscillator Onset", "[dsp]")
+{
+    namespace bbd = sst::basic_blocks::dsp;
+    using strat_t = bbd::BlockInterpSmoothingStrategy<16>;
+
+    // peak of the first onsetN samples, and of a fully settled second afterwards
+    auto onsetAndSteady = [](auto &osc, double sampleRate, double freq, int onsetN) {
+        osc.setSampleRate(sampleRate);
+        osc.setFrequency(freq);
+        osc.setSyncRatio(1.f);
+
+        double onset{0}, steady{0};
+        for (int i = 0; i < onsetN; ++i)
+            onset = std::max(onset, (double)std::fabs(osc.step()));
+        for (int i = 0; i < (int)sampleRate / 2; ++i)
+            osc.step();
+        for (int i = 0; i < (int)sampleRate; ++i)
+            steady = std::max(steady, (double)std::fabs(osc.step()));
+        return std::make_pair(onset, steady);
+    };
+
+    // the semisine turns around once a cycle and always in the same direction, so
+    // its second order corrections all push the blep's slow poles the same way. from
+    // a cold start those have to charge, which used to ring up as f^2
+    SECTION("semisine does not blow up at high frequency")
+    {
+        for (double sampleRate : {44100., 48000., 96000.})
+        {
+            for (double freq : {110., 440., 1760., 4186., 8372., 16744.})
+            {
+                bbd::EBApproxSemiSin<strat_t> osc;
+                auto [onset, steady] = onsetAndSteady(osc, sampleRate, freq, 4000);
+                INFO("semisine sr=" << sampleRate << " freq=" << freq << " onset=" << onset
+                                    << " steady=" << steady);
+                REQUIRE(onset < 1.1 * std::max(steady, 1.0));
+            }
+        }
+    }
+
+    // a pitch LFO re-charges those poles faster than their ~100ms settling time, so the
+    // onset charge alone is not enough; the mean has to come out of the train every sample
+    SECTION("semisine survives a fast pitch sweep")
+    {
+        for (double lfoHz : {0.5, 2., 8., 30.})
+        {
+            bbd::EBApproxSemiSin<strat_t> osc;
+            osc.setSampleRate(96000);
+            osc.setFrequency(262);
+            osc.setSyncRatio(1.f);
+
+            double peak{0};
+            for (int i = 0; i < 96000 * 2; ++i)
+            {
+                if (i % 16 == 0)
+                {
+                    // five octaves either side of 262Hz, so up past 8kHz
+                    auto ph = std::sin(2 * M_PI * lfoHz * i / 96000.);
+                    osc.setFrequency(262 * std::pow(2., 2.5 * (ph + 1.)));
+                }
+                peak = std::max(peak, (double)std::fabs(osc.step()));
+            }
+            INFO("semisine lfo=" << lfoHz << "Hz peak=" << peak);
+            REQUIRE(peak < 1.5);
+        }
+    }
+
+    SECTION("the other waveforms stay bounded too")
+    {
+        for (double sampleRate : {48000., 96000.})
+        {
+            for (double freq : {440., 4186., 8372.})
+            {
+                bbd::EBSaw<strat_t> saw;
+                auto [so, ss] = onsetAndSteady(saw, sampleRate, freq, 4000);
+                INFO("saw sr=" << sampleRate << " freq=" << freq << " onset=" << so);
+                REQUIRE(so < 2.5);
+
+                bbd::EBTri<strat_t> tri;
+                auto [to, ts] = onsetAndSteady(tri, sampleRate, freq, 4000);
+                INFO("tri sr=" << sampleRate << " freq=" << freq << " onset=" << to);
+                REQUIRE(to < 2.6);
+
+                bbd::EBApproxSin<strat_t> sin;
+                auto [no, ns] = onsetAndSteady(sin, sampleRate, freq, 4000);
+                INFO("sin sr=" << sampleRate << " freq=" << freq << " onset=" << no);
+                REQUIRE(no < 1.1);
+
+                bbd::EBPulse<strat_t> pulse;
+                auto [po, ps] = onsetAndSteady(pulse, sampleRate, freq, 4000);
+                INFO("pulse sr=" << sampleRate << " freq=" << freq << " onset=" << po);
+                REQUIRE(po < 1.6);
+            }
+        }
+    }
+}
+
+TEST_CASE("Elliptic Blep Pole Sharing", "[dsp]")
+{
+    namespace bbd = sst::basic_blocks::dsp;
+    using strat_t = bbd::BlockInterpSmoothingStrategy<16>;
+
+    // oscillators share one pole table per sample rate. assigning a blep has to rebind
+    // which table it reads, not overwrite the table it is already pointing at
+    auto render = [](double sampleRate) {
+        bbd::EBSaw<strat_t> osc;
+        osc.setSampleRate(sampleRate);
+        osc.setFrequency(440);
+        osc.setSyncRatio(1.f);
+        double acc{0};
+        for (int i = 0; i < 2000; ++i)
+            acc += std::fabs(osc.step());
+        return acc;
+    };
+
+    auto alone = render(48000);
+
+    bbd::EBSaw<strat_t> held;
+    held.setSampleRate(48000);
+    held.setFrequency(440);
+    held.setSyncRatio(1.f);
+
+    // a second oscillator at twice the rate, the way an oversampled processor would be
+    bbd::EBSaw<strat_t> oversampled;
+    oversampled.setSampleRate(96000);
+    oversampled.setFrequency(440);
+    oversampled.setSyncRatio(1.f);
+
+    double acc{0};
+    for (int i = 0; i < 2000; ++i)
+        acc += std::fabs(held.step());
+
+    REQUIRE(acc == Approx(alone).epsilon(1e-6));
 }

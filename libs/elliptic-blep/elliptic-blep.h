@@ -102,6 +102,8 @@ struct EllipticBlepPoles
 		partialStepPoles.resize(partialStepCount + 1);
 
 		auto addPole = [&](size_t index, Complex pole, Complex coeff, Complex impulseCoeff){
+			polesPerSample[index] = pole*hzToAngular;
+
 			// Set up partial powers of the pole (so we can move forward/back by fractional samples)
 			for (size_t s = 0; s <= partialStepCount; ++s) {
 				Sample partial = Sample(s)/partialStepCount;
@@ -136,6 +138,9 @@ struct EllipticBlepPoles
 	using Array = std::array<Complex, count>;
 	std::array<Array, maxBlepOrder + 1> blepCoeffs;
 
+	// Poles in radians per sample, so std::exp(n*polesPerSample[i]) steps n samples
+	Array polesPerSample;
+
 	// Lookup table for std::pow(pole, fractional)
 	size_t partialStepCount;
 	std::vector<Array> partialStepPoles;
@@ -147,23 +152,16 @@ struct EllipticBlep {
 	using Coeffs = EllipticBlepCoeffs<Sample>;
 	static constexpr size_t maxBlepOrder = Coeffs::maxIntegrals;
 
-	EllipticBlep(EllipticBlepPoles<Sample> &p) : poles(p)
+	EllipticBlep(EllipticBlepPoles<Sample> &p) : poles(&p)
 	{
 		reset();
 	}
 
 	EllipticBlep(const EllipticBlep &other) : poles(other.poles)
 	{
-		for (size_t i = 0; i < count; ++i) {
-			state[i] = other.state[i];
-		}
 		reset();
 	}
 	EllipticBlep &operator=(const EllipticBlep &other) {
-		for (size_t i = 0; i < count; ++i)
-		{
-			state[i] = other.state[i];
-		}
 		poles = other.poles;
 		reset();
 		return *this;
@@ -184,12 +182,12 @@ struct EllipticBlep {
 
 	/// Future (≤ 1 sample) filter output (as if we called `.step(samplesInFuture)` before `.get()`)
 	Sample get(Sample samplesInFuture) const {
-		Sample tableIndex = samplesInFuture*poles.partialStepCount;
+		Sample tableIndex = samplesInFuture*poles->partialStepCount;
 		size_t intIndex = std::floor(tableIndex);
 		Sample fracIndex = tableIndex - std::floor(tableIndex);
 
-		auto &lowPoles = poles.partialStepPoles[intIndex];
-		auto &highPoles = poles.partialStepPoles[intIndex + 1];
+		auto &lowPoles = poles->partialStepPoles[intIndex];
+		auto &highPoles = poles->partialStepPoles[intIndex + 1];
 
 		Sample sum = 0;
 		for (size_t i = 0; i < count; ++i) {
@@ -201,7 +199,7 @@ struct EllipticBlep {
 
 	void add(Sample amount, size_t blepOrder) {
 		if (blepOrder > maxBlepOrder) return;
-		auto &bc = poles.blepCoeffs[blepOrder];
+		auto &bc = poles->blepCoeffs[blepOrder];
 		for (size_t i = 0; i < count; ++i) {
 			state[i] += amount*bc[i];
 		}
@@ -210,41 +208,69 @@ struct EllipticBlep {
 	void add(Sample amount, size_t blepOrder, Sample samplesInPast) {
 		if (blepOrder > maxBlepOrder) return;
 		
-		auto &bc = poles.blepCoeffs[blepOrder];
+		auto &bc = poles->blepCoeffs[blepOrder];
 
 		assert(samplesInPast >= 0 && samplesInPast <= 1);
-		Sample tableIndex = samplesInPast*poles.partialStepCount;
+		Sample tableIndex = samplesInPast*poles->partialStepCount;
 		size_t intIndex = std::floor(tableIndex);
 		Sample fracIndex = tableIndex - std::floor(tableIndex);
 
 		// move the pulse along in time, the same way as state progresses in .step()
-		auto &lowPoles = poles.partialStepPoles[intIndex];
-		auto &highPoles = poles.partialStepPoles[intIndex + 1];
+		auto &lowPoles = poles->partialStepPoles[intIndex];
+		auto &highPoles = poles->partialStepPoles[intIndex + 1];
 		for (size_t i = 0; i < count; ++i) {
 			Complex lerpPole = lowPoles[i] + (highPoles[i] - lowPoles[i])*fracIndex;
 			state[i] += bc[i]*lerpPole*amount;
 		}
 	}
 
+	/// Charge the state as if `amount` had been added at `blepOrder` once every `period`
+	/// samples going back forever, the most recent one `samplesInPast` samples ago. A train
+	/// of same-signed corrections otherwise has to ring the slow poles up from cold.
+	void addPeriodic(Sample amount, size_t blepOrder, Sample period, Sample samplesInPast = 0) {
+		if (blepOrder > maxBlepOrder) return;
+		if (!(period > 0) || !(samplesInPast >= 0)) return;
+
+		auto &bc = poles->blepCoeffs[blepOrder];
+		for (size_t i = 0; i < count; ++i) {
+			// every pole has negative real part, so the geometric series converges
+			Complex perPeriod = std::exp(period*poles->polesPerSample[i]);
+			Complex sinceLast = std::exp(samplesInPast*poles->polesPerSample[i]);
+			state[i] += amount*bc[i]*sinceLast/(Complex(1) - perPeriod);
+		}
+	}
+
+	/// Charge the state as if `amount` had been added at `blepOrder` on every sample going
+	/// back forever. The companion to feeding a mean-removal term every sample from cold.
+	void addConstant(Sample amount, size_t blepOrder) {
+		if (blepOrder > maxBlepOrder) return;
+
+		auto &bc = poles->blepCoeffs[blepOrder];
+		const auto &z = poles->partialStepPoles.back();
+		for (size_t i = 0; i < count; ++i) {
+			state[i] += amount*bc[i]/(Complex(1) - z[i]);
+		}
+	}
+
 	void step() {
-		const auto &lpoles = poles.partialStepPoles.back();
+		const auto &lpoles = poles->partialStepPoles.back();
 		for (size_t i = 0; i < count; ++i) {
 			state[i] *= lpoles[i];
 		}
 	}
 
 	void step(Sample samples) {
-		Sample tableIndex = samples*poles.partialStepCount;
+		Sample tableIndex = samples*poles->partialStepCount;
 		size_t intIndex = std::floor(tableIndex);
 		Sample fracIndex = tableIndex - std::floor(tableIndex);
 		// We can step forward by > 1 sample
-		while (intIndex >= poles.partialStepCount) {
+		while (intIndex >= poles->partialStepCount) {
 			step();
-			intIndex -= poles.partialStepCount;
+			intIndex -= poles->partialStepCount;
 		}
 
-		auto &lowPoles = poles.partialStepPoles[intIndex];
-		auto &highPoles = poles.partialStepPoles[intIndex + 1];
+		auto &lowPoles = poles->partialStepPoles[intIndex];
+		auto &highPoles = poles->partialStepPoles[intIndex + 1];
 
 		for (size_t i = 0; i < count; ++i) {
 			Complex lerpPole = lowPoles[i] + (highPoles[i] - lowPoles[i])*fracIndex;
@@ -258,7 +284,7 @@ private:
 
 	using Array = std::array<Complex, count>;
 	Array state;
-	EllipticBlepPoles<Sample> &poles;
+	EllipticBlepPoles<Sample> *poles;
 };
 
 // Allpass which makes the Elliptic BLEP filter approximately linear-phase
