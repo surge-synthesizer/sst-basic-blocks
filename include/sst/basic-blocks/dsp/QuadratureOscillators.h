@@ -160,7 +160,7 @@ template <typename T = float> struct SurgeQuadrOsc
  * modern x86 or any aarch64 target) may contract the two differently, and then they differ in the
  * last bits.
  */
-template <typename T = float, int blockSize = 32> struct SurgeQuadrOscRamped
+template <typename T = float, int blockSize> struct SurgeQuadrOscRamped
 {
   public:
     SurgeQuadrOscRamped()
