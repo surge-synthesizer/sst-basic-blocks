@@ -139,6 +139,90 @@ template <typename T = float> struct SurgeQuadrOsc
   private:
     T dr, di;
 };
+
+/**
+ * SurgeQuadrOsc with a rate that ramps linearly across a block, rather than stepping at the block
+ * boundary. A stepped rate puts sidebands at multiples of the block rate around the oscillator's
+ * frequency whenever the rate is modulated, and on anything the oscillator phase modulates.
+ *
+ * Call set_rate() once per block, then process() blockSize times.
+ *
+ * Rather than evaluating cos and sin every sample, the per-sample rotation is itself rotated by the
+ * per-sample change in rate. That is still a pure rotation, so the amplitude is preserved however
+ * large the change in rate is.
+ *
+ * The ramp is centered on the new rate instead of starting from the prior one, so a block advances
+ * the phase by exactly as much as SurgeQuadrOsc would with the rate held constant. A ramp starting
+ * from the prior rate lags by half a block, and that lag accumulates into a phase offset
+ * proportional to the total change in rate. When the rate doesn't change, the output matches
+ * SurgeQuadrOsc's. That match is bit for bit on x86 builds without FMA, but a compiler that
+ * contracts to fused multiply-adds (for example GCC with FMA available, such as -march=native on a
+ * modern x86 or any aarch64 target) may contract the two differently, and then they differ in the
+ * last bits.
+ */
+template <typename T, int blockSize> struct SurgeQuadrOscRamped
+{
+  public:
+    SurgeQuadrOscRamped()
+    {
+        r = 0;
+        i = -1;
+    }
+
+    inline void set_rate(T w)
+    {
+        // the first block after a phase reset has nothing to ramp from
+        if (!primed)
+        {
+            priorRate = w;
+            primed = true;
+        }
+
+        T step = (w - priorRate) / blockSize;
+        T start = w - step * (T)0.5 * (blockSize - 1);
+        priorRate = w;
+
+        dr = cos(start);
+        di = sin(start);
+        ddr = cos(step);
+        ddi = sin(step);
+
+        // normalize vector
+        double n = 1 / sqrt(r * r + i * i);
+        r *= n;
+        i *= n;
+    }
+
+    // API compatability
+    inline void setRate(T w) { set_rate(w); }
+
+    inline void set_phase(T w)
+    {
+        r = sin(w);
+        i = -cos(w);
+        primed = false;
+    }
+
+    inline void process()
+    {
+        T lr = r, li = i;
+        r = dr * lr - di * li;
+        i = dr * li + di * lr;
+
+        T ldr = dr, ldi = di;
+        dr = ddr * ldr - ddi * ldi;
+        di = ddr * ldi + ddi * ldr;
+    }
+
+    inline void step() { process(); }
+
+  public:
+    T r, i;
+
+  private:
+    T dr{1}, di{0}, ddr{1}, ddi{0}, priorRate{0};
+    bool primed{false};
+};
 } // namespace sst::basic_blocks::dsp
 
 #endif // SHORTCIRCUITXT_QUADRATUREOSCILLATORS_H

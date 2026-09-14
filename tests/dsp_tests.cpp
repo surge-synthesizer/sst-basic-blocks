@@ -323,6 +323,73 @@ TEST_CASE("Surge Quadrature Oscillator", "[dsp]")
     }
 }
 
+TEST_CASE("Ramped Surge Quadrature Oscillator", "[dsp]")
+{
+    static constexpr int bs{32};
+
+    SECTION("Matches SurgeQuadrOsc at a constant rate")
+    {
+        for (const auto omega : {0.04, 0.12, 0.43, 0.97})
+        {
+            auto q = sst::basic_blocks::dsp::SurgeQuadrOsc();
+            auto qr = sst::basic_blocks::dsp::SurgeQuadrOscRamped<float, bs>();
+
+            q.set_phase(0.3);
+            qr.set_phase(0.3);
+
+            for (int b = 0; b < 20; ++b)
+            {
+                q.set_rate(omega);
+                qr.set_rate(omega);
+
+                for (int s = 0; s < bs; ++s)
+                {
+                    q.process();
+                    qr.process();
+                    // Not ==, since a compiler which contracts to fused multiply-adds (such as GCC
+                    // with FMA available) may contract the two implementations differently
+                    REQUIRE(qr.r == Approx(q.r).margin(1e-4));
+                    REQUIRE(qr.i == Approx(q.i).margin(1e-4));
+                }
+            }
+        }
+    }
+
+    SECTION("Ramps the rate but lands on the stepped phase at each block boundary")
+    {
+        auto q = sst::basic_blocks::dsp::SurgeQuadrOsc();
+        auto qr = sst::basic_blocks::dsp::SurgeQuadrOscRamped<float, bs>();
+
+        q.set_phase(0);
+        qr.set_phase(0);
+
+        for (int b = 0; b < 200; ++b)
+        {
+            // sweep up and down, with occasional large jumps
+            float omega = 0.3 + 0.25 * sin(b * 0.05) + ((b % 37 == 0) ? 1.5 : 0);
+            q.set_rate(omega);
+            qr.set_rate(omega);
+
+            float maxDeviation{0};
+            for (int s = 0; s < bs; ++s)
+            {
+                q.process();
+                qr.process();
+                maxDeviation = std::max(maxDeviation, std::fabs(qr.r - q.r));
+            }
+
+            // amplitude is preserved, and the phase agrees again at the end of the block
+            REQUIRE(qr.r * qr.r + qr.i * qr.i == Approx(1).margin(1e-3));
+            REQUIRE(qr.r == Approx(q.r).margin(1e-3));
+            REQUIRE(qr.i == Approx(q.i).margin(1e-3));
+
+            // and within the block it actually followed a different, ramped, path
+            if (b > 0 && b % 37 == 0)
+                REQUIRE(maxDeviation > 1e-2);
+        }
+    }
+}
+
 TEST_CASE("LanczosResampler", "[dsp]")
 {
     SECTION("Input Initializes to Zero")
