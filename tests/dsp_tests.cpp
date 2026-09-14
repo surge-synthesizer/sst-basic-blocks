@@ -326,7 +326,7 @@ TEST_CASE("Ramped Surge Quadrature Oscillator", "[dsp]")
 {
     static constexpr int bs{32};
 
-    SECTION("Matches SurgeQuadrOsc exactly at a constant rate")
+    SECTION("Matches SurgeQuadrOsc at a constant rate")
     {
         for (const auto omega : {0.04, 0.12, 0.43, 0.97})
         {
@@ -345,8 +345,10 @@ TEST_CASE("Ramped Surge Quadrature Oscillator", "[dsp]")
                 {
                     q.process();
                     qr.process();
-                    REQUIRE(qr.r == q.r);
-                    REQUIRE(qr.i == q.i);
+                    // Not ==, since a compiler which contracts to fused multiply-adds (such as GCC
+                    // with FMA available) may contract the two implementations differently
+                    REQUIRE(qr.r == Approx(q.r).margin(1e-4));
+                    REQUIRE(qr.i == Approx(q.i).margin(1e-4));
                 }
             }
         }

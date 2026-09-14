@@ -154,8 +154,11 @@ template <typename T = float> struct SurgeQuadrOsc
  * The ramp is centered on the new rate instead of starting from the prior one, so a block advances
  * the phase by exactly as much as SurgeQuadrOsc would with the rate held constant. A ramp starting
  * from the prior rate lags by half a block, and that lag accumulates into a phase offset
- * proportional to the total change in rate. When the rate doesn't change, the output is identical
- * to SurgeQuadrOsc's.
+ * proportional to the total change in rate. When the rate doesn't change, the output matches
+ * SurgeQuadrOsc's. That match is bit for bit on x86 builds without FMA, but a compiler that
+ * contracts to fused multiply-adds (for example GCC with FMA available, such as -march=native on a
+ * modern x86 or any aarch64 target) may contract the two differently, and then they differ in the
+ * last bits.
  */
 template <typename T = float, int blockSize = 32> struct SurgeQuadrOscRamped
 {
