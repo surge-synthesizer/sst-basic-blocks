@@ -112,11 +112,15 @@ template <size_t blockSize> void tanh7_block(float *__restrict x)
     }
 }
 
-template <size_t blockSize> void hardclip_block(float *x)
+/*
+ * Clips to +/- limit. Since min_ps and max_ps return their second operand when either
+ * is unordered, a non-finite input lands on the limit rather than passing through.
+ */
+template <size_t blockSize> void hardclip_block(float *x, float limit = 1.f)
 {
     static_assert(!(blockSize & (blockSize - 1)) && blockSize >= 4);
-    const auto x_min = SIMD_MM(set1_ps)(-1.0f);
-    const auto x_max = SIMD_MM(set1_ps)(1.0f);
+    const auto x_min = SIMD_MM(set1_ps)(-limit);
+    const auto x_max = SIMD_MM(set1_ps)(limit);
     for (unsigned int i = 0; i < blockSize; i += 4)
     {
         SIMD_MM(store_ps)
@@ -124,17 +128,7 @@ template <size_t blockSize> void hardclip_block(float *x)
     }
 }
 
-template <size_t blockSize> void hardclip_block8(float *x)
-{
-    static_assert(!(blockSize & (blockSize - 1)) && blockSize >= 4);
-    const auto x_min = SIMD_MM(set1_ps)(-8.0f);
-    const auto x_max = SIMD_MM(set1_ps)(8.0f);
-    for (unsigned int i = 0; i < blockSize; i += 4)
-    {
-        SIMD_MM(store_ps)
-        (x + i, SIMD_MM(max_ps)(SIMD_MM(min_ps)(SIMD_MM(load_ps)(x + i), x_max), x_min));
-    }
-}
+template <size_t blockSize> void hardclip_block8(float *x) { hardclip_block<blockSize>(x, 8.f); }
 } // namespace sst::basic_blocks::dsp
 
 #endif // SURGE_SHAPERS_H

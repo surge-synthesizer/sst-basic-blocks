@@ -29,6 +29,7 @@
 #include <cmath>
 #include <array>
 #include <iostream>
+#include <limits>
 
 #include "sst/basic-blocks/dsp/BlockInterpolators.h"
 #include "sst/basic-blocks/dsp/QuadratureOscillators.h"
@@ -783,6 +784,54 @@ TEST_CASE("SoftClip Block", "[dsp]")
         REQUIRE(h8[i] == Approx(hc8).margin(0.00001));
         REQUIRE(t7[i] >= -1);
         REQUIRE(t7[i] <= 1);
+    }
+}
+
+TEST_CASE("HardClip Block Limit", "[dsp]")
+{
+    SECTION("Limit Defaults To One And Is Configurable")
+    {
+        float d alignas(16)[32], c alignas(16)[32];
+
+        for (int i = 0; i < 32; ++i)
+        {
+            d[i] = rand() * 20.4 / RAND_MAX - 10.0;
+            c[i] = d[i];
+        }
+
+        sst::basic_blocks::dsp::hardclip_block<32>(d);
+        sst::basic_blocks::dsp::hardclip_block<32>(c, 2.7f);
+
+        for (int i = 0; i < 32; ++i)
+        {
+            REQUIRE(d[i] == Approx(std::clamp(d[i], -1.f, 1.f)).margin(0.00001));
+            REQUIRE(c[i] == Approx(std::clamp(c[i], -2.7f, 2.7f)).margin(0.00001));
+        }
+    }
+
+    SECTION("Non Finite Input Lands On The Limit")
+    {
+        auto inf = std::numeric_limits<float>::infinity();
+        float v alignas(16)[4] = {std::numeric_limits<float>::quiet_NaN(), inf, -inf, 0.25f};
+
+        sst::basic_blocks::dsp::hardclip_block<4>(v, 2.f);
+
+        REQUIRE(v[0] == 2.f);
+        REQUIRE(v[1] == 2.f);
+        REQUIRE(v[2] == -2.f);
+        REQUIRE(v[3] == 0.25f);
+    }
+
+    SECTION("The Eight Variant Still Clips To Eight")
+    {
+        float v alignas(16)[4] = {9.f, -9.f, 7.5f, std::numeric_limits<float>::quiet_NaN()};
+
+        sst::basic_blocks::dsp::hardclip_block8<4>(v);
+
+        REQUIRE(v[0] == 8.f);
+        REQUIRE(v[1] == -8.f);
+        REQUIRE(v[2] == 7.5f);
+        REQUIRE(v[3] == 8.f);
     }
 }
 
