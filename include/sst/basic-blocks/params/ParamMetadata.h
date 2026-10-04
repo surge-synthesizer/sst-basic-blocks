@@ -1492,22 +1492,26 @@ inline std::optional<std::string> ParamMetaData::valueToString(float val,
 
 inline std::optional<int> ParamMetaData::noteNameToNoteNumber(const std::string &s) const
 {
-    char c{' '};
-    for (auto sc : s)
-    {
-        if (sc != ' ')
-        {
-            c = sc;
-            break;
-        }
-    }
-    auto c0 = std::toupper(c);
+    auto p = s.find_first_not_of(' ');
+    if (p == std::string::npos)
+        return std::nullopt;
+    auto c0 = std::toupper(s[p]);
     if (c0 >= 'A' && c0 <= 'G')
     {
         auto n0 = c0 - 'A';
-        auto sharp = s[1] == '#';
-        auto flat = s[1] == 'b';
-        auto oct = std::atoi(s.c_str() + 1 + (sharp ? 1 : 0) + (flat ? 1 : 0));
+        auto sharp = p + 1 < s.size() && s[p + 1] == '#';
+        auto flat = p + 1 < s.size() && s[p + 1] == 'b';
+        auto rest = s.substr(p + 1 + (sharp ? 1 : 0) + (flat ? 1 : 0));
+
+        // a bare letter is octave 0, anything else after it has to be a number
+        auto oct = 0;
+        if (rest.find_first_not_of(' ') != std::string::npos)
+        {
+            auto pn = mechanics::parseNumber(rest);
+            if (!pn.has_value())
+                return std::nullopt;
+            oct = (int)*pn;
+        }
 
         std::array<int, 7> noteToPosition{9, 11, 0, 2, 4, 5, 7};
         auto res = noteToPosition[n0] + sharp - flat + (oct + 1 - defaultMidiNoteOctaveOffset) * 12;
@@ -1568,18 +1572,21 @@ inline std::optional<float> ParamMetaData::valueFromString(std::string_view v, s
                 if (res >= minVal && res <= maxVal)
                     return (float)res;
             }
-            else
+            else if (auto pn = mechanics::parseNumber(s))
             {
-                auto res = (float)std::atoi(s.c_str());
+                auto res = (float)(int)*pn;
                 if (res >= minVal && res <= maxVal)
                     return res;
             }
         }
         if (displayScale == LINEAR)
         {
-            auto res = std::atoi(std::string(v).c_str());
-            if (res >= minVal && res <= maxVal)
-                return res;
+            if (auto pn = mechanics::parseNumber(v))
+            {
+                auto res = (int)*pn;
+                if (res >= minVal && res <= maxVal)
+                    return res;
+            }
         }
         if (auto r = fromUnorderedMap())
             return *r;

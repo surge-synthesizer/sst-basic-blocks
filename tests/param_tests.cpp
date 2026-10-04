@@ -1003,6 +1003,39 @@ TEST_CASE("MIDI Note Display Scale", "[param]")
         REQUIRE(*(p.valueFromString("C#4", em)) == 61.f);
         REQUIRE(*(p.valueFromString("A0", em)) == 21.f);
     }
+
+    SECTION("Numbers and bare letters still parse")
+    {
+        auto p = pmd::ParamMetaData().asMIDINote();
+        std::string em;
+
+        REQUIRE(p.valueFromString("60", em).value_or(-1) == 60.f);
+        REQUIRE(p.valueFromString(" Bb3", em).value_or(-1) == 58.f);
+        REQUIRE(p.valueFromString("C-1", em).value_or(-1) == 0.f);
+        REQUIRE(p.valueFromString("C", em).has_value());
+    }
+
+    SECTION("Garbage is refused rather than read as zero")
+    {
+        auto p = pmd::ParamMetaData().asMIDINote();
+        std::string em;
+
+        for (auto s : {"F#%2", "C#x", "abc", "Bogus", "%", ""})
+        {
+            INFO(s);
+            REQUIRE(!p.valueFromString(s, em).has_value());
+        }
+    }
+}
+
+TEST_CASE("Linear int type-ins refuse non numbers", "[param]")
+{
+    auto p = pmd::ParamMetaData().asInt().withRange(0, 100).withLinearScaleFormatting("");
+    std::string em;
+
+    REQUIRE(p.valueFromString("42", em).value_or(-1) == 42.f);
+    REQUIRE(!p.valueFromString("abc", em).has_value());
+    REQUIRE(!p.valueFromString("", em).has_value());
 }
 
 TEST_CASE("Unordered Map Display", "[param]")
