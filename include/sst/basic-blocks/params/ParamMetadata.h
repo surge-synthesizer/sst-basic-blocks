@@ -63,6 +63,7 @@
 #include <optional>
 #include <unordered_map>
 #include <initializer_list>
+#include <tuple>
 #include <utility>
 #include <cassert>
 #include <cmath>
@@ -458,6 +459,35 @@ struct ParamMetaData
                                                                float modulationNatural,
                                                                bool isBipolar,
                                                                const FeatureState &fs = {}) const;
+
+    // a modulated value stops at the range ends, marked with < or >
+    void clampModulationEndpoint(float &v, std::string &prefix) const
+    {
+        // landing on the end is not past it, even after a float round trip
+        auto eps = 1e-5f * (maxVal - minVal);
+        if (v > maxVal + eps)
+            prefix = ">";
+        if (v < minVal - eps)
+            prefix = "<";
+        v = std::clamp(v, minVal, maxVal);
+    }
+
+    // a display distance in the units valueToString would pick for a value that size
+    std::tuple<double, int, std::string> alternateScaledDelta(double delta,
+                                                              const FeatureState &fs) const
+    {
+        auto useAlt =
+            (alternateScaleWhen == SCALE_BELOW && std::fabs(delta) < alternateScaleCutoff) ||
+            (alternateScaleWhen == SCALE_ABOVE && std::fabs(delta) > alternateScaleCutoff);
+        auto dp = decimalPlaces;
+        if (useAlt && alternateScaleDecimalPlaces >= 0)
+            dp = alternateScaleDecimalPlaces;
+        if (fs.isHighPrecision)
+            dp += 4;
+        if (useAlt)
+            return {delta * alternateScaleRescaling, dp, alternateScaleUnits};
+        return {delta, dp, unit};
+    }
     std::optional<float> modulationNaturalFromString(std::string_view deltaNatural,
                                                      float naturalBaseVal, std::string &errMsg,
                                                      const FeatureState &fs = {}) const;
@@ -1891,29 +1921,31 @@ ParamMetaData::modulationNaturalToString(float naturalBaseVal, float modulationN
     // range; base/up/down stay in beat-fraction notation via valueToString.
     if (fs.isTemposynced && canTemposync)
     {
+        auto nvu = naturalBaseVal + modulationNatural;
+        auto nvd = naturalBaseVal - modulationNatural;
+        std::string upPfx{}, downPfx{};
+        clampModulationEndpoint(nvu, upPfx);
+        clampModulationEndpoint(nvd, downPfx);
+
         auto rng = maxVal - minVal;
-        auto pu = (rng != 0 ? modulationNatural / rng : 0.f) * 100.f;
-        auto pd = -pu;
+        auto pu = (rng != 0 ? (nvu - naturalBaseVal) / rng : 0.f) * 100.f;
+        auto pd = (rng != 0 ? (nvd - naturalBaseVal) / rng : 0.f) * 100.f;
         auto dp = (fs.isHighPrecision ? (decimalPlaces + 4) : decimalPlaces);
 
-        result.value = fmt::format("{:.{}f} %", pu, dp);
+        result.value = fmt::format("{}{:.{}f} %", upPfx, pu, dp);
         if (isBipolar)
             result.summary =
                 fmt::format("{} {:.{}f} %", pu >= 0 ? "+/-" : "-/+", std::fabs(pu), dp);
         else
             result.summary = fmt::format("{:.{}f} %", pu, dp);
-        result.changeUp = fmt::format("{:.{}f}", pu, dp);
+        result.changeUp = result.value;
         if (isBipolar)
-            result.changeDown = fmt::format("{:.{}f}", pd, dp);
+            result.changeDown = fmt::format("{}{:.{}f} %", downPfx, pd, dp);
 
         result.baseValue = valueToString(naturalBaseVal, fs).value_or("err");
-        result.valUp =
-            valueToString(std::clamp(naturalBaseVal + modulationNatural, minVal, maxVal), fs)
-                .value_or("err");
+        result.valUp = upPfx + valueToString(nvu, fs).value_or("err");
         if (isBipolar)
-            result.valDown =
-                valueToString(std::clamp(naturalBaseVal - modulationNatural, minVal, maxVal), fs)
-                    .value_or("err");
+            result.valDown = downPfx + valueToString(nvd, fs).value_or("err");
 
         if (isBipolar)
             result.singleLineModulationSummary =
@@ -1929,36 +1961,31 @@ ParamMetaData::modulationNaturalToString(float naturalBaseVal, float modulationN
     case LINEAR:
     {
         assert(std::fabs(modulationNatural) <= maxVal - minVal);
-        // OK this is super easy. It's just linear!
-        auto du = modulationNatural;
-        auto dd = -modulationNatural;
-
-        auto dp = (fs.isHighPrecision ? (decimalPlaces + 4) : decimalPlaces);
-        result.value = fmt::format("{:.{}f}{}{}", svA * du + svB, dp, unitSeparator, unit);
-        if (isBipolar)
+        auto nvu = naturalBaseVal + modulationNatural;
+        auto nvd = naturalBaseVal - modulationNatural;
+        std::string upPfx{}, downPfx{};
+        if (fs.modulationClamped)
         {
-            if (du > 0)
-            {
-                result.summary =
-                    fmt::format("+/- {:.{}f}{}{}", svA * du + svB, dp, unitSeparator, unit);
-            }
-            else
-            {
-                result.summary =
-                    fmt::format("-/+ {:.{}f}{}{}", -svA * du + svB, dp, unitSeparator, unit);
-            }
+            clampModulationEndpoint(nvu, upPfx);
+            clampModulationEndpoint(nvd, downPfx);
         }
+        // the offset belongs to values, not to distances
+        auto [ru, udp, uu] = alternateScaledDelta(svA * (nvu - naturalBaseVal), fs);
+        auto [rd, ddp, dunit] = alternateScaledDelta(svA * (nvd - naturalBaseVal), fs);
+
+        result.value = fmt::format("{}{:.{}f}{}{}", upPfx, ru, udp, unitSeparator, uu);
+        if (isBipolar)
+            result.summary = fmt::format("{} {:.{}f}{}{}", ru >= 0 ? "+/-" : "-/+", std::fabs(ru),
+                                         udp, unitSeparator, uu);
         else
-        {
-            result.summary = fmt::format("{:.{}f}{}{}", svA * du + svB, dp, unitSeparator, unit);
-        }
-        result.changeUp = fmt::format("{:.{}f}", svA * du, dp);
+            result.summary = fmt::format("{:.{}f}{}{}", ru, udp, unitSeparator, uu);
+        result.changeUp = result.value;
         if (isBipolar)
-            result.changeDown = fmt::format("{:.{}f}", svA * dd, dp);
-        result.valUp = fmt::format("{:.{}f}", svA * (naturalBaseVal + du), dp);
-
+            result.changeDown =
+                fmt::format("{}{:.{}f}{}{}", downPfx, rd, ddp, unitSeparator, dunit);
+        result.valUp = upPfx + valueToString(nvu, fs).value_or("err");
         if (isBipolar)
-            result.valDown = fmt::format("{:.{}f}", svA * (naturalBaseVal - du), dp);
+            result.valDown = downPfx + valueToString(nvd, fs).value_or("err");
         // TODO pass this on not create
         auto v2s = valueToString(naturalBaseVal, fs);
         if (v2s.has_value())
@@ -1968,11 +1995,10 @@ ParamMetaData::modulationNaturalToString(float naturalBaseVal, float modulationN
 
         if (isBipolar)
             result.singleLineModulationSummary =
-                fmt::format("{}{}{} < {} > {}{}{}", result.valDown, unitSeparator, unit,
-                            result.baseValue, result.valUp, unitSeparator, unit);
+                fmt::format("{} < {} > {}", result.valDown, result.baseValue, result.valUp);
         else
             result.singleLineModulationSummary =
-                fmt::format("{} > {}{}{}", result.baseValue, result.valUp, unitSeparator, unit);
+                fmt::format("{} > {}", result.baseValue, result.valUp);
         return result;
     }
     case A_TWO_TO_THE_B:
@@ -1983,130 +2009,95 @@ ParamMetaData::modulationNaturalToString(float naturalBaseVal, float modulationN
         std::string upPfx{}, downPfx{};
         if (fs.modulationClamped)
         {
-            if (nvu > maxVal)
-            {
-                nvu = maxVal;
-                upPfx = ">";
-            }
-            if (nvu < minVal)
-            {
-                nvu = minVal;
-                upPfx = "<";
-            }
-            if (nvd > maxVal)
-            {
-                nvd = maxVal;
-                downPfx = ">";
-            }
-            if (nvd < minVal)
-            {
-                nvd = minVal;
-                downPfx = "<";
-            }
+            clampModulationEndpoint(nvu, upPfx);
+            clampModulationEndpoint(nvd, downPfx);
         }
 
         auto scv = svA * pow(2, svB * naturalBaseVal + svC) + svD;
         auto svu = svA * pow(2, svB * nvu + svC) + svD;
         auto svd = svA * pow(2, svB * nvd + svC) + svD;
         auto du = svu - scv;
-        auto dd = scv - svd;
+        auto dd = svd - scv;
 
-        auto dp = (fs.isHighPrecision ? (decimalPlaces + 4) : decimalPlaces);
-        result.value = fmt::format("{}{:.{}f}{}{}", upPfx, du, dp, unitSeparator, unit);
-        if (isBipolar)
-        {
-            if (du > 0)
-            {
-                result.summary = fmt::format("+/- {:.{}f}{}{}", du, dp, unitSeparator, unit);
-            }
-            else
-            {
-                result.summary = fmt::format("-/+ {:.{}f}{}{}", -du, dp, unitSeparator, unit);
-            }
-        }
-        else
-        {
-            result.summary = fmt::format("{:.{}f}{}{}", du, dp, unitSeparator, unit);
-        }
-        result.changeUp = fmt::format("{}{:.{}f}", upPfx, du, dp);
-        if (isBipolar)
-            result.changeDown = fmt::format("{}{:.{}f}", downPfx, dd, dp);
-        result.valUp = fmt::format("{}{:.{}f}", upPfx, svu, dp);
-
-        if (isBipolar)
-            result.valDown = fmt::format("{}{:.{}f}", downPfx, svd, dp);
         auto v2s = valueToString(naturalBaseVal, fs);
         if (v2s.has_value())
             result.baseValue = *v2s;
         else
             result.baseValue = "-ERROR-";
 
+        // the endpoints may sit on either side of the unit switch, so they carry units
+        auto [ru, udp, uu] = alternateScaledDelta(du, fs);
+        auto [rd, ddp, dunit] = alternateScaledDelta(dd, fs);
+        result.value = fmt::format("{}{:.{}f}{}{}", upPfx, ru, udp, unitSeparator, uu);
+        if (isBipolar)
+            result.summary = fmt::format("{} {:.{}f}{}{}", ru >= 0 ? "+/-" : "-/+", std::fabs(ru),
+                                         udp, unitSeparator, uu);
+        else
+            result.summary = fmt::format("{:.{}f}{}{}", ru, udp, unitSeparator, uu);
+        result.changeUp = result.value;
+        if (isBipolar)
+            result.changeDown =
+                fmt::format("{}{:.{}f}{}{}", downPfx, rd, ddp, unitSeparator, dunit);
+        result.valUp = upPfx + valueToString(nvu, fs).value_or("err");
+        if (isBipolar)
+            result.valDown = downPfx + valueToString(nvd, fs).value_or("err");
+
         if (isBipolar)
             result.singleLineModulationSummary =
-                fmt::format("{}{}{}{} < {} > {}{}{}{}", downPfx, result.valDown, unitSeparator,
-                            unit, result.baseValue, upPfx, result.valUp, unitSeparator, unit);
+                fmt::format("{} < {} > {}", result.valDown, result.baseValue, result.valUp);
         else
-            result.singleLineModulationSummary = fmt::format(
-                "{} > {}{}{}{}", result.baseValue, upPfx, result.valUp, unitSeparator, unit);
-
+            result.singleLineModulationSummary =
+                fmt::format("{} > {}", result.baseValue, result.valUp);
         return result;
     }
     case SCALED_OFFSET_EXP:
     {
-        auto nvu = std::clamp(naturalBaseVal + modulationNatural, 0.f, 1.f);
-        auto nvd = std::clamp(naturalBaseVal - modulationNatural, 0.f, 1.f);
+        auto nvu = naturalBaseVal + modulationNatural;
+        auto nvd = naturalBaseVal - modulationNatural;
+        std::string upPfx{}, downPfx{};
+        if (fs.modulationClamped)
+        {
+            clampModulationEndpoint(nvu, upPfx);
+            clampModulationEndpoint(nvd, downPfx);
+        }
+        nvu = std::clamp(nvu, 0.f, 1.f);
+        nvd = std::clamp(nvd, 0.f, 1.f);
         auto nv = std::clamp(naturalBaseVal, 0.f, 1.f);
 
         auto v = (exp(svA + nv * (svB - svA)) + svC) / svD;
         auto vu = (exp(svA + nvu * (svB - svA)) + svC) / svD;
         auto vd = (exp(svA + nvd * (svB - svA)) + svC) / svD;
 
-        auto deltUp = vu - v;
-        auto deltDn = vd - v;
+        auto [deltUp, upDp, deltaUpUnit] = alternateScaledDelta(vu - v, fs);
+        auto [deltDn, dnDp, deltaDnUnit] = alternateScaledDelta(vd - v, fs);
 
-        auto deltaUpUnit = unit;
-        auto deltaDnUnit = unit;
-        if (alternateScaleWhen == SCALE_BELOW)
-        {
-            if (std::fabs(deltDn) < alternateScaleCutoff)
-            {
-                deltDn *= alternateScaleRescaling;
-                deltaDnUnit = alternateScaleUnits;
-            }
-
-            if (std::fabs(deltUp) < alternateScaleCutoff)
-            {
-                deltUp *= alternateScaleRescaling;
-                deltaUpUnit = alternateScaleUnits;
-            }
-        }
-
-        auto dp = (fs.isHighPrecision ? (decimalPlaces + 4) : decimalPlaces);
-        result.value = fmt::format("{:.{}f}{}{}", deltUp, dp, unitSeparator, deltaUpUnit);
+        result.value =
+            fmt::format("{}{:.{}f}{}{}", upPfx, deltUp, upDp, unitSeparator, deltaUpUnit);
         if (isBipolar)
         {
             if (deltUp > 0)
             {
                 result.summary =
-                    fmt::format("+/- {:.{}f}{}{}", deltUp, dp, unitSeparator, deltaUpUnit);
+                    fmt::format("+/- {:.{}f}{}{}", deltUp, upDp, unitSeparator, deltaUpUnit);
             }
             else
             {
                 result.summary =
-                    fmt::format("-/+ {:.{}f}{}{}", -deltUp, dp, unitSeparator, deltaUpUnit);
+                    fmt::format("-/+ {:.{}f}{}{}", -deltUp, upDp, unitSeparator, deltaUpUnit);
             }
         }
         else
         {
-            result.summary = fmt::format("{:.{}f}{}{}", deltUp, dp, unitSeparator, deltaUpUnit);
+            result.summary = fmt::format("{:.{}f}{}{}", deltUp, upDp, unitSeparator, deltaUpUnit);
         }
-        result.changeUp = fmt::format("{:.{}f}", deltUp, dp);
+        result.changeUp = result.value;
         if (isBipolar)
-            result.changeDown = fmt::format("{:.{}f}", deltDn, dp);
-        result.valUp = valueToString(nvu, fs).value_or("err");
+            result.changeDown =
+                fmt::format("{}{:.{}f}{}{}", downPfx, deltDn, dnDp, unitSeparator, deltaDnUnit);
+        result.valUp = upPfx + valueToString(nvu, fs).value_or("err");
 
         if (isBipolar)
-            result.valDown = valueToString(nvd, fs).value_or("err");
+            result.valDown = downPfx + valueToString(nvd, fs).value_or("err");
 
         result.baseValue = valueToString(naturalBaseVal, fs).value_or("err");
 
@@ -2122,45 +2113,38 @@ ParamMetaData::modulationNaturalToString(float naturalBaseVal, float modulationN
     break;
     case CUBED_AS_DECIBEL:
     {
-        auto nvu = std::max(naturalBaseVal + modulationNatural, 0.f);
-        auto nvd = std::max(naturalBaseVal - modulationNatural, 0.f);
-        auto v = std::max(naturalBaseVal, 0.f);
+        auto nvu = naturalBaseVal + modulationNatural;
+        auto nvd = naturalBaseVal - modulationNatural;
+        std::string upPfx{}, downPfx{};
+        if (fs.modulationClamped)
+        {
+            clampModulationEndpoint(nvu, upPfx);
+            clampModulationEndpoint(nvd, downPfx);
+        }
+        auto toDb = [this](float x) {
+            x = std::max(x, 0.f);
+            return 20 * std::log10(x * x * x * svA);
+        };
 
-        nvu = nvu * nvu * nvu * svA;
-        nvd = nvd * nvd * nvd * svA;
-        v = v * v * v * svA;
-
-        auto db = 20 * std::log10(v);
-        auto dbu = 20 * std::log10(nvu);
-        auto dbd = 20 * std::log10(nvd);
-
-        auto deltUp = dbu - db;
-        auto deltDn = dbd - db;
+        auto db = toDb(naturalBaseVal);
+        auto deltUp = toDb(nvu) - db;
+        auto deltDn = toDb(nvd) - db;
 
         auto dp = (fs.isHighPrecision ? (decimalPlaces + 4) : decimalPlaces);
-        result.value = fmt::format("{:.{}f}{}{}", deltUp, dp, unitSeparator, unit);
+        auto dbUnit = unitSeparator + "dB";
+        result.value = fmt::format("{}{:.{}f}{}", upPfx, deltUp, dp, dbUnit);
         if (isBipolar)
-        {
-            if (deltDn > 0)
-            {
-                result.summary = fmt::format("+/- {:.{}f}{}{}", deltUp, dp, unitSeparator, unit);
-            }
-            else
-            {
-                result.summary = fmt::format("-/+ {:.{}f}{}{}", -deltUp, dp, unitSeparator, unit);
-            }
-        }
+            result.summary = fmt::format("{} {:.{}f}{}", deltUp >= 0 ? "+/-" : "-/+",
+                                         std::fabs(deltUp), dp, dbUnit);
         else
-        {
-            result.summary = fmt::format("{:.{}f}{}{}", deltUp, dp, unitSeparator, unit);
-        }
-        result.changeUp = fmt::format("{:.{}f}", deltUp, dp);
+            result.summary = fmt::format("{:.{}f}{}", deltUp, dp, dbUnit);
+        result.changeUp = result.value;
         if (isBipolar)
-            result.changeDown = fmt::format("{:.{}f}", deltDn, dp);
-        result.valUp = fmt::format("{:.{}f}", dbu, dp);
+            result.changeDown = fmt::format("{}{:.{}f}{}", downPfx, deltDn, dp, dbUnit);
+        result.valUp = upPfx + valueToString(nvu, fs).value_or("err");
 
         if (isBipolar)
-            result.valDown = fmt::format("{:.{}f}", dbd, dp);
+            result.valDown = downPfx + valueToString(nvd, fs).value_or("err");
         auto v2s = valueToString(naturalBaseVal, fs);
         if (v2s.has_value())
             result.baseValue = *v2s;
@@ -2169,11 +2153,10 @@ ParamMetaData::modulationNaturalToString(float naturalBaseVal, float modulationN
 
         if (isBipolar)
             result.singleLineModulationSummary =
-                fmt::format("{}{}{} < {} > {}{}{}", result.valDown, unitSeparator, unit,
-                            result.baseValue, result.valUp, unitSeparator, unit);
+                fmt::format("{} < {} > {}", result.valDown, result.baseValue, result.valUp);
         else
             result.singleLineModulationSummary =
-                fmt::format("{} > {}{}{}", result.baseValue, result.valUp, unitSeparator, unit);
+                fmt::format("{} > {}", result.baseValue, result.valUp);
 
         return result;
     }
@@ -2189,6 +2172,11 @@ inline std::optional<float>
 ParamMetaData::modulationNaturalFromString(std::string_view deltaNatural, float naturalBaseVal,
                                            std::string &errMsg, const FeatureState &fs) const
 {
+    // a clamped depth displays as >x or <x and reads back as x
+    auto lead = deltaNatural.find_first_not_of(" \t");
+    if (lead != std::string_view::npos && (deltaNatural[lead] == '<' || deltaNatural[lead] == '>'))
+        deltaNatural.remove_prefix(lead + 1);
+
     if (fs.isTemposynced && canTemposync)
     {
         try
@@ -2215,7 +2203,9 @@ ParamMetaData::modulationNaturalFromString(std::string_view deltaNatural, float 
     {
         try
         {
-            auto mv = detail::toFloat(deltaNatural) / svA;
+            auto mv =
+                applyAlternateUnscalingOnFromString(deltaNatural, detail::toFloat(deltaNatural)) /
+                svA;
             if (std::fabs(mv) > (maxVal - minVal))
             {
                 errMsg = fmt::format("Maximum depth: {}{}{}", (maxVal - minVal) * svA,
@@ -2235,7 +2225,8 @@ ParamMetaData::modulationNaturalFromString(std::string_view deltaNatural, float 
         try
         {
             auto xbv = svA * pow(2, svB * naturalBaseVal) + svD;
-            auto mv = detail::toFloat(deltaNatural);
+            auto mv =
+                applyAlternateUnscalingOnFromString(deltaNatural, detail::toFloat(deltaNatural));
             auto rv = xbv + mv;
             if (rv < 0)
             {
@@ -2282,7 +2273,8 @@ ParamMetaData::modulationNaturalFromString(std::string_view deltaNatural, float 
         {
             auto nv = std::clamp(naturalBaseVal, 0.f, 1.f);
             auto v = (exp(svA + nv * (svB - svA)) + svC) / svD;
-            auto mv = detail::toFloat(deltaNatural);
+            auto mv =
+                applyAlternateUnscalingOnFromString(deltaNatural, detail::toFloat(deltaNatural));
             auto rv = v + mv;
             // See comment in valueFromString for the algebra here
             auto drc = std::max((float)(svD * rv - svC), 0.00000001f);
