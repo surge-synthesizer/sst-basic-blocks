@@ -544,8 +544,8 @@ TEST_CASE("25 Second Exp", "[param]")
         REQUIRE(md.has_value());
         REQUIRE(md->value == "30.00 %");
         REQUIRE(md->summary == "+/- 30.00 %");
-        REQUIRE(md->changeUp == "30.00");
-        REQUIRE(md->changeDown == "-30.00");
+        REQUIRE(md->changeUp == "30.00 %");
+        REQUIRE(md->changeDown == "-30.00 %");
         // base/up/down stay in beat-fraction notation
         REQUIRE(md->value.find("ms") == std::string::npos);
         REQUIRE(md->value.find('s') == std::string::npos);
@@ -842,10 +842,10 @@ TEST_CASE("Modulation Natural To String", "[param]")
         REQUIRE(md.has_value());
         REQUIRE(md->value == "20.00 %");
         REQUIRE(md->summary == "+/- 20.00 %");
-        REQUIRE(md->changeUp == "20.00");
-        REQUIRE(md->changeDown == "-20.00");
-        REQUIRE(md->valUp == "70.00");
-        REQUIRE(md->valDown == "30.00");
+        REQUIRE(md->changeUp == "20.00 %");
+        REQUIRE(md->changeDown == "-20.00 %");
+        REQUIRE(md->valUp == "70.00 %");
+        REQUIRE(md->valDown == "30.00 %");
     }
 
     SECTION("Linear - unipolar")
@@ -883,11 +883,11 @@ TEST_CASE("Modulation Natural To String", "[param]")
         // du = 2 - 1 = 1 s
         REQUIRE(md->value == "1.00 s");
         REQUIRE(md->summary == "+/- 1.00 s");
-        // valUp/valDown are raw display values (not via valueToString in this branch)
-        REQUIRE(md->valUp == "2.00");
-        REQUIRE(md->valDown == "0.50");
-        REQUIRE(md->changeUp == "1.00");
-        REQUIRE(md->changeDown == "0.50");
+        // with ms below a second the endpoints carry their own units
+        REQUIRE(md->valUp == "2.00 s");
+        REQUIRE(md->valDown == "500.0 ms");
+        REQUIRE(md->changeUp == "1.00 s");
+        REQUIRE(md->changeDown == "-500.0 ms");
     }
 
     SECTION("A_TWO_TO_THE_B from string round-trip (envelope time)")
@@ -911,14 +911,14 @@ TEST_CASE("Modulation Natural To String", "[param]")
     {
         auto p = pmd::ParamMetaData().asCubicDecibelAttenuation();
         // val=1 is 0dB, val=0 is -inf
-        // base=1 (0dB), mod=0.1 bipolar
-        auto md = p.modulationNaturalToString(1.0, 0.1, true);
+        // up is 60 log10(0.6 / 0.5), down is 60 log10(0.4 / 0.5)
+        auto md = p.modulationNaturalToString(0.5, 0.1, true);
         REQUIRE(md.has_value());
-        // du = 20*log10(1.1^3) - 20*log10(1.0^3) ≈ 20*3*log10(1.1) ≈ 2.49 dB
-        REQUIRE(md->value.find("dB") == std::string::npos); // unit is "dB" but raw delta uses unit
-        // Just verify it has valid content and is a decibel delta
-        auto vf = std::stof(md->value);
-        REQUIRE(vf == Approx(2.49).margin(0.1));
+        REQUIRE(md->value == "4.75 dB");
+        REQUIRE(md->summary == "+/- 4.75 dB");
+        REQUIRE(md->changeDown == "-5.81 dB");
+        REQUIRE(md->valUp == "-13.31 dB");
+        REQUIRE(md->valDown == "-23.88 dB");
     }
 
     SECTION("CUBED_AS_DECIBEL from string round-trip")
@@ -930,6 +930,141 @@ TEST_CASE("Modulation Natural To String", "[param]")
         REQUIRE(mv.has_value());
         // base=1 (0dB), +6dB → amplitude doubles → val = cbrt(2) - 1 ≈ 0.26
         REQUIRE(*mv == Approx(std::cbrt(2.0) - 1.0).margin(0.01));
+    }
+}
+
+TEST_CASE("Modulation Endpoints and Alternate Units", "[param]")
+{
+    SECTION("Linear endpoints stop at the range ends")
+    {
+        auto p = pmd::ParamMetaData().asPercent();
+        auto md = p.modulationNaturalToString(0.8, 0.5, true);
+        REQUIRE(md.has_value());
+        REQUIRE(md->value == ">20.00 %");
+        REQUIRE(md->changeUp == ">20.00 %");
+        REQUIRE(md->changeDown == "-50.00 %");
+        REQUIRE(md->valUp == ">100.00 %");
+        REQUIRE(md->valDown == "30.00 %");
+
+        auto unclamped = p.modulationNaturalToString(
+            0.8, 0.5, true, pmd::ParamMetaData::FeatureState().withModulationClamped(false));
+        REQUIRE(unclamped->value == "50.00 %");
+        REQUIRE(unclamped->valUp == "130.00 %");
+    }
+
+    SECTION("Linear offset applies to values, not distances")
+    {
+        auto p = pmd::ParamMetaData().asFloat().withRange(0, 10).withLinearScaleFormatting("u", 2.f,
+                                                                                           100.f);
+        auto md = p.modulationNaturalToString(2, 1, true);
+        REQUIRE(md->value == "2.00 u");
+        REQUIRE(md->baseValue == "104.00 u");
+        REQUIRE(md->valUp == "106.00 u");
+        REQUIRE(md->valDown == "102.00 u");
+    }
+
+    SECTION("Harmonic endpoints are ordinals like the base")
+    {
+        auto p = pmd::ParamMetaData()
+                     .asFloat()
+                     .withRange(2, 24)
+                     .withQuantizedStepCount(22)
+                     .withHarmonicSeriesFormatting();
+        auto md = p.modulationNaturalToString(8, 2, true);
+        REQUIRE(md->baseValue == "8th harmonic");
+        REQUIRE(md->valUp == "10th harmonic");
+        REQUIRE(md->valDown == "6th harmonic");
+    }
+
+    SECTION("Two to the x picks units per endpoint")
+    {
+        auto p = pmd::ParamMetaData().asLog2SecondsRange(-8.f, 2.f, -6.f);
+        auto md = p.modulationNaturalToString(-6, 0.6, true);
+        REQUIRE(md.has_value());
+        REQUIRE(md->baseValue == "15.6 ms");
+        REQUIRE(md->value.find(" ms") != std::string::npos);
+        REQUIRE(md->valUp.find(" ms") != std::string::npos);
+        REQUIRE(md->valDown.find(" ms") != std::string::npos);
+    }
+
+    SECTION("Exp time depth uses the alternate decimal places and round trips")
+    {
+        auto p = pmd::ParamMetaData().as25SecondExpTime();
+        auto md = p.modulationNaturalToString(0.1, 0.1, false);
+        REQUIRE(md.has_value());
+        REQUIRE(md->value == "8.1 ms");
+
+        std::string em;
+        auto mv = p.modulationNaturalFromString(md->value, 0.1, em);
+        REQUIRE(mv.has_value());
+        REQUIRE(*mv == Approx(0.1).margin(0.002));
+
+        auto mvs = p.modulationNaturalFromString("1.46 s", 0.2, em);
+        REQUIRE(mvs.has_value());
+        REQUIRE(*mvs == Approx(0.5).margin(0.01));
+    }
+
+    SECTION("A clamped depth reads back as the clamped amount")
+    {
+        auto p = pmd::ParamMetaData().asEnvelopeTime();
+        auto md = p.modulationNaturalToString(4.5, 2.0, false);
+        REQUIRE(md.has_value());
+        REQUIRE(md->value == ">9.37 s");
+
+        std::string em;
+        auto mv = p.modulationNaturalFromString(md->value, 4.5, em);
+        REQUIRE(mv.has_value());
+        REQUIRE(*mv == Approx(0.5).margin(0.001));
+
+        auto mvd = p.modulationNaturalFromString(" <-9.37 s", 4.5, em);
+        REQUIRE(mvd.has_value());
+        REQUIRE(*mvd < 0.f);
+    }
+
+    SECTION("Linear endpoints use the alternate unit like the base")
+    {
+        auto p = pmd::ParamMetaData()
+                     .asFloat()
+                     .withRange(0, 2)
+                     .withLinearScaleFormatting("s")
+                     .withMilisecondsBelowOneSecond();
+        auto md = p.modulationNaturalToString(0.5, 0.2, true);
+        REQUIRE(md.has_value());
+        INFO(md->singleLineModulationSummary);
+        REQUIRE(md->baseValue.find(" ms") != std::string::npos);
+        REQUIRE(md->value.find(" ms") != std::string::npos);
+        REQUIRE(md->valUp.find(" ms") != std::string::npos);
+        REQUIRE(md->valDown.find(" ms") != std::string::npos);
+
+        std::string em;
+        auto mv = p.modulationNaturalFromString(md->value, 0.5, em);
+        REQUIRE(mv.has_value());
+        REQUIRE(*mv == Approx(0.2).margin(0.001));
+    }
+
+    SECTION("Every scale marks a clamped depth and reads it back")
+    {
+        auto check = [](const pmd::ParamMetaData &p, float base, float depth,
+                        const pmd::ParamMetaData::FeatureState &fs = {}) {
+            INFO(p.name << " base " << base << " depth " << depth);
+            auto md = p.modulationNaturalToString(base, depth, true, fs);
+            REQUIRE(md.has_value());
+            REQUIRE(md->value[0] == '>');
+            REQUIRE(md->changeUp == md->value);
+            REQUIRE(md->valUp[0] == '>');
+            REQUIRE(md->changeDown[0] != '<');
+
+            std::string em;
+            auto mv = p.modulationNaturalFromString(md->value, base, em, fs);
+            REQUIRE(mv.has_value());
+            REQUIRE(*mv == Approx(p.maxVal - base).margin(0.01 * (p.maxVal - p.minVal)));
+        };
+        check(pmd::ParamMetaData().asPercent().withName("linear"), 0.8, 0.5);
+        check(pmd::ParamMetaData().asEnvelopeTime().withName("2^x"), 4.5, 2.0);
+        check(pmd::ParamMetaData().as25SecondExpTime().withName("exp"), 0.8, 0.5);
+        check(pmd::ParamMetaData().asCubicDecibelUpTo(12.f).withName("cubic db"), 1.0, 0.5);
+        check(pmd::ParamMetaData().as25SecondTemposyncableExpTime().withName("temposync"), 0.8, 0.5,
+              pmd::ParamMetaData::FeatureState().withTemposync(true));
     }
 }
 
