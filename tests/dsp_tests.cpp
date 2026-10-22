@@ -1390,6 +1390,45 @@ TEST_CASE("LinearLag", "[dsp]")
         }
     }
 }
+
+TEMPLATE_TEST_CASE("LinearLag Long Lags Stay On The Line", "[dsp]", float, double)
+{
+    for (auto time : {2000, 5000})
+    {
+        for (auto bs : {8, 16})
+        {
+            for (auto [from, to] : std::initializer_list<std::pair<double, double>>{
+                     {0, 1}, {1, 0}, {10, 11}, {-3, 7}, {1000, 1001}})
+            {
+                INFO("Lag " << time << "ms block " << bs << " from " << from << " to " << to);
+                auto sr = 48000;
+                auto l1 = sst::basic_blocks::dsp::LinearLag<TestType, false>();
+                l1.setRateInMilliseconds(time, sr, 1.0 / bs);
+                l1.snapTo(from);
+                l1.setTarget(to);
+
+                auto requiredIts = (int)std::round(time * 0.001 * sr / bs);
+                auto tol =
+                    1e-4 * std::fabs(to - from) + 4 * std::numeric_limits<TestType>::epsilon() *
+                                                      std::max(std::fabs(from), std::fabs(to));
+
+                int its{0};
+                while (l1.isActive() && its < 2 * requiredIts)
+                {
+                    l1.process();
+                    its++;
+                    auto ideal = from + (to - from) * std::min(1.0, 1.0 * its / requiredIts);
+                    INFO("Iteration " << its << " value " << l1.v << " ideal " << ideal);
+                    REQUIRE(std::fabs(l1.v - ideal) <= tol);
+                }
+                REQUIRE(!l1.isActive());
+                REQUIRE(std::abs(its - requiredIts) <= 1);
+                REQUIRE(l1.v == (TestType)to);
+            }
+        }
+    }
+}
+
 TEST_CASE("UIComponentLagHandler", "[dsp]")
 {
     SECTION("Basics Up")
@@ -1473,6 +1512,54 @@ TEST_CASE("UIComponentLagHandler", "[dsp]")
         REQUIRE(f == 0.5);
         lag.process();
         REQUIRE(g < 1.0);
+    }
+
+    SECTION("Long Lags Stay On The Line")
+    {
+        for (auto bs : {8, 16})
+        {
+            for (auto [from, to] : std::initializer_list<std::pair<float, float>>{
+                     {0, 1}, {1, 0}, {10, 11}, {-3, 7}, {1000, 1001}})
+            {
+                INFO("Block " << bs << " from " << from << " to " << to);
+                sst::basic_blocks::dsp::UIComponentLagHandler lag;
+                lag.setRate(0.5, bs, 48000);
+                float f{from};
+                lag.setNewDestination(&f, to);
+
+                auto requiredIts = (int)std::round(48000 / 0.5 / bs);
+                auto tol =
+                    1e-4 * std::fabs(to - from) + 4 * std::numeric_limits<float>::epsilon() *
+                                                      std::max(std::fabs(from), std::fabs(to));
+
+                int its{0};
+                while (lag.active && its < 2 * requiredIts)
+                {
+                    lag.process();
+                    its++;
+                    auto ideal = from + (to - from) * std::min(1.0, 1.0 * its / requiredIts);
+                    INFO("Iteration " << its << " value " << f << " ideal " << ideal);
+                    REQUIRE(std::fabs(f - ideal) <= tol);
+                }
+                REQUIRE(!lag.active);
+                REQUIRE(std::abs(its - requiredIts) <= 1);
+                REQUIRE(f == to);
+            }
+        }
+    }
+
+    SECTION("Target Equal To Value Finishes")
+    {
+        sst::basic_blocks::dsp::UIComponentLagHandler lag;
+
+        lag.setRate(120, 16, 48000);
+        float f{0.5};
+        lag.setNewDestination(&f, 0.5);
+        int its{0};
+        while (lag.active && its++ < 100)
+            lag.process();
+        REQUIRE(!lag.active);
+        REQUIRE(f == 0.5);
     }
 }
 
