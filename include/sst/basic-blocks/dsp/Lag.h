@@ -27,6 +27,7 @@
 #ifndef INCLUDE_SST_BASIC_BLOCKS_DSP_LAG_H
 #define INCLUDE_SST_BASIC_BLOCKS_DSP_LAG_H
 
+#include <algorithm>
 #include <cmath>
 
 namespace sst::basic_blocks::dsp
@@ -113,7 +114,8 @@ template <typename T, bool first_run> struct LinearLag
 
     void setRateInMilliseconds(double miliSeconds, double sampleRate, double blockSizeInv)
     {
-        processCalls = 0.001 * miliSeconds * sampleRate * blockSizeInv;
+        processCalls =
+            std::max(1, (int)std::round(0.001 * miliSeconds * sampleRate * blockSizeInv));
         processCallsInv = 1.0 / processCalls;
     }
 
@@ -124,6 +126,7 @@ template <typename T, bool first_run> struct LinearLag
         {
             target_v = f;
             dTarget = (target_v - v) * processCallsInv;
+            remaining = processCalls;
             active = true;
         }
 
@@ -138,6 +141,7 @@ template <typename T, bool first_run> struct LinearLag
         target_v = f;
         v = f;
         dTarget = 0;
+        remaining = 0;
         active = false;
         first_time = false;
     }
@@ -149,7 +153,7 @@ template <typename T, bool first_run> struct LinearLag
     {
         if (active)
         {
-            if (std::fabs(v - target_v) < std::fabs(dTarget))
+            if (--remaining <= 0)
             {
                 v = target_v;
                 active = false;
@@ -157,7 +161,8 @@ template <typename T, bool first_run> struct LinearLag
             }
             else
             {
-                v += dTarget;
+                // measure back from target so float error doesn't accumulate
+                v = target_v - dTarget * remaining;
             }
         }
     }
@@ -167,7 +172,8 @@ template <typename T, bool first_run> struct LinearLag
     T v{0}, target_v{0};
 
   private:
-    T dTarget{0}, processCalls{1}, processCallsInv{1};
+    T dTarget{0}, processCallsInv{1};
+    int processCalls{1}, remaining{0};
     bool active{false}, first_time{true};
 };
 
@@ -182,13 +188,14 @@ template <typename DestinationHandler> struct UIComponentLagHandlerBase
     float targetValue{0.f};
     float value{0.f};
     float dTarget{0.f}, dTargetScale{0.05f};
+    int blocks{20}, remaining{0};
     bool active{false};
 
     DestinationHandler *asDestinationHandler() { return static_cast<DestinationHandler *>(this); }
 
     void setRate(float rateInHz, uint16_t blockSize, float sampleRate)
     {
-        int blocks = (int)std::round(sampleRate / rateInHz / blockSize);
+        blocks = std::max(1, (int)std::round(sampleRate / rateInHz / blockSize));
         dTargetScale = 1.f / blocks;
     }
 
@@ -196,6 +203,7 @@ template <typename DestinationHandler> struct UIComponentLagHandlerBase
     {
         targetValue = t;
         dTarget = (targetValue - value) * dTargetScale;
+        remaining = blocks;
         active = true;
     }
 
@@ -204,11 +212,15 @@ template <typename DestinationHandler> struct UIComponentLagHandlerBase
         if (!active)
             return;
 
-        value += dTarget;
-        if (std::fabs(value - targetValue) < std::fabs(dTarget))
+        if (--remaining <= 0)
         {
             value = targetValue;
             active = false;
+        }
+        else
+        {
+            // measure back from target so float error doesn't accumulate
+            value = targetValue - dTarget * remaining;
         }
 
         asDestinationHandler()->updateDestination(value);
