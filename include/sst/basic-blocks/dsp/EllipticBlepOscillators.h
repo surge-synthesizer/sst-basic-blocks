@@ -227,58 +227,245 @@ struct EBSaw : EBOscillatorBase<EBSaw<SmoothingStrategy>, SmoothingStrategy>
     static float valueAt(float sphase) { return 2 * sphase - 1; }
 };
 
-template <typename SmoothingStrategy = LagSmoothingStrategy>
-struct EBTri : EBOscillatorBase<EBTri<SmoothingStrategy>, SmoothingStrategy>
+namespace detail
 {
+/*
+ * Where a triangle's corners sit and the slopes between them, for a width: the share of
+ * each cycle spent rising. The falling zero crossing stays at phase 0 whatever the width,
+ * so the bottom corner is at (1 - width) / 2 and the top one width later. Slopes are per
+ * unit of phase.
+ */
+struct EBTriShape
+{
+    float bottom, top, rise, fall;
+    // the least phase between two corners; a sample which moves less crosses one at most
+    float gap;
+
+    static constexpr EBTriShape forWidth(float w)
+    {
+        return {(1 - w) * 0.5f, (1 + w) * 0.5f, 2 / w, -2 / (1 - w), w < 1 - w ? w : 1 - w};
+    }
+    constexpr float valueAt(float sphase) const
+    {
+        if (sphase >= bottom && sphase < top)
+            return -1 + rise * (sphase - bottom);
+        return 1 + fall * (sphase >= top ? sphase - top : sphase + 1 - top);
+    }
+    constexpr float slopeAt(float sphase) const
+    {
+        return sphase >= bottom && sphase < top ? rise : fall;
+    }
+};
+
+/*
+ * The triangle and the triangle to saw share this. The triangle's shape is a compile time
+ * constant; the triangle to saw rebuilds its own when its width moves.
+ *
+ * The slope corrections have to add up to the slope the naive shape actually has. The
+ * blep's slow poles integrate whatever is left over, so a corner which goes unreported
+ * (two in one sample, one either side of a sync restart) charges them a little each cycle
+ * until the output runs away. So every corner the follower crosses is reported at its own
+ * time, from the slope the blep was last told about, as is a sync restart's kink back to
+ * the falling slope; a moving width is squared up after.
+ */
+template <typename Impl, typename SmoothingStrategy, bool skews>
+struct EBTriCore : EBOscillatorBase<Impl, SmoothingStrategy>
+{
+    static constexpr EBTriShape triangle{EBTriShape::forWidth(0.5f)};
+
+    EBTriCore()
+    {
+        if constexpr (skews)
+            SmoothingStrategy::setValueInstant(width, 0.5);
+        reset();
+    }
+    void reset()
+    {
+        EBOscillatorBase<Impl, SmoothingStrategy>::reset();
+        if constexpr (skews)
+            SmoothingStrategy::resetFirstRun(width);
+        lastSPhase = 0;
+    }
+
     float step()
     {
         auto freq = SmoothingStrategy::getValue(this->dphase);
         auto srval = SmoothingStrategy::getValue(this->sratio);
+        if constexpr (skews)
+        {
+            auto w = SmoothingStrategy::getValue(width);
+            if (w != skewedWidth)
+            {
+                skewed = EBTriShape::forWidth(w);
+                skewedWidth = w;
+            }
+        }
+        const auto &sh = shape();
+        auto dsphase = srval * freq;
 
+        // a fresh blep has been told nothing, so start the slope it knows from here
+        if (this->onsetChargePending)
+        {
+            toldSlope = sh.slopeAt(this->sphase);
+            chargeOnset(dsphase, srval, sh);
+        }
+
+        auto from = this->sphase;
         this->phase += freq;
-        this->sphase += freq * srval;
+        this->sphase += dsphase;
 
         this->blep.step();
 
         // this turns us around externally
         if (this->phase >= 1)
         {
-            if (this->sphase < 1)
+            restart(from, freq, srval, dsphase, sh);
+        }
+        else
+        {
+            auto to = this->sphase;
+            if (dsphase < sh.gap)
             {
-                this->syncTurnaroundCorrection(freq, srval);
+                // at most one corner, and it is the next one after where the sample started
+                if (from < sh.bottom)
+                {
+                    if (to >= sh.bottom)
+                        kink(sh.rise, (to - sh.bottom) / dsphase, dsphase);
+                }
+                else if (from < sh.top)
+                {
+                    if (to >= sh.top)
+                        kink(sh.fall, (to - sh.top) / dsphase, dsphase);
+                }
+                else if (to >= sh.bottom + 1)
+                {
+                    kink(sh.rise, (to - sh.bottom - 1) / dsphase, dsphase);
+                }
             }
+            else
+            {
+                corners(from, to, 0, dsphase, sh);
+            }
+            if (to >= 1)
+                this->sphase -= 1;
+        }
 
-            this->phase -= 1;
-            this->sphase = this->phase * srval;
-        }
-        else if (this->sphase >= 1)
-        {
-            this->sphase -= 1;
-        }
-        else if (srval * freq < 0.25 && lastSPhase < 0.25 && this->sphase >= 0.25)
-        {
-            float samplesInPast = (this->sphase - 0.25) / (srval * freq);
-            auto dDeriv = 8 * srval * freq;
-            this->blep.add(dDeriv, 2, this->csip(samplesInPast));
-        }
-        else if (srval * freq < 0.25 && lastSPhase < 0.75 && this->sphase >= 0.75)
-        {
-            float samplesInPast = (this->sphase - 0.75) / (srval * freq);
-            auto dDeriv = -8 * srval * freq;
-            this->blep.add(dDeriv, 2, this->csip(samplesInPast));
-        }
+        // a moving width changes the slope between corners; tell the blep that too
+        if constexpr (skews)
+            if (auto now = sh.slopeAt(this->sphase); now != toldSlope)
+                kink(now, 0, dsphase);
 
         lastSPhase = this->sphase;
-        float result = valueAt(this->sphase); // naive sawtooth
+        float result = sh.valueAt(this->sphase); // naive triangle
 
         result += this->blep.get();     // add in BLEP residue
         result = this->allpass(result); // (optional) phase correction
 
         SmoothingStrategy::process(this->dphase);
         SmoothingStrategy::process(this->sratio);
+        if constexpr (skews)
+            SmoothingStrategy::process(width);
 
         return result;
     }
+
+    float lastSPhase{0};
+
+  protected:
+    const EBTriShape &shape() const
+    {
+        if constexpr (skews)
+            return skewed;
+        else
+            return triangle;
+    }
+
+    void kink(float to, float samplesInPast, float dsphase)
+    {
+        this->blep.add((to - toldSlope) * dsphase, 2, this->csip(samplesInPast));
+        toldSlope = to;
+    }
+
+    // every corner the follower crosses going from a to b, which ends this many samples
+    // before now; in time order, so each kinks from the slope before it
+    void corners(float a, float b, float endsInPast, float dsphase, const EBTriShape &sh)
+    {
+        if (!(dsphase > 0))
+            return;
+        const std::pair<float, float> cs[]{{sh.bottom, sh.rise},
+                                           {sh.top, sh.fall},
+                                           {sh.bottom + 1, sh.rise},
+                                           {sh.top + 1, sh.fall}};
+        for (auto [c, to] : cs)
+        {
+            if (c > b)
+                break;
+            if (c > a)
+                kink(to, endsInPast + (b - c) / dsphase, dsphase);
+        }
+    }
+
+    // the leader came round, so the follower goes back to phase 0
+    void restart(float from, float freq, float srval, float dsphase, const EBTriShape &sh)
+    {
+        float samplesInPast = (this->phase - 1) / freq;
+        float atRestart = this->sphase - samplesInPast * dsphase;
+        corners(from, atRestart, samplesInPast, dsphase, sh);
+        // the value jumps back to phase 0's, unless the follower got there too
+        if (this->sphase < 1)
+            this->blep.add(sh.valueAt(0) - sh.valueAt(atRestart), 1, this->csip(samplesInPast));
+        // and the slope back to the falling one, which it may already be on
+        kink(sh.fall, samplesInPast, dsphase);
+
+        this->phase -= 1;
+        this->sphase = this->phase * srval;
+        corners(0, this->sphase, 0, dsphase, sh);
+    }
+
+    /*
+     * Each corner's kinks are a train which, from cold, the blep's slow poles have to charge
+     * on, and that rings up at the start of a note; the more so skewed, where the trains are
+     * far apart and strong. Start the poles where a running oscillator would have left them.
+     * Under sync the pattern repeats each leader cycle: the corners the follower crosses on
+     * its way from 0 to the sync ratio, then the restart's kink back to the falling slope.
+     */
+    void chargeOnset(float dsphase, float srval, const EBTriShape &sh)
+    {
+        this->onsetChargePending = false;
+        // past this many corners a cycle the charge costs more than the ring it saves
+        if (!(dsphase > 0) || !(srval > 0) || srval > 32)
+            return;
+
+        auto freq = dsphase / srval, period = 1 / freq;
+        auto corner = (sh.rise - sh.fall) * dsphase;
+        // samples since the leader was last at this share of its cycle
+        auto since = [&](float at) {
+            return (this->phase - at + (this->phase < at ? 1 : 0)) / freq;
+        };
+        for (float k = 0; k < srval; ++k)
+        {
+            if (sh.bottom + k < srval)
+                this->blep.addPeriodic(corner, 2, period, since((sh.bottom + k) / srval));
+            if (sh.top + k < srval)
+                this->blep.addPeriodic(-corner, 2, period, since((sh.top + k) / srval));
+        }
+        auto restartKink = sh.fall - sh.slopeAt(srval - std::floor(srval));
+        if (restartKink != 0)
+            this->blep.addPeriodic(restartKink * dsphase, 2, period, since(0));
+    }
+
+    // only the triangle to saw moves these
+    typename SmoothingStrategy::smoothValue_t width;
+    EBTriShape skewed{triangle};
+    float skewedWidth{0.5f};
+    // the slope the blep has been told the naive shape has
+    float toldSlope{0};
+};
+} // namespace detail
+
+template <typename SmoothingStrategy = LagSmoothingStrategy>
+struct EBTri : detail::EBTriCore<EBTri<SmoothingStrategy>, SmoothingStrategy, false>
+{
     static float valueAt(float sphase)
     {
         auto uphase = sphase - 0.25 + (sphase < 0.25);
@@ -287,8 +474,23 @@ struct EBTri : EBOscillatorBase<EBTri<SmoothingStrategy>, SmoothingStrategy>
         else
             return -4 * uphase + 3;
     }
+};
 
-    float lastSPhase{0};
+/*
+ * A triangle which leans over into a saw. The width is the share of each cycle spent
+ * rising: 0.5 is the triangle, and towards 1 (or 0) a rising (or falling) saw.
+ */
+template <typename SmoothingStrategy = LagSmoothingStrategy>
+struct EBTriToSaw : detail::EBTriCore<EBTriToSaw<SmoothingStrategy>, SmoothingStrategy, true>
+{
+    void setWidth(float w)
+    {
+        SmoothingStrategy::setTarget(this->width, std::clamp(w, 0.01f, 0.99f));
+    }
+    static float valueAt(float sphase, float w)
+    {
+        return detail::EBTriShape::forWidth(w).valueAt(sphase);
+    }
 };
 
 template <typename SmoothingStrategy = LagSmoothingStrategy>

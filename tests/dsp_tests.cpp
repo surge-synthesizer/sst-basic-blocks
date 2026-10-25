@@ -2034,6 +2034,133 @@ TEST_CASE("Elliptic Blep Oscillator Onset", "[dsp]")
     }
 }
 
+TEST_CASE("Elliptic Blep Triangle To Saw", "[dsp]")
+{
+    namespace bbd = sst::basic_blocks::dsp;
+    using strat_t = bbd::BlockInterpSmoothingStrategy<16>;
+
+    SECTION("the naive shape runs -1 to 1 and is the triangle at a half")
+    {
+        for (float w : {0.1f, 0.3f, 0.5f, 0.8f, 0.95f})
+        {
+            const float bottom = (1 - w) / 2;
+            REQUIRE(bbd::EBTriToSaw<strat_t>::valueAt(bottom, w) == Approx(-1).margin(1e-5));
+            REQUIRE(bbd::EBTriToSaw<strat_t>::valueAt(bottom + w, w) == Approx(1).margin(1e-5));
+            REQUIRE(bbd::EBTriToSaw<strat_t>::valueAt(0, w) == Approx(0).margin(1e-5));
+        }
+        for (float p = 0; p < 1; p += 0.01f)
+            REQUIRE(bbd::EBTriToSaw<strat_t>::valueAt(p, 0.5f) ==
+                    Approx(bbd::EBTri<strat_t>::valueAt(p)).margin(1e-5));
+    }
+
+    SECTION("it rises for the width's share of each cycle and stays bounded")
+    {
+        for (float w : {0.1f, 0.3f, 0.5f, 0.7f, 0.9f})
+        {
+            bbd::EBTriToSaw<strat_t> tri;
+            tri.setSampleRate(48000);
+            tri.setFrequency(110);
+            tri.setSyncRatio(1.f);
+            tri.setWidth(w);
+
+            int rising{0}, n{48000};
+            double peak{0};
+            float last = tri.step();
+            for (int i = 0; i < n; ++i)
+            {
+                const float v = tri.step();
+                rising += v > last;
+                peak = std::max(peak, (double)std::fabs(v));
+                last = v;
+            }
+            INFO("width " << w << " rising " << rising / (double)n << " peak " << peak);
+            REQUIRE(rising / (double)n == Approx(w).margin(0.02));
+            REQUIRE(peak < 1.2);
+        }
+    }
+
+    SECTION("at a half it plays the triangle")
+    {
+        bbd::EBTri<strat_t> tri;
+        bbd::EBTriToSaw<strat_t> skew;
+        tri.setSampleRate(48000);
+        skew.setSampleRate(48000);
+        double d{0};
+        for (int i = 0; i < 48000; ++i)
+        {
+            if (i % 16 == 0)
+            {
+                tri.setFrequency(440);
+                tri.setSyncRatio(i < 24000 ? 1.f : 2.7f);
+                skew.setFrequency(440);
+                skew.setSyncRatio(i < 24000 ? 1.f : 2.7f);
+                skew.setWidth(0.5f);
+            }
+            d = std::max(d, (double)std::fabs(tri.step() - skew.step()));
+        }
+        REQUIRE(d < 1e-4);
+    }
+}
+
+TEST_CASE("Elliptic Blep Triangle Sync", "[dsp]")
+{
+    namespace bbd = sst::basic_blocks::dsp;
+    using strat_t = bbd::BlockInterpSmoothingStrategy<16>;
+
+    // the peak of a second; set every block as an engine would, with sync switched on half
+    // way through if it is to switch, and counted from there
+    auto peakOf = [](auto &tri, auto setWidth, double freq, float sync, bool switchOn) {
+        tri.setSampleRate(48000);
+        double peak{0};
+        for (int i = 0; i < 48000; ++i)
+        {
+            if (i % 16 == 0)
+            {
+                tri.setFrequency(freq);
+                tri.setSyncRatio(switchOn && i < 24000 ? 1.f : sync);
+                setWidth(tri);
+            }
+            const double v = std::fabs(tri.step());
+            if (!switchOn || i >= 24000)
+                peak = std::max(peak, v);
+        }
+        return peak;
+    };
+
+    // a sync restart kinks the slope as well as jumping the value. unreported, or with a
+    // corner lost inside the restart's sample, the kinks stop cancelling and the blep's slow
+    // poles charge until the output runs away: a triangle at 4186Hz synced at 2.7 used to
+    // peak over 50
+    for (bool switchOn : {false, true})
+    {
+        for (double freq : {440., 2000., 4186., 8372.})
+        {
+            for (float sync : {1.f, 1.5f, 2.7f, 4.3f})
+            {
+                INFO("freq " << freq << " sync " << sync << " switched on " << switchOn);
+                // from the first sample a synced saw gets to about 4 up here
+                const double bound = switchOn ? 4.5 : 3;
+
+                bbd::EBTri<strat_t> tri;
+                const auto plain = peakOf(tri, [](auto &) {}, freq, sync, switchOn);
+                INFO("triangle peak " << plain);
+                REQUIRE(std::isfinite(plain));
+                REQUIRE(plain < bound);
+
+                for (float w : {0.05f, 0.5f, 0.95f})
+                {
+                    bbd::EBTriToSaw<strat_t> skew;
+                    const auto p =
+                        peakOf(skew, [w](auto &o) { o.setWidth(w); }, freq, sync, switchOn);
+                    INFO("width " << w << " peak " << p);
+                    REQUIRE(std::isfinite(p));
+                    REQUIRE(p < bound);
+                }
+            }
+        }
+    }
+}
+
 TEST_CASE("Elliptic Blep Pole Sharing", "[dsp]")
 {
     namespace bbd = sst::basic_blocks::dsp;
