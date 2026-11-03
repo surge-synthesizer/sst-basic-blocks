@@ -84,7 +84,7 @@ template <int N, typename T> struct LagCollectionBase
     void setRateInMilliseconds(double rate, double sampleRate, double blockSizeInv)
     {
         for (auto &l : lags)
-            l.lag.setRateInMilliseconds(1000.0 * rate / 48000.0, sampleRate, blockSizeInv);
+            l.lag.setRateInMilliseconds(rate, sampleRate, blockSizeInv);
     }
 
     void setTargetValue(size_t index, float target)

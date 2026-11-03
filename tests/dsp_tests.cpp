@@ -28,6 +28,7 @@
 #include "sst/basic-blocks/simd/setup.h"
 #include <cmath>
 #include <array>
+#include <tuple>
 #include <iostream>
 #include <limits>
 
@@ -1744,6 +1745,31 @@ TEST_CASE("Lag Collection", "[dsp]")
         lags.snapAllActiveToTarget();
         REQUIRE(vals[7] == lv);
         REQUIRE(lags.activeSet.activeCount == 0);
+    }
+
+    SECTION("Lags Take The Time Asked For")
+    {
+        for (auto [ms, sr, bs] : {std::tuple{10.0, 48000.0, 16}, std::tuple{10.0, 96000.0, 16},
+                                  std::tuple{25.0, 44100.0, 4}, std::tuple{100.0, 48000.0, 32}})
+        {
+            INFO(ms << "ms at " << sr << " in blocks of " << bs);
+            std::array<float, 16> vals{};
+            sst::basic_blocks::dsp::LagCollection<16> lags;
+            lags.setRateInMilliseconds(ms, sr, 1.0 / bs);
+            lags.setTarget(2, 0.0, &vals[2]);
+            lags.processAll();
+            lags.setTarget(2, 1.0, &vals[2]);
+
+            int its{0};
+            while (lags.activeSet.activeCount > 0 && its < 100000)
+            {
+                lags.processAll();
+                its++;
+            }
+
+            REQUIRE(vals[2] == 1.f);
+            REQUIRE(its * bs / sr * 1000.0 == Approx(ms).margin(1000.0 * bs / sr));
+        }
     }
 }
 
