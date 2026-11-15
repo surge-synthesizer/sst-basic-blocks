@@ -304,6 +304,10 @@ template <typename ModMatrixTraits> struct FixedMatrix : ModMatrix<ModMatrixTrai
     {
         updateRoutingState(rt);
 
+        // a reused matrix must not keep a previous table's routes past this one's
+        for (auto &rv : routingValuePointers)
+            rv = RoutingValuePointers();
+
         int idx{0};
         sst::cpputils::SmallHashSet<typename TR::TargetIdentifier, TR::FixedMatrixSize> depthMaps;
         for (auto &r : rt.routes)
