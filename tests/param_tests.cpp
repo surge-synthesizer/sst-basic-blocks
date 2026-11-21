@@ -1325,6 +1325,18 @@ TEST_CASE("isNoUnits FeatureState", "[param]")
         REQUIRE(*without == "4.00");
     }
 
+    SECTION("CUBED_AS_DECIBEL -inf round trips with its unit")
+    {
+        auto p = pmd::ParamMetaData().asCubicDecibelAttenuation();
+        auto s = p.valueToString(0.f);
+        REQUIRE(s.has_value());
+        std::string em;
+        auto v = p.valueFromString(*s, em);
+        REQUIRE(v.has_value());
+        REQUIRE(*v == 0.f);
+        REQUIRE(p.valueFromString("-inf", em) == 0.f);
+    }
+
     SECTION("CUBED_AS_DECIBEL suppresses unit")
     {
         auto p = pmd::ParamMetaData().asCubicDecibelAttenuation();

@@ -93,6 +93,14 @@ namespace detail
  * this a one-for-one swap rather than a rewrite of that error handling. It also
  * drops the std::string round trip those call sites were making to satisfy stof.
  */
+// -inf is displayed with a unit ("-inf dB") which the number parser does not read
+inline bool isNegativeInfinity(std::string_view v)
+{
+    while (!v.empty() && (v.front() == ' ' || v.front() == '\t'))
+        v.remove_prefix(1);
+    return v.substr(0, 4) == "-inf";
+}
+
 inline float toFloat(std::string_view v)
 {
     auto r = mechanics::parseNumber(v);
@@ -1798,7 +1806,7 @@ inline std::optional<float> ParamMetaData::valueFromString(std::string_view v, s
     break;
     case LOGARITHMIC:
     {
-        if (v == "-inf")
+        if (detail::isNegativeInfinity(v))
             return minVal;
 
         try
@@ -1858,7 +1866,7 @@ inline std::optional<float> ParamMetaData::valueFromString(std::string_view v, s
     {
         try
         {
-            if (v == "-inf")
+            if (detail::isNegativeInfinity(v))
                 return 0.f;
 
             auto r = detail::toFloat(v);
