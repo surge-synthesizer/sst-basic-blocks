@@ -1081,6 +1081,34 @@ TEST_CASE("FeatureState withAbsolute", "[param]")
     }
 }
 
+TEST_CASE("Endpoint text reads back as the endpoint", "[param]")
+{
+    // each of these displays an endpoint rounded just past the range
+    auto check = [](const pmd::ParamMetaData &p) {
+        for (auto e : {p.minVal, p.maxVal})
+        {
+            for (auto nu : {false, true})
+            {
+                auto fs = pmd::ParamMetaData::FeatureState().withNoUnits(nu);
+                auto s = p.valueToString(e, fs);
+                INFO(p.name << " endpoint " << e << " text '" << *s << "'");
+                std::string em;
+                auto v = p.valueFromString(*s, em, fs);
+                REQUIRE(v.has_value());
+                REQUIRE(*v == e);
+            }
+        }
+    };
+    check(pmd::ParamMetaData().asCubicDecibelUpTo(0.f).withRange(1.f, 3.f).withName(
+        "cubic db above unity"));
+    check(pmd::ParamMetaData()
+              .asFloat()
+              .withRange(0, 2.0 / 12.0)
+              .withDecimalPlaces(4)
+              .withATwoToTheBFormatting(1, 1, "x")
+              .withName("2^x"));
+}
+
 TEST_CASE("Logarithmic Display Scale", "[param]")
 {
     SECTION("To String")

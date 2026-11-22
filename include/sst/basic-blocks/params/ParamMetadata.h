@@ -440,6 +440,23 @@ struct ParamMetaData
     std::optional<float> valueFromString(std::string_view, std::string &errMsg,
                                          const FeatureState &fs = {}) const;
 
+    // display rounding can put an endpoint's own text just outside the range
+    std::optional<float> endpointWithText(std::string_view v, const FeatureState &fs) const
+    {
+        for (auto e : {minVal, maxVal})
+        {
+            for (auto nu : {false, true})
+            {
+                auto f = fs;
+                f.isNoUnits = nu;
+                auto s = valueToString(e, f);
+                if (s.has_value() && *s == v)
+                    return e;
+            }
+        }
+        return std::nullopt;
+    }
+
     /*
      * Distances to String conversions are more peculiar, especially with non-linear ranges.
      * The parameter metadata assumes all distances are represented in a [-1,1] value on the
@@ -1709,6 +1726,8 @@ inline std::optional<float> ParamMetaData::valueFromString(std::string_view v, s
 
             if (r < minVal || r > maxVal)
             {
+                if (auto e = endpointWithText(v, fs))
+                    return e;
                 errMsg = rangeMsg();
                 return std::nullopt;
             }
@@ -1791,6 +1810,8 @@ inline std::optional<float> ParamMetaData::valueFromString(std::string_view v, s
 
             if (r < minVal || r > maxVal)
             {
+                if (auto e = endpointWithText(v, fs))
+                    return e;
                 errMsg = rangeMsg();
                 return std::nullopt;
             }
@@ -1818,6 +1839,8 @@ inline std::optional<float> ParamMetaData::valueFromString(std::string_view v, s
             auto res = std::exp(lnv);
             if (res < minVal || res > maxVal)
             {
+                if (auto e = endpointWithText(v, fs))
+                    return e;
                 errMsg = rangeMsg();
                 return std::nullopt;
             }
@@ -1848,6 +1871,8 @@ inline std::optional<float> ParamMetaData::valueFromString(std::string_view v, s
 
             if (xv < minVal || xv > maxVal)
             {
+                if (auto e = endpointWithText(v, fs))
+                    return e;
                 errMsg = rangeMsg();
                 return std::nullopt;
             }
@@ -1874,6 +1899,8 @@ inline std::optional<float> ParamMetaData::valueFromString(std::string_view v, s
             auto lv = std::cbrt(db / svA);
             if (lv < minVal || lv > maxVal)
             {
+                if (auto e = endpointWithText(v, fs))
+                    return e;
                 errMsg = rangeMsg();
                 return std::nullopt;
             }
