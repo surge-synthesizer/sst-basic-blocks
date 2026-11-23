@@ -69,10 +69,10 @@ int main(int argc, char **argv)
     ahsc.processBlock(0, 0, 0, 0, 0, 0, 0, 0, false, true);
     auto ad = sst::basic_blocks::modulators::ADAREnvelope<SampleSRProvider, 16>(srp.get());
     ad.processScaledAD(0, 0, 0, 0, false);
-    auto lf = sst::basic_blocks::modulators::SimpleLFO<SampleSRProvider, 16>(srp.get());
+    sst::basic_blocks::dsp::RNG rngA, rngB(2112);
+    auto lf = sst::basic_blocks::modulators::SimpleLFO<SampleSRProvider, 16>(srp.get(), rngA);
     lf.process_block(0, 0, 0);
 
-    sst::basic_blocks::dsp::RNG rngA, rngB(2112);
     auto lfer = sst::basic_blocks::modulators::SimpleLFO<SampleSRProvider, 16>(srp.get(), rngB);
     lfer.process_block(0, 0, 0);
 

@@ -116,6 +116,42 @@ TEST_CASE("Random SimpleLFO is Bounded")
 }
 #endif
 
+TEST_CASE("SimpleLFO construction draws nothing from its RNG", "[mod]")
+{
+    SRProvider sr;
+    using slfo_t = sst::basic_blocks::modulators::SimpleLFO<SRProvider, bs>;
+
+    sst::basic_blocks::dsp::RNG used(2112), reference(2112);
+    slfo_t lfo(&sr, used);
+    REQUIRE(used.unifU32() == reference.unifU32());
+}
+
+TEST_CASE("An un-attacked noise SimpleLFO moves in its first cycle", "[mod]")
+{
+    SRProvider sr;
+    using slfo_t = sst::basic_blocks::modulators::SimpleLFO<SRProvider, bs>;
+
+    sst::basic_blocks::dsp::RNG rng(2112);
+    slfo_t lfo(&sr, rng);
+    lfo.process_block(0, 0, slfo_t::SH_NOISE);
+    REQUIRE(lfo.phase < 1);
+    REQUIRE(lfo.lastTarget != 0.f);
+}
+
+TEST_CASE("SimpleLFO switched from noise to sine wraps its phase offset", "[mod]")
+{
+    SRProvider sr;
+    using slfo_t = sst::basic_blocks::modulators::SimpleLFO<SRProvider, bs>;
+
+    sst::basic_blocks::dsp::RNG rng(2112);
+    slfo_t lfo(&sr, rng);
+    lfo.attack(slfo_t::SH_NOISE);
+    lfo.attack(slfo_t::SINE);
+    lfo.applyPhaseOffset(0.75);
+    lfo.applyPhaseOffset(1.5);
+    REQUIRE(lfo.phase == Approx(0.5));
+}
+
 TEST_CASE("AHDSRShapedSC Stage Transitions Have Small Initial Phase", "[mod]")
 {
     using namespace sst::basic_blocks;
