@@ -62,21 +62,16 @@ template <typename SRProvider, int BLOCK_SIZE, bool clampDeform = false> struct 
 
         for (int i = 0; i < BLOCK_SIZE; ++i)
             outputBlock[i] = 0;
-
-        restartRandomSequence(0.f);
     }
 
-    //  Move towards this so we can remove the rng member above
-    //  [[deprecated("Use the two-arg constructor with an external RNG")]]
-    SimpleLFO(SRProvider *s) : srProvider(s), objrngRef(objrng)
+    [[deprecated("Use the two-arg constructor with an external RNG")]] SimpleLFO(SRProvider *s)
+        : srProvider(s), objrngRef(objrng)
     {
         objrng.reseedWithClock();
         urng = [this]() -> float { return objrng.unifPM1(); };
 
         for (int i = 0; i < BLOCK_SIZE; ++i)
             outputBlock[i] = 0;
-
-        restartRandomSequence(0.f);
     }
 
     enum Shape
@@ -97,8 +92,11 @@ template <typename SRProvider, int BLOCK_SIZE, bool clampDeform = false> struct 
     // double so temposynced rates don't drift against the host
     double phase{0};
 
+    // the noise shapes prime on first use, so construction draws nothing
+    bool randomPrimed{false};
     inline void restartRandomSequence(double corr)
     {
+        randomPrimed = true;
         rngState[0] = urng();
         rngState[1] = urng();
         // We have to restart and make sure the correlation filter works so do two things
@@ -167,11 +165,10 @@ template <typename SRProvider, int BLOCK_SIZE, bool clampDeform = false> struct 
         for (int i = 0; i < BLOCK_SIZE; ++i)
             outputBlock[i] = 0;
 
-        if (lshape == SH_NOISE || lshape == SMOOTH_NOISE)
-        {
-            needsRandomRestart = true;
+        // a non-noise shape must clear this or applyPhaseOffset clamps instead of wrapping
+        needsRandomRestart = (lshape == SH_NOISE || lshape == SMOOTH_NOISE);
+        if (needsRandomRestart)
             phase = 1.000001;
-        }
     }
 
     float lastDPhase{0};
@@ -200,12 +197,19 @@ template <typename SRProvider, int BLOCK_SIZE, bool clampDeform = false> struct 
         }
     }
 
+    // full deform as noise correlation pushes the correlated noise out of bounds
+    static constexpr double noiseDeformToCorrelation{0.8};
+
     float lastRate{-123485924.0}, lastSR{0};
     double lastFRate{0}, lastTSScale{-76543.2};
     inline void process_block(const float r, const float d, const int lshape, bool reverse = false,
                               double tsScale = 1.0, float phaseDeformAngle = 0)
     {
         float target{0.f};
+
+        // an un-attacked noise lfo still needs a history to read its first cycle from
+        if (!randomPrimed && !needsRandomRestart && (lshape == SH_NOISE || lshape == SMOOTH_NOISE))
+            restartRandomSequence(d * noiseDeformToCorrelation);
 
         auto frate = lastFRate;
         if (r != lastRate || tsScale != lastTSScale || lastSR != srProvider->samplerate)
@@ -224,8 +228,7 @@ template <typename SRProvider, int BLOCK_SIZE, bool clampDeform = false> struct 
         {
             if (lshape == SH_NOISE || lshape == SMOOTH_NOISE)
             {
-                // The deform can push correlated noise out of bounds
-                auto ud = d * 0.8;
+                auto ud = d * noiseDeformToCorrelation;
                 if (needsRandomRestart)
                 {
                     restartRandomSequence(ud);
